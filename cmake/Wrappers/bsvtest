@@ -1,0 +1,15 @@
+#!/bin/bash
+#
+# Bluesim testbench wrapper.  If the output contains the given pass string, the testbench is considered to have passed and
+# 0 is returned, 1 otherwise.   This is done to allow bsim testbenches to live in a CTest environment.
+#
+set -e
+
+RESULT=$($1 -m 5000)
+echo "$RESULT" > "$1_output.txt"
+if [[ ! $RESULT =~ "    PASS" ]]; then
+    echo ">>>>> FAILED: $RESULT"
+    exit 1
+fi
+
+exit 0

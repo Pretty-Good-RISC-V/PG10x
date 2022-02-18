@@ -1,0 +1,28 @@
+typedef Bit#(TMul#(lineBytes, 8)) CacheLine#(type lineBytes);
+typedef Bit#(tag_bits) CacheTag#(type tag_bits);
+
+typedef enum {
+    INVALID,    // Line is unused.
+    CLEAN,      // Line unchanged with respect to main memory.
+    DIRTY       // Line needs to be written back to main memory.
+} LineStatus deriving(Bits, Eq, FShow);
+
+typedef struct {
+    CacheLine#(line_bytes) line;
+    LineStatus status;
+    CacheTag#(tag_bits) tag;
+} TaggedLine#(type line_bytes, type tag_bits) deriving(Bits, Eq, FShow);
+
+typedef enum {
+    LoadHit,
+    StoreHit,
+    Miss
+} HitMissType deriving(Bits, Eq, FShow);
+
+// typedef struct {
+//     HitMissType hitMissType;
+//     union tagged {
+//         MemoryResponse#(32) LoadData;   // LoadHit
+//         TaggedLine TaggedLine;          // Miss
+//     } specific;
+// } CacheResponse deriving(Bits, Eq);

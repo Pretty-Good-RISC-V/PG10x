@@ -1,0 +1,8 @@
+== PG10x Core
+The PG10x series contains pipelined five stage in-order execution cores.
+
+[mermaid]
+....
+flowchart LR
+    Fetch[Instruction Fetch] --> Decode[Instruction Decode] --> Execution[Instruction Execution] --> Memory[Memory Access] --> Writeback[Register Writeback]
+....

@@ -1,0 +1,75 @@
+{
+    "version": 3,
+    "cmakeMinimumRequired": {
+        "major": 3,
+        "minor": 21,
+        "patch": 0
+    },
+    "configurePresets": [
+        {
+            "name": "base",
+            "displayName": "Base Config",
+            "hidden": true,
+            "generator": "Unix Makefiles",
+            "binaryDir": "${sourceDir}/build/${presetName}",
+            "environment": {
+                "CTEST_OUTPUT_ON_FAILURE": "True"
+            }
+        },
+        {
+            "name": "pg101",
+            "displayName": "PG101 (RV32I)",
+            "inherits": "base",
+            "cacheVariables": {
+                "BASE_ISA": {
+                    "type": "STRING",
+                    "value": "RV32"
+                }
+            }
+        },
+        {
+          "name": "pg101_isa_tests",
+          "displayName": "PG101 (RV32I) ISA_TESTS",
+          "inherits": "base",
+          "cacheVariables": {
+              "BASE_ISA": {
+                  "type": "STRING",
+                  "value": "RV32"
+              },
+              "MONITOR_TOHOST_ADDRESS": {
+                "type": "STRING",
+                "value": "MONITOR_TOHOST_ADDRESS"
+              }
+          }
+      },
+      {
+            "name": "pg103",
+            "displayName": "PG103 (RV64I)",
+            "cacheVariables": {
+                "BASE_ISA": {
+                    "type": "STRING",
+                    "value": "RV64"
+                }
+            }
+        }
+    ],
+    "buildPresets": [
+      {
+        "name": "default",
+        "configurePreset": "default"
+      }
+    ],
+    "testPresets": [
+      {
+        "name": "default",
+        "configurePreset": "default",
+        "output": {"outputOnFailure": true},
+        "execution": {"noTestsAction": "error", "stopOnFailure": true}
+      }
+    ],
+    "vendor": {
+      "example.com/ExampleIDE/1.0": {
+        "autoFormat": false
+      }
+    }
+  }

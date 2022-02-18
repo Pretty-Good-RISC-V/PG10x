@@ -1,0 +1,3 @@
+build
+**/*.sched
+test/conformance/riscof_work/

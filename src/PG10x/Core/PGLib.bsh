@@ -1,0 +1,6 @@
+import PGTypes::*;
+
+function ProgramCounter getEffectiveAddress(Word base, Word signedOffset);
+    Int#(XLEN) offset = unpack(signedOffset);
+    return pack(unpack(base) + offset);
+endfunction

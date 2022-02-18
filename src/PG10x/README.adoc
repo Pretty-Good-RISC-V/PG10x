@@ -1,0 +1,5 @@
+include::Core/README.adoc[]
+
+include::Tiles/README.adoc[]
+
+include::Simulator/README.adoc[]
