@@ -50,13 +50,13 @@ function Result#(LoadRequest, Exception) getLoadRequest(
     case (loadOperator)
         // Byte
         pack(LB): begin
-            loadRequest.mask = 'b1;
+            loadRequest.mask = 'b1 << rightShiftBytes;
             loadRequest.log2Size = 0;
             result = tagged Success loadRequest;
         end
 
         pack(LBU): begin
-            loadRequest.mask = 'b1;
+            loadRequest.mask = 'b1 << rightShiftBytes;
             loadRequest.log2Size = 0;
             loadRequest.signExtend = False;
             result = tagged Success loadRequest;
@@ -67,7 +67,7 @@ function Result#(LoadRequest, Exception) getLoadRequest(
             if ((effectiveAddress & 'b01) != 0) begin
                 result = tagged Error tagged ExceptionCause extend(pack(LOAD_ADDRESS_MISALIGNED));
             end else begin
-                loadRequest.mask = 'b11;
+                loadRequest.mask = 'b11 << rightShiftBytes;
                 loadRequest.log2Size = 1;
                 result = tagged Success loadRequest;
             end
@@ -77,7 +77,7 @@ function Result#(LoadRequest, Exception) getLoadRequest(
             if ((effectiveAddress & 'b01) != 0) begin
                 result = tagged Error tagged ExceptionCause extend(pack(LOAD_ADDRESS_MISALIGNED));
             end else begin
-                loadRequest.mask = 'b11;
+                loadRequest.mask = 'b11 << rightShiftBytes;
                 loadRequest.log2Size = 1;
                 loadRequest.signExtend = False;
                 result = tagged Success loadRequest;
@@ -89,7 +89,7 @@ function Result#(LoadRequest, Exception) getLoadRequest(
             if ((effectiveAddress & 'b11) != 0) begin
                 result = tagged Error tagged ExceptionCause extend(pack(LOAD_ADDRESS_MISALIGNED));
             end else begin
-                loadRequest.mask = 'b1111;
+                loadRequest.mask = 'b1111 << rightShiftBytes;
                 loadRequest.log2Size = 2;
                 result = tagged Success loadRequest;
             end
@@ -100,7 +100,7 @@ function Result#(LoadRequest, Exception) getLoadRequest(
             if ((effectiveAddress & 'b11) != 0) begin
                 result = tagged Error tagged ExceptionCause extend(pack(LOAD_ADDRESS_MISALIGNED));
             end else begin
-                loadRequest.mask = 'b1111;
+                loadRequest.mask = 'b1111 << rightShiftBytes;
                 loadRequest.log2Size = 2;
                 loadRequest.signExtend = False;
                 result = tagged Success loadRequest;

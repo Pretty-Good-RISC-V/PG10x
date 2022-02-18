@@ -289,7 +289,7 @@ module mkLoadStore_tb(Empty);
             expectedException: tagged Invalid,
             expectedWordAddress: 'h4000,
             expectedLog2Size: 0,
-            expectedMask: 'hFF,
+            expectedMask: 'b1,
             expectedSignExtend: True
         },
         LoadTestCase {
@@ -300,7 +300,7 @@ module mkLoadStore_tb(Empty);
             expectedException: tagged Invalid,
             expectedWordAddress: 'h4000,
             expectedLog2Size: 0,
-            expectedMask: 'hFF,
+            expectedMask: 'b10,
             expectedSignExtend: True
         },
         LoadTestCase {
@@ -311,7 +311,7 @@ module mkLoadStore_tb(Empty);
             expectedException: tagged Invalid,
             expectedWordAddress: 'h4000,
             expectedLog2Size: 0,
-            expectedMask: 'hFF,
+            expectedMask: 'b100,
             expectedSignExtend: True
         },
         LoadTestCase {
@@ -322,10 +322,11 @@ module mkLoadStore_tb(Empty);
             expectedException: tagged Invalid,
             expectedWordAddress: 'h4000,
             expectedLog2Size: 0,
-            expectedMask: 'hFF,
+            expectedMask: 'b1000,
             expectedSignExtend: True
-        },
+        }
 `ifdef RV64
+        ,
         LoadTestCase {
             shouldSucceed: True,
             loadOperator: pack(LB),
@@ -334,7 +335,7 @@ module mkLoadStore_tb(Empty);
             expectedException: tagged Invalid,
             expectedWordAddress: 'h4000,
             expectedLog2Size: 0,
-            expectedMask: 'hFF,
+            expectedMask: 'b1_0000,
             expectedSignExtend: True
         },
         LoadTestCase {
@@ -345,7 +346,7 @@ module mkLoadStore_tb(Empty);
             expectedException: tagged Invalid,
             expectedWordAddress: 'h4000,
             expectedLog2Size: 0,
-            expectedMask: 'hFF,
+            expectedMask: 'b10_0000,
             expectedSignExtend: True
         },
         LoadTestCase {
@@ -356,7 +357,7 @@ module mkLoadStore_tb(Empty);
             expectedException: tagged Invalid,
             expectedWordAddress: 'h4000,
             expectedLog2Size: 0,
-            expectedMask: 'hFF,
+            expectedMask: 'b100_0000,
             expectedSignExtend: True
         },
         LoadTestCase {
@@ -367,7 +368,7 @@ module mkLoadStore_tb(Empty);
             expectedException: tagged Invalid,
             expectedWordAddress: 'h4000,
             expectedLog2Size: 0,
-            expectedMask: 'hFF,
+            expectedMask: 'b1000_0000,
             expectedSignExtend: True
         }
 `endif
