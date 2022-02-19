@@ -71,7 +71,7 @@ module mkMemoryAccessUnit#(
                 end
             end else if (executedInstruction.storeRequest matches tagged Valid .storeRequest) begin
 `ifdef MONITOR_TOHOST_ADDRESS
-                if (storeRequest.effectiveAddress == toHostAddress) begin
+                if (storeRequest.wordAddress == toHostAddress) begin
                     let test_num = (storeRequest.value >> 1);
                     if (test_num == 0) $display ("    PASS");
                     else               $display ("    FAIL <test_%0d>", test_num);

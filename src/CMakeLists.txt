@@ -1,3 +1,4 @@
+find_package(TileLink)
+find_package(RVCommon)
+
 add_subdirectory(PG10x)
-add_subdirectory(RVLib)
-add_subdirectory(TileLink)

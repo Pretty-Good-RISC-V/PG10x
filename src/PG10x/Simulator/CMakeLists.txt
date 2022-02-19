@@ -3,7 +3,7 @@ find_package(BlueCheck)
 add_executable(PG10xSim Simulator.bsv)
 target_link_libraries(PG10xSim 
     PG10xCore::PG10xCore
-    RVLib::RVLib
+    RVCommon::RVCommon
     PGTiles::PGTiles
 )
 
@@ -21,11 +21,13 @@ target_compile_definitions(MemorySystem_tb PUBLIC
     ${BASE_ISA}
     ${MONITOR_TOHOST_ADDRESS}
 )
+
 target_link_libraries(MemorySystem_tb
-    RVLib::RVLib
+    RVCommon::RVCommon
     PG10xCore::PG10xCore
     PGTiles::PGTiles
 )
+
 add_test(
     NAME MemorySystem_tb
     COMMAND "${CMAKE_SOURCE_DIR}/cmake/Wrappers/bsvtest" "${CMAKE_CURRENT_BINARY_DIR}/MemorySystem_tb" 

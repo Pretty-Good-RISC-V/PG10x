@@ -2,7 +2,6 @@ import PGTypes::*;
 import BRAMServerTile::*;
 import MemorySystem::*;
 
-import DebugModule::*;
 import RegFile::*;
 import PG10xCore::*;
 import MemorySystem::*;
@@ -16,12 +15,8 @@ module mkSimulator(Empty);
     let memoryBaseAddress = 'h80000000;
     MemorySystem memorySystem <- mkMemorySystem(memory, memoryBaseAddress);
 
-    // Debug Module
-    DebugModule debugModule <- mkDebugModule();
-
     // Core
     PG100Core core <- mkPG100Core(
-        debugModule, 
         'h8000_0000, 
         memorySystem.instructionMemory, 
         memorySystem.dataMemory,

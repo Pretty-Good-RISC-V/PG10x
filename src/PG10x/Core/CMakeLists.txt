@@ -19,7 +19,7 @@ foreach(TEST_FILE ${TEST_FILES})
         ${BASE_ISA}
     )
     target_link_libraries(${TEST_TARGET}
-        RVLib::RVLib
+        RVCommon::RVCommon
         PG10xCoreCSR::PG10xCoreCSR
     )
     add_test(

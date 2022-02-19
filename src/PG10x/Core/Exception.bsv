@@ -5,6 +5,7 @@ import PGTypes::*;
 //
 // Structure containing information about an exceptional condition
 // encounted by the processor.
+//
 typedef union tagged {
     RVExceptionCause ExceptionCause;
     RVInterruptCause InterruptCause;

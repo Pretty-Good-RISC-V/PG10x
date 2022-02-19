@@ -1,4 +1,4 @@
-import RVTypes::*;
+import RVCommon::*;
 import Memory::*;
 
 typedef Bit#(XLEN) Word;
@@ -29,4 +29,4 @@ function Bool isSuccess(Result#(success_type, error_type) result);
     end
 endfunction
 
-export Memory::*, RVTypes::*, PGTypes::*;
+export Memory::*, RVCommon::*, PGTypes::*;

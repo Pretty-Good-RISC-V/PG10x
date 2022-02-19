@@ -1,4 +1,5 @@
 add_subdirectory(Caches)
+add_subdirectory(ProgramMemoryTile)
 
 add_library(PGTiles INTERFACE)
 add_library(PGTiles::PGTiles ALIAS PGTiles)

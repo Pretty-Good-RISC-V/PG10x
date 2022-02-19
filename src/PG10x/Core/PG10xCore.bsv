@@ -1,7 +1,6 @@
 import PGTypes::*;
 
 import CSRFile::*;
-import DebugModule::*;
 import DecodeUnit::*;
 import ExceptionController::*;
 import ExecutionUnit::*;
@@ -53,7 +52,6 @@ endinterface
 //      - In this stage, computed/fetched values are written back to the register file present in the instruction.
 //
 module mkPG100Core#(
-        DebugModule debugModule,
         ProgramCounter initialProgramCounter,
         InstructionMemoryServer instructionMemory,
         DataMemoryServer dataMemory,
