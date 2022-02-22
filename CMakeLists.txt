@@ -6,11 +6,18 @@ cmake_minimum_required(VERSION 3.21)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/BSV")
 
-enable_testing()
+#
+# Project
+#
+project(PG10x BSV CXX)
 
-project(RISC-V BSV CXX)
-
+#
+# Build Options
+#
 option(ENABLE_ISA_TESTS "Enable the RISC-V ISA Architecture Tests" OFF)
+option(ENABLE_BRANCH_PREDICTION "Enable the branch prediction inside RISC-V Core" ON)
+
+enable_testing()
 
 add_subdirectory(src)
 add_subdirectory(test)

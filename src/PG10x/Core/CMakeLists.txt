@@ -24,6 +24,6 @@ foreach(TEST_FILE ${TEST_FILES})
     )
     add_test(
         NAME ${TEST_TARGET}
-        COMMAND "${CMAKE_SOURCE_DIR}/cmake/Wrappers/bsvtest" "${CMAKE_CURRENT_BINARY_DIR}/${TEST_TARGET}" 
+        COMMAND "${CMAKE_SOURCE_DIR}/cmake/BSV/Wrappers/bsvtest" "${CMAKE_CURRENT_BINARY_DIR}/${TEST_TARGET}" 
     )
 endforeach()

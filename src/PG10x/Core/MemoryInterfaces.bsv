@@ -14,11 +14,11 @@ export TileLink::*,
        InstructionMemoryServer,
        DataMemoryServer;
 
-typedef TileLinkChannelARequest#(1, 1, XLEN, 4) InstructionMemoryRequest;
-typedef TileLinkChannelDResponse#(1, 1, 1, 4) InstructionMemoryResponse;
+typedef TileLinkChannelARequest#(1, XLEN, 32) InstructionMemoryRequest;
+typedef TileLinkChannelDResponse#(1, 1, 32) InstructionMemoryResponse;
 
-typedef TileLinkChannelARequest#(1, 1, XLEN, TDiv#(XLEN, 8)) DataMemoryRequest;
-typedef TileLinkChannelDResponse#(1, 1, 1, TDiv#(XLEN, 8)) DataMemoryResponse;
+typedef TileLinkChannelARequest#(1, XLEN, XLEN) DataMemoryRequest;
+typedef TileLinkChannelDResponse#(1, 1, XLEN) DataMemoryResponse;
 
 typedef Server#(InstructionMemoryRequest, InstructionMemoryResponse) InstructionMemoryServer;
 typedef Server#(DataMemoryRequest, DataMemoryResponse) DataMemoryServer;

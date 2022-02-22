@@ -1,7 +1,7 @@
 import PGTypes::*;
 import TileLink::*;
 import MemoryInterfaces::*;
-import BRAMServerTile::*;
+import ProgramMemoryTile::*;
 
 import ClientServer::*;
 import FIFO::*;
@@ -20,11 +20,10 @@ interface MemorySystem;
 endinterface
 
 module mkMemorySystem#(
-    DualPortBRAMServerTile memoryServer,
+    ProgramMemoryTile memoryServer,
     Integer memoryBaseAddress
 )(MemorySystem);
     Word baseAddress = fromInteger(memoryBaseAddress);
-    Word highMemoryAddress = baseAddress + fromInteger(memoryServer.getMemorySize);
 
 `ifdef RV64
     FIFO#(DataMemoryRequest) rv64requestQueue <- mkFIFO;
@@ -111,8 +110,7 @@ module mkMemorySystem#(
 
         interface Put request;
             method Action put(InstructionMemoryRequest request);
-                if (request.a_address >= baseAddress && 
-                    request.a_address < highMemoryAddress) begin
+                if (memoryServer.isValidAddress(request.a_address)) begin
                     request.a_address = request.a_address - baseAddress;
                 end else begin
                     request.a_corrupt = True;
@@ -138,8 +136,7 @@ module mkMemorySystem#(
 
         interface Put request;
             method Action put(DataMemoryRequest request);
-                if (request.a_address >= baseAddress && 
-                    request.a_address < highMemoryAddress) begin
+                if (memoryServer.isValidAddress(request.a_address)) begin
                     request.a_address = request.a_address - baseAddress;
                 end else begin
                     request.a_corrupt = True;

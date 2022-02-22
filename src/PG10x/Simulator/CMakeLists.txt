@@ -1,17 +1,27 @@
 find_package(BlueCheck)
 
-add_executable(PG10xSim Simulator.bsv)
-target_link_libraries(PG10xSim 
+#
+# Simulator
+#
+add_executable(Simulator Simulator.bsv)
+set_target_properties(Simulator PROPERTIES LINKER_LANGUAGE BSV)
+
+target_link_libraries(Simulator 
     PG10xCore::PG10xCore
     RVCommon::RVCommon
     PGTiles::PGTiles
 )
 
-target_compile_definitions(PG10xSim PUBLIC
+target_compile_definitions(Simulator PUBLIC
     ${BASE_ISA}
     ${MONITOR_TOHOST_ADDRESS}
-    #DISABLE_BRANCH_PREDICTION
 )
+
+if(!ENABLE_BRANCH_PREDICTION)
+    target_compile_definitions(Simulator PUBLIC
+        DISABLE_BRANCH_PREDICTION
+    )
+endif()
 
 #
 # Tests
@@ -30,6 +40,6 @@ target_link_libraries(MemorySystem_tb
 
 add_test(
     NAME MemorySystem_tb
-    COMMAND "${CMAKE_SOURCE_DIR}/cmake/Wrappers/bsvtest" "${CMAKE_CURRENT_BINARY_DIR}/MemorySystem_tb" 
+    COMMAND "${CMAKE_SOURCE_DIR}/cmake/BSV/Wrappers/bsvtest" "${CMAKE_CURRENT_BINARY_DIR}/MemorySystem_tb" 
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
 )

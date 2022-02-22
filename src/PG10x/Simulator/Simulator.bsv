@@ -1,5 +1,5 @@
 import PGTypes::*;
-import BRAMServerTile::*;
+import ProgramMemoryTile::*;
 import MemorySystem::*;
 
 import RegFile::*;
@@ -8,8 +8,7 @@ import MemorySystem::*;
 
 (* synthesize *)
 module mkSimulator(Empty);
-    // BRAM Server Tile
-    DualPortBRAMServerTile memory <- mkBRAMServerTileFromFile(32, "MemoryContents.hex");
+    ProgramMemoryTile memory <- mkProgramMemoryTile();
 
     // Memory System
     let memoryBaseAddress = 'h80000000;
