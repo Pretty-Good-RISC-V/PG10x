@@ -30,10 +30,10 @@ module mkMemoryAccessUnit#(
     PipelineController pipelineController,
     FIFO#(ExecutedInstruction) inputQueue,
 `ifdef MONITOR_TOHOST_ADDRESS
-    DataMemoryServer dataMemory,
+    TileLinkLiteWordServer dataMemory,
     Word toHostAddress
 `else
-    DataMemoryServer dataMemory
+    TileLinkLiteWordServer dataMemory
 `endif
 )(MemoryAccessUnit);
     FIFO#(ExecutedInstruction) outputQueue <- mkPipelineFIFO();
@@ -54,25 +54,16 @@ module mkMemoryAccessUnit#(
                 $display("%0d,%0d,%0d,%0d,%0d,memory access,LOAD", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
                 begin
                     // NOTE: Alignment checks were already performed during the execution stage.
-                    dataMemory.request.put(DataMemoryRequest {
-                        a_opcode: pack(A_GET),
-                        a_param: 0,
-                        a_size: 1,
-                        a_source: 0,
-                        a_address: loadRequest.wordAddress,
-                        a_mask: ?,
-                        a_data: ?,
-                        a_corrupt: False
-                    });
+                    dataMemory.request.put(loadRequest.tlRequest);
 
-                    $display("%0d,%0d,%0d,%0d,%0d,memory access, Loading from $%08x", fetchIndex, cycleCounter, executedInstruction.programCounter, loadRequest.wordAddress);
+                    $display("%0d,%0d,%0d,%0d,%0d,memory access, Loading from $%08x", fetchIndex, cycleCounter, executedInstruction.programCounter, loadRequest.tlRequest.a_address);
                     instructionWaitingForLoad <= executedInstruction;
                     waitingForLoadToComplete <= True;
                 end
             end else if (executedInstruction.storeRequest matches tagged Valid .storeRequest) begin
 `ifdef MONITOR_TOHOST_ADDRESS
-                if (storeRequest.wordAddress == toHostAddress) begin
-                    let test_num = (storeRequest.value >> 1);
+                if (storeRequest.tlRequest.a_address == toHostAddress) begin
+                    let test_num = (storeRequest.tlRequest.a_data >> 1);
                     if (test_num == 0) $display ("    PASS");
                     else               $display ("    FAIL <test_%0d>", test_num);
 
@@ -116,17 +107,35 @@ module mkMemoryAccessUnit#(
         // writeback pipeline stage.
         let loadRequest = unJust(executedInstruction.loadRequest);
         Word value = ?;
-        let rightShift = loadRequest.effectiveAddress - loadRequest.wordAddress;
-        if (rightShift == 0) begin
-            value = memoryResponse.d_data;
-        end else begin
-            if (loadRequest.signExtend) begin
-                value = signExtend(memoryResponse.d_data >> rightShift);
-            end else begin
-                value = extend(memoryResponse.d_data >> rightShift);
+        case (loadRequest.tlRequest.a_size)
+            0: begin    // 1 byte
+                if (loadRequest.signExtend)
+                    value = signExtend(memoryResponse.d_data[7:0]);
+                else
+                    value = zeroExtend(memoryResponse.d_data[7:0]);
             end
-        end
-
+            1: begin    // 2 bytes
+                if (loadRequest.signExtend)
+                    value = signExtend(memoryResponse.d_data[15:0]);
+                else
+                    value = zeroExtend(memoryResponse.d_data[15:0]);
+            end
+`ifdef RV32
+            2: begin    // 4 bytes
+                value = memoryResponse.d_data;
+            end
+`elsif RV64
+            2: begin    // 4 bytes
+                if (loadRequest.signExtend)
+                    value = signExtend(memoryResponse.d_data[31:0]);
+                else
+                    value = zeroExtend(memoryResponse.d_data[31:0]);
+            end
+            3: begin    // 8 bytes
+                value = memoryResponse.d_data;
+            end
+`endif
+        endcase
         executedInstruction.writeBack = tagged Valid WriteBack {
             rd: loadRequest.rd,
             value: value

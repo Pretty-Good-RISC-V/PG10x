@@ -7,18 +7,29 @@ import GetPut::*;
 export TileLink::*, 
        ClientServer::*,
        GetPut::*,
-       InstructionMemoryRequest, 
-       InstructionMemoryResponse, 
-       DataMemoryRequest,
-       DataMemoryResponse,
-       InstructionMemoryServer,
-       DataMemoryServer;
+       TileLinkLiteWord32Request,
+       TileLinkLiteWord32Response,
+       TileLinkLiteWord32Client,
+       TileLinkLiteWord32Server,
+       TileLinkLiteWordRequest,
+       TileLinkLiteWordResponse,
+       TileLinkLiteWordClient,
+       TileLinkLiteWordServer;
 
-typedef TileLinkChannelARequest#(1, XLEN, 32) InstructionMemoryRequest;
-typedef TileLinkChannelDResponse#(1, 1, 32) InstructionMemoryResponse;
+//
+// TilelLink 32 bit data request/response (Instruction Memory)
+//
+typedef TileLinkChannelARequest#(TLog#(4), 1, XLEN, 4) TileLinkLiteWord32Request;
+typedef TileLinkChannelDResponse#(TLog#(4), 1, 1, 4) TileLinkLiteWord32Response;
 
-typedef TileLinkChannelARequest#(1, XLEN, XLEN) DataMemoryRequest;
-typedef TileLinkChannelDResponse#(1, 1, XLEN) DataMemoryResponse;
+typedef Client#(TileLinkLiteWord32Request, TileLinkLiteWord32Response) TileLinkLiteWord32Client;
+typedef Server#(TileLinkLiteWord32Request, TileLinkLiteWord32Response) TileLinkLiteWord32Server;
 
-typedef Server#(InstructionMemoryRequest, InstructionMemoryResponse) InstructionMemoryServer;
-typedef Server#(DataMemoryRequest, DataMemoryResponse) DataMemoryServer;
+//
+// TileLink Word (32/64/128 bit) request/response (Data Memory)
+//
+typedef TileLinkChannelARequest#(TLog#(TDiv#(XLEN, 8)), 1, XLEN, TDiv#(XLEN, 8)) TileLinkLiteWordRequest;
+typedef TileLinkChannelDResponse#(TLog#(TDiv#(XLEN, 8)), 1, 1, TDiv#(XLEN, 8)) TileLinkLiteWordResponse;
+
+typedef Client#(TileLinkLiteWordRequest, TileLinkLiteWordResponse) TileLinkLiteWordClient;
+typedef Server#(TileLinkLiteWordRequest, TileLinkLiteWordResponse) TileLinkLiteWordServer;

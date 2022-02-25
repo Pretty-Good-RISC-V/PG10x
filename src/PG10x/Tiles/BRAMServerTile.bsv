@@ -5,8 +5,8 @@ import BRAM::*;
 import FIFO::*;
 
 interface DualPortBRAMServerTile;
-    interface TileLinkADServer32 portA;
-    interface TileLinkADServer32 portB;
+    interface TileLinkLiteWord32Server portA;
+    interface TileLinkLiteWord32Server portB;
 
     method Integer getMemorySize();
 endinterface
@@ -20,11 +20,11 @@ module mkBRAMServerTileFromFile#(
     cfg.loadFormat = tagged Hex memoryContents;
     BRAM2PortBE#(Word32, Word32, 4) bram <- mkBRAM2ServerBE(cfg);
 
-    FIFO#(TileLinkChannelARequest32) requests[2];
+    FIFO#(TileLinkLiteWord32Request) requests[2];
     requests[0] <- mkFIFO;
     requests[1] <- mkFIFO;
 
-    FIFO#(TileLinkChannelDResponse32) responses[2];
+    FIFO#(TileLinkLiteWord32Response) responses[2];
     responses[0] <- mkFIFO;
     responses[1] <- mkFIFO;
 
@@ -95,7 +95,7 @@ module mkBRAMServerTileFromFile#(
 
         requestInFlight[portNumber] <= False;
 
-        responses[portNumber].enq(TileLinkChannelDResponse32 {
+        responses[portNumber].enq(TileLinkLiteWord32Response {
             d_opcode: lastRequestIsWrite[portNumber] ? pack(D_ACCESS_ACK) : pack(D_ACCESS_ACK_DATA),
             d_param: 0,
             d_size: lastRequestIsWrite[portNumber] ? 0 : 1,
@@ -116,9 +116,9 @@ module mkBRAMServerTileFromFile#(
         handleBRAMResponse(bram.portB, 1);
     endrule
 
-    interface TileLinkADServer32 portA;
+    interface TileLinkLiteWord32Server portA;
         interface Get response;
-            method ActionValue#(TileLinkChannelDResponse32) get;
+            method ActionValue#(TileLinkLiteWord32Response) get;
                 let response = responses[0].first();
                 responses[0].deq;
 
@@ -127,15 +127,15 @@ module mkBRAMServerTileFromFile#(
         endinterface
 
         interface Put request;
-            method Action put(TileLinkChannelARequest32 request);
+            method Action put(TileLinkLiteWord32Request request);
                 requests[0].enq(request);
             endmethod
         endinterface
     endinterface
 
-    interface TileLinkADServer32 portB;
+    interface TileLinkLiteWord32Server portB;
         interface Get response;
-            method ActionValue#(TileLinkChannelDResponse32) get;
+            method ActionValue#(TileLinkLiteWord32Response) get;
                 let response = responses[1].first();
                 responses[1].deq;
 
@@ -144,7 +144,7 @@ module mkBRAMServerTileFromFile#(
         endinterface
 
         interface Put request;
-            method Action put(TileLinkChannelARequest32 request);
+            method Action put(TileLinkLiteWord32Request request);
                 requests[1].enq(request);
             endmethod
         endinterface

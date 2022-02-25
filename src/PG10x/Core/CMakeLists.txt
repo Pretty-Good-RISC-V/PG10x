@@ -6,6 +6,7 @@ add_library(PG10xCore::PG10xCore ALIAS PG10xCore)
 target_include_directories(PG10xCore INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(PG10xCore INTERFACE
     PG10xCoreCSR::PG10xCoreCSR
+    TileLink::TileLink
 )
 
 #
@@ -21,6 +22,7 @@ foreach(TEST_FILE ${TEST_FILES})
     target_link_libraries(${TEST_TARGET}
         RVCommon::RVCommon
         PG10xCoreCSR::PG10xCoreCSR
+        TileLink::TileLink
     )
     add_test(
         NAME ${TEST_TARGET}

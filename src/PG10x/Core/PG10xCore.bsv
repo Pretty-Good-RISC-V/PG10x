@@ -53,8 +53,8 @@ endinterface
 //
 module mkPG100Core#(
         ProgramCounter initialProgramCounter,
-        InstructionMemoryServer instructionMemory,
-        DataMemoryServer dataMemory,
+        TileLinkLiteWordServer instructionMemory,
+        TileLinkLiteWordServer dataMemory,
 `ifdef MONITOR_TOHOST_ADDRESS
         Word toHostAddress,
 `endif

@@ -1,4 +1,5 @@
 import PGTypes::*;
+import MemoryInterfaces::*;
 import TileLink::*;
 
 import ClientServer::*;
@@ -6,10 +7,10 @@ import FIFO::*;
 import GetPut::*;
 
 interface ProgramMemoryTile;
-    interface TileLinkADServer32 portA;
-    interface TileLinkADServer32 portB;
+    interface TileLinkLiteWordServer portA;
+    interface TileLinkLiteWordServer portB;
 
-    method Bool isValidAddress(Word32 address);
+    method Bool isValidAddress(Word address);
 endinterface
 
 typedef Word32 ContextHandle;
@@ -19,88 +20,98 @@ typedef Word32 ContextHandle;
 //
 import "BDPI" function ContextHandle program_memory_open();
 import "BDPI" function void program_memory_close(ContextHandle ctx);
-import "BDPI" function Word32 program_memory_read(ContextHandle ctx, Word32 address);
-import "BDPI" function void program_memory_write(ContextHandle ctx, Word32 address, Word32 value, Word32 write_mask);
-import "BDPI" function Bool program_memory_is_valid_address(ContextHandle ctx, Word32 address);
+import "BDPI" function Bool program_memory_is_valid_address(ContextHandle ctx, Word address);
+import "BDPI" function Bit#(8) program_memory_read_u8(ContextHandle ctx, Word address);
+import "BDPI" function Bit#(16) program_memory_read_u16(ContextHandle ctx, Word address);
+import "BDPI" function Bit#(32) program_memory_read_u32(ContextHandle ctx, Word address);
+import "BDPI" function Bit#(64) program_memory_read_u64(ContextHandle ctx, Word address);
+import "BDPI" function void program_memory_write_u8(ContextHandle ctx, Word address, Bit#(8) newValue);
+import "BDPI" function void program_memory_write_u16(ContextHandle ctx, Word address, Bit#(16) newValue);
+import "BDPI" function void program_memory_write_u32(ContextHandle ctx, Word address, Bit#(32) newValue);
+import "BDPI" function void program_memory_write_u64(ContextHandle ctx, Word address, Bit#(64) newValue);
 
 module mkProgramMemoryTile(ProgramMemoryTile);
     Word32 programMemoryContext = program_memory_open();
 
-    FIFO#(TileLinkChannelARequest32) requests[2];
+    FIFO#(TileLinkLiteWordRequest) requests[2];
     requests[0] <- mkFIFO;
     requests[1] <- mkFIFO;
 
-    FIFO#(TileLinkChannelDResponse32) responses[2];
+    FIFO#(TileLinkLiteWordResponse) responses[2];
     responses[0] <- mkFIFO;
     responses[1] <- mkFIFO;
 
-    Reg#(Bool) requestInFlight[2];
-    requestInFlight[0] <- mkReg(False);
-    requestInFlight[1] <- mkReg(False);
-
     function Action handleRequest(Integer portNumber);
         action
-        let request = requests[portNumber].first();
+        let request = requests[portNumber].first;
         requests[portNumber].deq;
 
-        let wordAddress = request.a_address >> 2;
-        let aligned = (request.a_address & 3) == 0 ? True : False;
-        let addressValid = program_memory_is_valid_address(programMemoryContext, request.a_address);
+        TileLinkLiteWordResponse response = TileLinkLiteWordResponse{
+            d_opcode: pack(D_ACCESS_ACK),
+            d_param: 0,
+            d_size: request.a_size,
+            d_source: request.a_source,
+            d_sink: 0,
+            d_denied: True,
+            d_data: ?,
+            d_corrupt: request.a_corrupt
+        };
 
-        if (addressValid && !request.a_corrupt && aligned && request.a_opcode == pack(A_GET)) begin
-            let value = program_memory_read(programMemoryContext, wordAddress);
-
-            responses[portNumber].enq(TileLinkChannelDResponse32 {
-                d_opcode: pack(D_ACCESS_ACK_DATA),
-                d_param: 0,
-                d_size: fromInteger(valueOf(TLog#(4))),
-                d_source: 0,
-                d_sink: 0,
-                d_denied: False,
-                d_data: ?,
-                d_corrupt: False
-            });
-        
-            requestInFlight[portNumber] <= True;
-        end else if (addressValid && !request.a_corrupt && aligned && request.a_opcode == pack(A_PUT_FULL_DATA)) begin
-            responses[portNumber].enq(TileLinkChannelDResponse32 {
-                d_opcode: pack(D_ACCESS_ACK),
-                d_param: 0,
-                d_size: fromInteger(valueOf(TLog#(4))),
-                d_source: 0,
-                d_sink: 0,
-                d_denied: False,
-                d_data: request.a_data,
-                d_corrupt: False
-            });
-        
-            requestInFlight[portNumber] <= True;
+        let addressValid = program_memory_is_valid_address(programMemoryContext, truncate(request.a_address));
+        if (addressValid && !request.a_corrupt && request.a_opcode == pack(A_GET)) begin
+            case (request.a_size)
+                0:  begin   // 1 byte
+                    response.d_opcode = pack(D_ACCESS_ACK_DATA);
+                    response.d_denied = False;
+                    response.d_data = extend(program_memory_read_u8(programMemoryContext, request.a_address));
+                end
+                1:  begin   // 2 bytes
+                    if ((request.a_address & 1) == 0) begin
+                        response.d_opcode = pack(D_ACCESS_ACK_DATA);
+                        response.d_denied = False;
+                        response.d_data = extend(program_memory_read_u16(programMemoryContext, request.a_address));
+                    end
+                end
+                2:  begin   // 4 bytes
+                    if ((request.a_address & 3) == 0) begin
+                        response.d_opcode = pack(D_ACCESS_ACK_DATA);
+                        response.d_denied = False;
+                        response.d_data = extend(program_memory_read_u32(programMemoryContext, request.a_address));
+                    end
+                end
+`ifdef RV64
+                3:  begin   // 8 bytes
+                    if ((request.a_address & 7) == 0) begin
+                        response.d_opcode = pack(D_ACCESS_ACK_DATA);
+                        response.d_denied = False;
+                        response.d_data = program_memory_read_u64(programMemoryContext, request.a_address);
+                    end
+                end
+`endif
+            endcase
+        end else if (addressValid && !request.a_corrupt && request.a_opcode == pack(A_PUT_FULL_DATA)) begin
+            response.d_opcode = pack(D_ACCESS_ACK);
+            response.d_denied = False;
         end else begin
-            responses[portNumber].enq(TileLinkChannelDResponse32 {
-                d_opcode: pack(D_ACCESS_ACK_DATA),
-                d_param: 0,
-                d_size: 0,
-                d_source: 0,
-                d_sink: 0,
-                d_denied: True,
-                d_data: ?,
-                d_corrupt: request.a_corrupt
-            });
+            response.d_denied = True;
         end
+
+        responses[portNumber].enq(response);
+
         endaction
     endfunction
 
-    rule requestA(!requestInFlight[0]);
+    rule requestA;
         handleRequest(0);
     endrule
 
-    rule requestB(!requestInFlight[1]);
+    rule requestB;
         handleRequest(1);
     endrule
 
-    interface TileLinkADServer32 portA;
+    interface TileLinkLiteWordServer portA;
         interface Get response;
-            method ActionValue#(TileLinkChannelDResponse32) get;
+            method ActionValue#(TileLinkLiteWordResponse) get;
                 let response = responses[0].first();
                 responses[0].deq;
 
@@ -109,15 +120,15 @@ module mkProgramMemoryTile(ProgramMemoryTile);
         endinterface
 
         interface Put request;
-            method Action put(TileLinkChannelARequest32 request);
+            method Action put(TileLinkLiteWordRequest request);
                 requests[0].enq(request);
             endmethod
         endinterface
     endinterface
 
-    interface TileLinkADServer32 portB;
+    interface TileLinkLiteWordServer portB;
         interface Get response;
-            method ActionValue#(TileLinkChannelDResponse32) get;
+            method ActionValue#(TileLinkLiteWordResponse) get;
                 let response = responses[1].first();
                 responses[1].deq;
 
@@ -126,7 +137,7 @@ module mkProgramMemoryTile(ProgramMemoryTile);
         endinterface
 
         interface Put request;
-            method Action put(TileLinkChannelARequest32 request);
+            method Action put(TileLinkLiteWordRequest request);
                 requests[1].enq(request);
             endmethod
         endinterface

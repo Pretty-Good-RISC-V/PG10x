@@ -34,7 +34,7 @@ module mkFetchUnit#(
     Integer stageNumber,
     ProgramCounter initialProgramCounter,
     ProgramCounterRedirect programCounterRedirect,
-    InstructionMemoryServer instructionMemory,
+    TileLinkLiteWordServer instructionMemory,
     Reg#(Bool) fetchEnabled
 )(FetchUnit);
     Reg#(Word) fetchCounter <- mkReg(0);
@@ -69,13 +69,13 @@ module mkFetchUnit#(
 
         $display("%0d,%0d,%0d,%0d,%0d,fetch send,fetch address: $%08x", fetchCounter, cycleCounter, fetchEpoch, fetchProgramCounter, stageNumber, fetchProgramCounter);
 
-        instructionMemory.request.put(InstructionMemoryRequest {
+        instructionMemory.request.put(TileLinkLiteWordRequest {
             a_opcode: pack(A_GET),
             a_param: 0,
-            a_size: 1,
+            a_size: 2, // Log2(sizeof(Word32))
             a_source: 0,
             a_address: fetchProgramCounter,
-            a_mask: ?,
+            a_mask: 'b1111,
             a_data: ?,
             a_corrupt: False
         });
@@ -109,7 +109,7 @@ module mkFetchUnit#(
             $display("%0d,%0d,%0d,%0d,%0d,fetch receive,encoded instruction=%08h", fetchInfo.index, cycleCounter, fetchInfo.epoch, fetchInfo.address, stageNumber, fetchResponse.d_data);
 
             // Predict what the next program counter will be
-            let predictedNextProgramCounter = branchPredictor.predictNextProgramCounter(fetchInfo.address, fetchResponse.d_data);
+            let predictedNextProgramCounter = branchPredictor.predictNextProgramCounter(fetchInfo.address, fetchResponse.d_data[31:0]);
             $display("%0d,%0d,%0d,%0d,%0d,fetch receive,predicted next instruction=$%x", fetchInfo.index, cycleCounter, fetchInfo.epoch, fetchInfo.address, stageNumber, predictedNextProgramCounter);
             programCounter[0] <= predictedNextProgramCounter;
 
@@ -119,7 +119,7 @@ module mkFetchUnit#(
                 programCounter: fetchInfo.address,
                 predictedNextProgramCounter: predictedNextProgramCounter,
                 pipelineEpoch: fetchInfo.epoch,
-                rawInstruction: fetchResponse.d_data
+                rawInstruction: fetchResponse.d_data[31:0]
             });
         end
     endrule

@@ -75,6 +75,14 @@ while [[ $# -gt 0 ]]; do
             log "[bsvc] Definition added: ${1:2}"
             shift
             ;;
+        -L*)
+            log "[bsvc] Ignoring library specification: ${key}"
+            shift
+            ;;
+        -l*)
+            log "[bsvc] Ignoring library specification: ${key}"
+            shift
+            ;;
         *)    # unknown option
             # If it's a directory, assume it's an include directory
             if [ "$TARGET" == "" ] || [[ $1 != *$TARGET ]]; then
@@ -108,6 +116,7 @@ fi
 
 if [ "$LINK" == "true" ]; then
     INPUT_FILE=${POSITIONAL[0]}
+    unset POSITIONAL[0]
 
     TOP_MODULE=mk$(basename "$INPUT_FILE" .bsv.bo)
 
@@ -123,7 +132,7 @@ if [ "$LINK" == "true" ]; then
     SOURCE_DIR=$(dirname "$INPUT_FILE")
 
     # Run the compiler
-    $BSV_COMPILER -show-schedule -sim -q -u -check-assert -e $TOP_MODULE -bdir "$OUTPUT_DIR" -p "$SOURCE_DIR:$INCLUDE_DIRECTORIES_SPEC" -o "$OUTPUT"
+    $BSV_COMPILER -show-schedule -sim -q -u -check-assert -e $TOP_MODULE -bdir "$OUTPUT_DIR" -p "$SOURCE_DIR:$INCLUDE_DIRECTORIES_SPEC" -o "$OUTPUT" ${POSITIONAL[@]}
 else
     INPUT_FILE=${POSITIONAL[0]}
 

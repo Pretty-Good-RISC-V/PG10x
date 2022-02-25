@@ -22,24 +22,3 @@ if(!ENABLE_BRANCH_PREDICTION)
         DISABLE_BRANCH_PREDICTION
     )
 endif()
-
-#
-# Tests
-#
-add_executable(MemorySystem_tb MemorySystem_tb.bsv)
-target_compile_definitions(MemorySystem_tb PUBLIC
-    ${BASE_ISA}
-    ${MONITOR_TOHOST_ADDRESS}
-)
-
-target_link_libraries(MemorySystem_tb
-    RVCommon::RVCommon
-    PG10xCore::PG10xCore
-    PGTiles::PGTiles
-)
-
-add_test(
-    NAME MemorySystem_tb
-    COMMAND "${CMAKE_SOURCE_DIR}/cmake/BSV/Wrappers/bsvtest" "${CMAKE_CURRENT_BINARY_DIR}/MemorySystem_tb" 
-    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-)

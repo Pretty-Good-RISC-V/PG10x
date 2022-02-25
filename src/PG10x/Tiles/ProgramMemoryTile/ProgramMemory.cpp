@@ -9,7 +9,7 @@
 
 struct Section {
     std::string name;
-    uint64_t address;
+    address_t address;
     std::vector<uint8_t> data;
 
     Section(const ELFIO::section *elf_section) {
@@ -22,7 +22,7 @@ struct Section {
         std::copy(elf_section->get_data(), elf_section->get_data() + elf_section->get_size(), data.begin());
     }
 
-    bool contains(uint64_t check) const {
+    bool contains(address_t check) const {
         return check >= address && check < (address + data.size());
     }
 };
@@ -37,6 +37,16 @@ struct SectionCompare {
 
 struct Context {
     std::set<std::shared_ptr<Section>, SectionCompare> sections;
+
+    std::shared_ptr<Section> find(address_t address) const {
+        for (const auto s : sections) {
+            if (s->contains(address)) {
+                return s;
+            }
+        }
+
+        return std::shared_ptr<Section>();
+    }
 };
 
 uint32_t next_handle = 1;
@@ -117,7 +127,7 @@ void program_memory_close(uint32_t handle) {
     contexts.erase(handle);
 }
 
-bool program_memory_is_valid_address(uint32_t handle, uint32_t address) {
+bool program_memory_is_valid_address(uint32_t handle, address_t address) {
     bool is_valid = false;
     const auto &i = contexts.find(handle);
     if (i != contexts.end()) {
@@ -131,4 +141,111 @@ bool program_memory_is_valid_address(uint32_t handle, uint32_t address) {
     }
 
     return is_valid;
+}
+
+template <typename T>
+struct AlignmentTraits {
+    static bool isAligned(address_t address);
+    static T defaultValue();
+};
+
+template<>
+bool AlignmentTraits<uint8_t>::isAligned(address_t address) {
+    return true;
+}
+
+template<>
+uint8_t AlignmentTraits<uint8_t>::defaultValue() {
+    return 0xAA;
+}
+
+template<>
+bool AlignmentTraits<uint16_t>::isAligned(address_t address) {
+    return (address & 1) == 0;
+}
+
+template<>
+uint16_t AlignmentTraits<uint16_t>::defaultValue() {
+    return 0xAACC;
+}
+
+template<>
+bool AlignmentTraits<uint32_t>::isAligned(address_t address) {
+    return (address & 3) == 0;
+}
+
+template<>
+uint32_t AlignmentTraits<uint32_t>::defaultValue() {
+    return 0xABCDABCD;
+}
+
+template<>
+bool AlignmentTraits<uint64_t>::isAligned(address_t address) {
+    return (address & 7) == 0;
+}
+
+template<>
+uint64_t AlignmentTraits<uint64_t>::defaultValue() {
+    return 0xABCDABCDABCDABCD;
+}
+
+template<typename T>
+T program_memory_read(context_handle handle, address_t address) {
+    T result = AlignmentTraits<T>::defaultValue();
+    assert(AlignmentTraits<T>::isAligned(address));
+    const auto &i = contexts.find(handle);
+    if (i != contexts.end()) {
+        const auto &s = (*i).second->find(address);
+        if (s) {
+            const auto sectionOffset = address - s->address;
+            result = *(const T *)&s->data[sectionOffset];
+        }
+    }
+
+    return result;
+}
+
+template<typename T>
+void program_memory_write(context_handle handle, address_t address, T value) {
+    assert(AlignmentTraits<T>::isAligned(address));
+    const auto &i = contexts.find(handle);
+    if (i != contexts.end()) {
+        const auto &s = (*i).second->find(address);
+        if (s) {
+            const auto sectionOffset = address - s->address;
+            *(T *)&s->data[sectionOffset] = value;
+        }
+    }
+}
+
+uint8_t program_memory_read_u8(context_handle handle, address_t address) {
+    return program_memory_read<uint8_t>(handle, address);
+}
+
+uint16_t program_memory_read_u16(context_handle handle, address_t address) {
+    return program_memory_read<uint16_t>(handle, address);
+}
+
+uint32_t program_memory_read_u32(context_handle handle, address_t address) {
+    return program_memory_read<uint32_t>(handle, address);
+}
+
+uint64_t program_memory_read_u64(context_handle handle, address_t address) {
+    return program_memory_read<address_t>(handle, address);
+}
+
+void program_memory_write_u8(context_handle handle, address_t address, uint8_t value) {
+    program_memory_write(handle, address, value);
+}
+
+void program_memory_write_u16(context_handle handle, address_t address, uint16_t value) {
+    program_memory_write(handle, address, value);
+}
+
+void program_memory_write_u32(context_handle handle, address_t address, uint32_t value) {
+    program_memory_write(handle, address, value);
+}
+
+void program_memory_write_u64(context_handle handle, address_t address, uint64_t value) {
+    program_memory_write(handle, address, value);
 }

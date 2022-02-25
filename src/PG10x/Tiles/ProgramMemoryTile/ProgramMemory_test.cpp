@@ -8,8 +8,8 @@ int main(int argc, const char *argv[]) {
     if (argc != 2) {
         std::cout << "Usage: " << argv[0] << " <ELF file>" << std::endl;
     } else {
-        std::string filename(argv[1]);
-        auto handle = program_memory_open(filename.c_str());
+        ::setenv("PROGRAM_MEMORY_FILE", argv[1], 1);
+        auto handle = program_memory_open();
         if (handle != 0) {
             
 

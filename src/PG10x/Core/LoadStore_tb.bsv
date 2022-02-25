@@ -2,6 +2,7 @@ import PGTypes::*;
 
 import Exception::*;
 import LoadStore::*;
+import TileLink::*;
 
 import Assert::*;
 import Printf::*;
@@ -20,8 +21,7 @@ typedef struct {
     Word value;
 
     Maybe#(Exception) expectedException;
-    Word expectedWordAddress;
-    Bit#(TDiv#(XLEN, 8)) expectedByteEnable;
+    Bit#(TDiv#(XLEN, 8)) expectedMask;
     Word expectedValue;
 } StoreTestCase deriving(Bits, Eq, FShow);
 
@@ -31,8 +31,7 @@ typedef struct {
     Word effectiveAddress;
 
     Maybe#(Exception) expectedException;
-    Word expectedWordAddress;
-    Bit#(TLog#(XLEN)) expectedLog2Size;
+    Bit#(TLog#(TDiv#(XLEN, 8))) expectedLog2Size;
     Bit#(TDiv#(XLEN, 8)) expectedMask;
     Bool expectedSignExtend;
 } LoadTestCase deriving(Bits, Eq, FShow);
@@ -58,8 +57,7 @@ module mkLoadStore_tb(Empty);
             value:                  'hff,
 
             expectedException:      tagged Invalid,
-            expectedWordAddress:    'h4000,
-            expectedByteEnable:     'b1,
+            expectedMask:           'b1,
             expectedValue:          'hff
         },
         StoreTestCase { 
@@ -69,9 +67,8 @@ module mkLoadStore_tb(Empty);
             value:                  'hff,
 
             expectedException:      tagged Invalid,
-            expectedWordAddress:    'h4000,
-            expectedByteEnable:     'b10,
-            expectedValue:          'hff00
+            expectedMask:           'b1,
+            expectedValue:          'hff
         },
         StoreTestCase { 
             shouldSucceed:          True,
@@ -80,9 +77,8 @@ module mkLoadStore_tb(Empty);
             value:                  'hff,
 
             expectedException:      tagged Invalid,
-            expectedWordAddress:    'h4000,
-            expectedByteEnable:     'b100,
-            expectedValue:          'hff0000
+            expectedMask:           'b1,
+            expectedValue:          'hff
         },
         StoreTestCase { 
             shouldSucceed:          True,
@@ -91,9 +87,8 @@ module mkLoadStore_tb(Empty);
             value:                  'hff,
 
             expectedException:      tagged Invalid,
-            expectedWordAddress:    'h4000,
-            expectedByteEnable:     'b1000,
-            expectedValue:          'hff000000
+            expectedMask:           'b1,
+            expectedValue:          'hff
         },
 `ifdef RV64
         StoreTestCase { 
@@ -103,9 +98,8 @@ module mkLoadStore_tb(Empty);
             value:                  'hff,
 
             expectedException:      tagged Invalid,
-            expectedWordAddress:    'h4000,
-            expectedByteEnable:     'b10000,
-            expectedValue:          'hff00000000
+            expectedMask:           'b1,
+            expectedValue:          'hff
         },
         StoreTestCase { 
             shouldSucceed:          True,
@@ -114,9 +108,8 @@ module mkLoadStore_tb(Empty);
             value:                  'hff,
 
             expectedException:      tagged Invalid,
-            expectedWordAddress:    'h4000,
-            expectedByteEnable:     'b100000,
-            expectedValue:          'hff0000000000
+            expectedMask:           'b1,
+            expectedValue:          'hff
         },
         StoreTestCase { 
             shouldSucceed:          True,
@@ -125,9 +118,8 @@ module mkLoadStore_tb(Empty);
             value:                  'hff,
 
             expectedException:      tagged Invalid,
-            expectedWordAddress:    'h4000,
-            expectedByteEnable:     'b1000000,
-            expectedValue:          'hff000000000000
+            expectedMask:           'b1,
+            expectedValue:          'hff
         },
         StoreTestCase { 
             shouldSucceed:          True,
@@ -136,9 +128,8 @@ module mkLoadStore_tb(Empty);
             value:                  'hff,
 
             expectedException:      tagged Invalid,
-            expectedWordAddress:    'h4000,
-            expectedByteEnable:     'b10000000,
-            expectedValue:          'hff00000000000000
+            expectedMask:           'b1,
+            expectedValue:          'hff
         },
 `endif
 
@@ -152,9 +143,8 @@ module mkLoadStore_tb(Empty);
             value:                  'hff44,
 
             expectedException:      tagged Invalid,
-            expectedWordAddress:    'h4000,
-            expectedByteEnable:     'b0011,
-            expectedValue:          'h0000_ff44
+            expectedMask:           'b11,
+            expectedValue:          'hff44
         },
         StoreTestCase { 
             shouldSucceed:          True,
@@ -163,9 +153,8 @@ module mkLoadStore_tb(Empty);
             value:                  'h0000_ff44,
 
             expectedException:      tagged Invalid,
-            expectedWordAddress:    'h4000,
-            expectedByteEnable:     'b1100,
-            expectedValue:          'hff44_0000
+            expectedMask:           'b11,
+            expectedValue:          'h0000_ff44
         },
 `ifdef RV64
         StoreTestCase { 
@@ -175,9 +164,8 @@ module mkLoadStore_tb(Empty);
             value:                  'hff44,
 
             expectedException:      tagged Invalid,
-            expectedWordAddress:    'h4000,
-            expectedByteEnable:     'b110000,
-            expectedValue:          'hff44_0000_0000
+            expectedMask:           'b11,
+            expectedValue:          'hff44
         },
         StoreTestCase { 
             shouldSucceed:          True,
@@ -186,9 +174,8 @@ module mkLoadStore_tb(Empty);
             value:                  'hff44,
 
             expectedException:      tagged Invalid,
-            expectedWordAddress:    'h4000,
-            expectedByteEnable:     'b11000000,
-            expectedValue:          'hff44_0000_0000_0000
+            expectedMask:           'b11,
+            expectedValue:          'hff44
         },
 `endif
         StoreTestCase { 
@@ -198,8 +185,7 @@ module mkLoadStore_tb(Empty);
             value:                  ?,
 
             expectedException:      tagged Valid tagged ExceptionCause extend(pack(STORE_ADDRESS_MISALIGNED)),
-            expectedWordAddress:    ?,
-            expectedByteEnable:     ?,
+            expectedMask:           'b11,
             expectedValue:          ?
         },
 `ifdef RV64
@@ -210,8 +196,7 @@ module mkLoadStore_tb(Empty);
             value:                  ?,
 
             expectedException:      tagged Valid tagged ExceptionCause extend(pack(STORE_ADDRESS_MISALIGNED)),
-            expectedWordAddress:    ?,
-            expectedByteEnable:     ?,
+            expectedMask:           'b11,
             expectedValue:          ?
         },
         StoreTestCase { 
@@ -221,8 +206,7 @@ module mkLoadStore_tb(Empty);
             value:                  ?,
 
             expectedException:      tagged Valid tagged ExceptionCause extend(pack(STORE_ADDRESS_MISALIGNED)),
-            expectedWordAddress:    ?,
-            expectedByteEnable:     ?,
+            expectedMask:           'b11,
             expectedValue:          ?
         },
         StoreTestCase { 
@@ -232,8 +216,7 @@ module mkLoadStore_tb(Empty);
             value:                  ?,
 
             expectedException:      tagged Valid tagged ExceptionCause extend(pack(STORE_ADDRESS_MISALIGNED)),
-            expectedWordAddress:    ?,
-            expectedByteEnable:     ?,
+            expectedMask:           'b11,
             expectedValue:          ?
         },
 `endif
@@ -244,8 +227,7 @@ module mkLoadStore_tb(Empty);
             value:                  'hff44_AA11,
 
             expectedException:      tagged Invalid,
-            expectedWordAddress:    'h4000,
-            expectedByteEnable:     'b1111,
+            expectedMask:           'b1111,
             expectedValue:          'hff44_AA11
         }
 `ifdef RV64
@@ -257,9 +239,8 @@ module mkLoadStore_tb(Empty);
             value:                  'hff44_AA11,
 
             expectedException:      tagged Invalid,
-            expectedWordAddress:    'h4000,
-            expectedByteEnable:     'b1111_0000,
-            expectedValue:          'hff44_AA11_0000_0000
+            expectedMask:           'b1111_1111,
+            expectedValue:          'hff44_AA11
         },
         StoreTestCase { 
             shouldSucceed:          False,
@@ -268,8 +249,7 @@ module mkLoadStore_tb(Empty);
             value:                  ?,
 
             expectedException:      tagged Valid tagged ExceptionCause extend(pack(STORE_ADDRESS_MISALIGNED)),
-            expectedWordAddress:    ?,
-            expectedByteEnable:     ?,
+            expectedMask:           ?,
             expectedValue:          ?
         }
 `endif
@@ -287,7 +267,6 @@ module mkLoadStore_tb(Empty);
             effectiveAddress: 'h4000,
 
             expectedException: tagged Invalid,
-            expectedWordAddress: 'h4000,
             expectedLog2Size: 0,
             expectedMask: 'b1,
             expectedSignExtend: True
@@ -298,9 +277,8 @@ module mkLoadStore_tb(Empty);
             effectiveAddress: 'h4001,
 
             expectedException: tagged Invalid,
-            expectedWordAddress: 'h4000,
             expectedLog2Size: 0,
-            expectedMask: 'b10,
+            expectedMask: 'b1,
             expectedSignExtend: True
         },
         LoadTestCase {
@@ -309,9 +287,8 @@ module mkLoadStore_tb(Empty);
             effectiveAddress: 'h4002,
 
             expectedException: tagged Invalid,
-            expectedWordAddress: 'h4000,
             expectedLog2Size: 0,
-            expectedMask: 'b100,
+            expectedMask: 'b1,
             expectedSignExtend: True
         },
         LoadTestCase {
@@ -320,9 +297,8 @@ module mkLoadStore_tb(Empty);
             effectiveAddress: 'h4003,
 
             expectedException: tagged Invalid,
-            expectedWordAddress: 'h4000,
             expectedLog2Size: 0,
-            expectedMask: 'b1000,
+            expectedMask: 'b1,
             expectedSignExtend: True
         }
 `ifdef RV64
@@ -333,9 +309,8 @@ module mkLoadStore_tb(Empty);
             effectiveAddress: 'h4004,
 
             expectedException: tagged Invalid,
-            expectedWordAddress: 'h4000,
             expectedLog2Size: 0,
-            expectedMask: 'b1_0000,
+            expectedMask: 'b1,
             expectedSignExtend: True
         },
         LoadTestCase {
@@ -344,9 +319,8 @@ module mkLoadStore_tb(Empty);
             effectiveAddress: 'h4005,
 
             expectedException: tagged Invalid,
-            expectedWordAddress: 'h4000,
             expectedLog2Size: 0,
-            expectedMask: 'b10_0000,
+            expectedMask: 'b1,
             expectedSignExtend: True
         },
         LoadTestCase {
@@ -355,9 +329,8 @@ module mkLoadStore_tb(Empty);
             effectiveAddress: 'h4006,
 
             expectedException: tagged Invalid,
-            expectedWordAddress: 'h4000,
             expectedLog2Size: 0,
-            expectedMask: 'b100_0000,
+            expectedMask: 'b1,
             expectedSignExtend: True
         },
         LoadTestCase {
@@ -366,9 +339,8 @@ module mkLoadStore_tb(Empty);
             effectiveAddress: 'h4007,
 
             expectedException: tagged Invalid,
-            expectedWordAddress: 'h4000,
             expectedLog2Size: 0,
-            expectedMask: 'b1000_0000,
+            expectedMask: 'b1,
             expectedSignExtend: True
         }
 `endif
@@ -388,9 +360,10 @@ module mkLoadStore_tb(Empty);
 
         dynamicAssert(isSuccess(result) == testCase.shouldSucceed, "Request success should be what's expected");
         if (result matches tagged Success .storeRequest) begin
-            dynamicAssert(storeRequest.wordAddress == testCase.expectedWordAddress, "Request word address incorrect.");
-            dynamicAssert(storeRequest.byteEnable == testCase.expectedByteEnable, "Byte enable incorrect.");
-            dynamicAssert(storeRequest.value == testCase.expectedValue, "Value incorrect.");
+            if (storeRequest.tlRequest.a_data != testCase.expectedValue) begin
+                $display("Value incorrect: %x, expected: %x", storeRequest.tlRequest.a_data, testCase.expectedValue);
+                $fatal();
+            end
         end else begin
             dynamicAssert(result.Error == unJust(testCase.expectedException), "Incorrect exception returned");
         end
@@ -413,9 +386,8 @@ module mkLoadStore_tb(Empty);
 
         dynamicAssert(isSuccess(result) == testCase.shouldSucceed, "Request success should be what's expected");
         if (result matches tagged Success .loadRequest) begin
-            dynamicAssert(loadRequest.wordAddress == testCase.expectedWordAddress, "Request word address incorrect.");
-            dynamicAssert(loadRequest.log2Size == testCase.expectedLog2Size, "Log2Size incorrect.");
-            dynamicAssert(loadRequest.mask == testCase.expectedMask, "Mask incorrect.");
+            dynamicAssert(loadRequest.tlRequest.a_size == testCase.expectedLog2Size, "Log2Size incorrect.");
+            dynamicAssert(loadRequest.tlRequest.a_mask == testCase.expectedMask, "Mask incorrect.");
             dynamicAssert(loadRequest.signExtend == testCase.expectedSignExtend, "Sign extension incorrect.");
         end else begin
             dynamicAssert(result.Error == unJust(testCase.expectedException), "Incorrect exception returned");

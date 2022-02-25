@@ -1,5 +1,6 @@
 import PGTypes::*;
 import Exception::*;
+import MemoryInterfaces::*;
 
 //
 // LoadRequest
@@ -8,10 +9,7 @@ import Exception::*;
 // from memory.
 //
 typedef struct {
-    Word effectiveAddress;      // Data aligned
-    Word wordAddress;           // XLEN aligned
-    Bit#(TDiv#(XLEN, 8)) mask;
-    Bit#(TLog#(XLEN)) log2Size;
+    TileLinkLiteWordRequest tlRequest;
 
     RegisterIndex rd;
     Bool signExtend;
@@ -32,17 +30,17 @@ function Result#(LoadRequest, Exception) getLoadRequest(
     Result#(LoadRequest, Exception) result = 
         tagged Error tagged ExceptionCause extend(pack(ILLEGAL_INSTRUCTION));
 
-    // Determine the *word* address of the store request.
-    let wordAddress = getWordAddress(effectiveAddress);
-
-    // Determine how much to shift bytes by to find the right byte address inside a word.
-    Bit#(6) rightShiftBytes = truncate(effectiveAddress - wordAddress);
-
     let loadRequest = LoadRequest {
-        effectiveAddress: effectiveAddress,
-        wordAddress: wordAddress,
-        mask: ?,
-        log2Size: ?,
+        tlRequest: TileLinkLiteWordRequest {
+            a_opcode: pack(A_GET),
+            a_param: 0,
+            a_size: ?,
+            a_source: 0,
+            a_address: effectiveAddress,
+            a_mask: ?,
+            a_data: ?,
+            a_corrupt: False
+        },
         rd: rd,
         signExtend: True
     };
@@ -50,14 +48,14 @@ function Result#(LoadRequest, Exception) getLoadRequest(
     case (loadOperator)
         // Byte
         pack(LB): begin
-            loadRequest.mask = 'b1 << rightShiftBytes;
-            loadRequest.log2Size = 0;
+            loadRequest.tlRequest.a_size = 0; // 1 byte
+            loadRequest.tlRequest.a_mask = 'b1;
             result = tagged Success loadRequest;
         end
 
         pack(LBU): begin
-            loadRequest.mask = 'b1 << rightShiftBytes;
-            loadRequest.log2Size = 0;
+            loadRequest.tlRequest.a_size = 0; // 1 byte
+            loadRequest.tlRequest.a_mask = 'b1;
             loadRequest.signExtend = False;
             result = tagged Success loadRequest;
         end
@@ -67,8 +65,8 @@ function Result#(LoadRequest, Exception) getLoadRequest(
             if ((effectiveAddress & 'b01) != 0) begin
                 result = tagged Error tagged ExceptionCause extend(pack(LOAD_ADDRESS_MISALIGNED));
             end else begin
-                loadRequest.mask = 'b11 << rightShiftBytes;
-                loadRequest.log2Size = 1;
+                loadRequest.tlRequest.a_size = 1; // 2 bytes
+                loadRequest.tlRequest.a_mask = 'b11;
                 result = tagged Success loadRequest;
             end
         end
@@ -77,8 +75,8 @@ function Result#(LoadRequest, Exception) getLoadRequest(
             if ((effectiveAddress & 'b01) != 0) begin
                 result = tagged Error tagged ExceptionCause extend(pack(LOAD_ADDRESS_MISALIGNED));
             end else begin
-                loadRequest.mask = 'b11 << rightShiftBytes;
-                loadRequest.log2Size = 1;
+                loadRequest.tlRequest.a_size = 1; // 2 bytes
+                loadRequest.tlRequest.a_mask = 'b11;
                 loadRequest.signExtend = False;
                 result = tagged Success loadRequest;
             end
@@ -89,8 +87,8 @@ function Result#(LoadRequest, Exception) getLoadRequest(
             if ((effectiveAddress & 'b11) != 0) begin
                 result = tagged Error tagged ExceptionCause extend(pack(LOAD_ADDRESS_MISALIGNED));
             end else begin
-                loadRequest.mask = 'b1111 << rightShiftBytes;
-                loadRequest.log2Size = 2;
+                loadRequest.tlRequest.a_size = 2; // 4 bytes
+                loadRequest.tlRequest.a_mask = 'b1111;
                 result = tagged Success loadRequest;
             end
         end
@@ -100,8 +98,8 @@ function Result#(LoadRequest, Exception) getLoadRequest(
             if ((effectiveAddress & 'b11) != 0) begin
                 result = tagged Error tagged ExceptionCause extend(pack(LOAD_ADDRESS_MISALIGNED));
             end else begin
-                loadRequest.mask = 'b1111 << rightShiftBytes;
-                loadRequest.log2Size = 2;
+                loadRequest.tlRequest.a_size = 2; // 4 bytes
+                loadRequest.tlRequest.a_mask = 'b1111;
                 loadRequest.signExtend = False;
                 result = tagged Success loadRequest;
             end
@@ -111,8 +109,8 @@ function Result#(LoadRequest, Exception) getLoadRequest(
             if ((effectiveAddress & 'b111) != 0) begin
                 result = tagged Error tagged ExceptionCause extend(pack(LOAD_ADDRESS_MISALIGNED));
             end else begin
-                loadRequest.mask = 'b1111_1111;
-                loadRequest.log2Size = 3;
+                loadRequest.tlRequest.a_size = 3; // 8 bytes
+                loadRequest.tlRequest.a_mask = 'b1111_1111;
                 result = tagged Success loadRequest;
             end
         end
@@ -129,9 +127,7 @@ endfunction
 // to memory.
 //
 typedef struct {
-    Word wordAddress;       // XLEN aligned
-    Bit#(TDiv#(XLEN, 8)) byteEnable;
-    Word value;
+    TileLinkLiteWordRequest tlRequest;
 } StoreRequest deriving(Bits, Eq, FShow);
 
 function Result#(StoreRequest, Exception) getStoreRequest(
@@ -142,22 +138,25 @@ function Result#(StoreRequest, Exception) getStoreRequest(
     Result#(StoreRequest, Exception) result = 
         tagged Error tagged ExceptionCause extend(pack(ILLEGAL_INSTRUCTION));
 
-    let wordAddress = getWordAddress(effectiveAddress);
-
-    // Determine how much to shift bytes by to find the right byte address inside a word.
-    let leftShiftBytes = effectiveAddress - wordAddress;
-
     let storeRequest = StoreRequest {
-        wordAddress: wordAddress,
-        byteEnable: ?,
-        value: ?
+        tlRequest: TileLinkLiteWordRequest {
+            a_opcode: pack(A_PUT_PARTIAL_DATA),
+            a_param: 0,
+            a_size: ?,
+            a_source: 0,
+            a_address: effectiveAddress,
+            a_mask: ?,
+            a_data: ?,
+            a_corrupt: False
+        }
     };
 
     case (storeOperator)
         // Byte
         pack(SB): begin
-            storeRequest.byteEnable = ('b1 << leftShiftBytes);
-            storeRequest.value = (value & 'hFF) << (8 * leftShiftBytes);
+            storeRequest.tlRequest.a_size = 0; // 1 byte
+            storeRequest.tlRequest.a_mask = 'b1;
+            storeRequest.tlRequest.a_data = (value & 'hFF);
 
             result = tagged Success storeRequest;
         end
@@ -166,8 +165,9 @@ function Result#(StoreRequest, Exception) getStoreRequest(
             if ((effectiveAddress & 'b01) != 0) begin
                 result = tagged Error tagged ExceptionCause extend(pack(STORE_ADDRESS_MISALIGNED));
             end else begin
-                storeRequest.byteEnable = ('b11 << leftShiftBytes);
-                storeRequest.value = (value & 'hFFFF) << (8 * leftShiftBytes);
+                storeRequest.tlRequest.a_size = 1; // 2 bytes
+                storeRequest.tlRequest.a_mask = 'b11;
+                storeRequest.tlRequest.a_data = (value & 'hFFFF);
 
                 result = tagged Success storeRequest;
             end
@@ -177,8 +177,13 @@ function Result#(StoreRequest, Exception) getStoreRequest(
             if ((effectiveAddress & 'b11) != 0) begin
                 result = tagged Error tagged ExceptionCause extend(pack(STORE_ADDRESS_MISALIGNED));
             end else begin
-                storeRequest.byteEnable = ('b1111 << leftShiftBytes);
-                storeRequest.value = (value & 'hFFFF_FFFF) << (8 * leftShiftBytes);
+`ifdef RV32
+                storeRequest.tlRequest.a_opcode = pack(A_PUT_FULL_DATA);
+`endif
+                storeRequest.tlRequest.a_size = 2; // 4 bytes
+                storeRequest.tlRequest.a_mask = 'b1111;
+                storeRequest.tlRequest.a_data = (value & 'hFFFF_FFFF);
+
 
                 result = tagged Success storeRequest;
             end
@@ -189,8 +194,10 @@ function Result#(StoreRequest, Exception) getStoreRequest(
             if ((effectiveAddress & 'b111) != 0) begin
                 result = tagged Error tagged ExceptionCause extend(pack(STORE_ADDRESS_MISALIGNED));
             end else begin
-                storeRequest.byteEnable = 'b1111_1111;
-                storeRequest.value = value;
+                storeRequest.tlRequest.a_opcode = pack(A_PUT_FULL_DATA);
+                storeRequest.tlRequest.a_size = 3; // 8 bytes
+                storeRequest.tlRequest.a_mask = 'b1111_1111;
+                storeRequest.tlRequest.a_data = (value & 'hFFFF_FFFF_FFFF_FFFF);
 
                 result = tagged Success storeRequest;
             end
