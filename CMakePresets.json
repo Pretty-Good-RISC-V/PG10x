@@ -45,6 +45,7 @@
     {
       "name": "pg103",
       "displayName": "PG103 (RV64I)",
+      "inherits": "base",
       "cacheVariables": {
         "BASE_ISA": {
           "type": "STRING",
