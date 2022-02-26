@@ -57,6 +57,72 @@ module mkExecutionUnit#(
         endcase;
     endfunction
 
+    function ActionValue#(ExecutedInstruction) executeCSR(
+        DecodedInstruction decodedInstruction,
+        CSRFile csrFile,
+        ExecutedInstruction executedInstruction
+    );
+        actionvalue
+        if (decodedInstruction.csrOperator[1:0] != 0) begin
+            dynamicAssert(isValid(decodedInstruction.rd), "RD is invalid");
+
+            let operand = (isValid(decodedInstruction.immediate) ? 
+                unJust(decodedInstruction.immediate) : decodedInstruction.rs1Value);
+            let csrIndex = decodedInstruction.csrIndex;
+            let csrWriteEnabled = (isValid(decodedInstruction.immediate) || unJust(decodedInstruction.rs1) != 0);
+            let rd = unJust(decodedInstruction.rd);
+
+            let readStatus = csrFile.read1(currentPrivilegeLevel, csrIndex);
+
+            if (isValid(readStatus)) begin
+                let currentValue = unJust(readStatus);
+
+                executedInstruction.writeBack = tagged Valid WriteBack {
+                    rd: rd,
+                    value: currentValue
+                };
+
+                let clearBits = currentValue & ~operand;
+                let setBits = currentValue | operand;
+                Maybe#(Word) writeValue = tagged Invalid;
+
+                case(decodedInstruction.csrOperator[1:0])
+                    'b01: begin // CSRRW(I)
+                        writeValue = tagged Valid operand;
+                    end
+                    'b10: begin // CSRRS(I)
+                        if (csrWriteEnabled) begin
+                            writeValue = tagged Valid setBits;
+                        end
+                    end
+                    'b11: begin // CSRRC(I)
+                        if (csrWriteEnabled) begin
+                            writeValue = tagged Valid clearBits;
+                        end
+                    end
+                endcase
+
+                if (writeValue matches tagged Valid .v) begin
+                    let writeSucceeded <- csrFile.write1(currentPrivilegeLevel, csrIndex, v);
+                    if (writeSucceeded == False) begin
+                        $display("CSR($%0x): Write failed", csrIndex);
+                        executedInstruction.exception = tagged Valid tagged ExceptionCause extend(pack(ILLEGAL_INSTRUCTION));
+                    end else begin
+                        executedInstruction.exception = tagged Invalid;
+                    end
+                end else begin
+                    $display("CSR($%0x): Write not requested", csrIndex);
+                    executedInstruction.exception = tagged Invalid;
+                end
+            end else begin
+                executedInstruction.exception = tagged Valid tagged ExceptionCause extend(pack(ILLEGAL_INSTRUCTION));
+                $display("CSR($%0x): Read failed", decodedInstruction.csrIndex);
+            end
+        end
+        return executedInstruction;
+        endactionvalue
+    endfunction
+
     function ActionValue#(ExecutedInstruction) executeInstruction(
         DecodedInstruction decodedInstruction,
         CSRFile csrFile,
@@ -138,124 +204,7 @@ module mkExecutionUnit#(
                 end
 
                 CSR: begin
-                    case(decodedInstruction.csrOperator)
-                        pack(CSRRS), pack(CSRRSI): begin
-                            // The CSRRS (Atomic Read and Set Bits in CSR) instruction:
-                            // 1) Reads the value of the CSR, zero- extends the value to XLEN bits, and writes it to integer register rd. 
-                            // 2) The initial value in integer register rs1 is treated as a bit mask that specifies bit positions to be set in the CSR. 
-                            //    Any bit that is high in rs1 will cause the corresponding bit to be set in the CSR, if that CSR bit is writable. 
-                            //    Other bits in the CSR are unaffected (though CSRs might have side effects when written).
-                            //    if rs1=x0, then the instruction will not write to the CSR at all, and so shall not cause any of the side effects 
-                            //    that might otherwise occur on a CSR write, such as raising illegal instruction exceptions on accesses to read-only CSRs.
-                            Word newCSRValue = (decodedInstruction.csrOperator == pack(CSRRS)) ? 
-                                decodedInstruction.rs1Value : unJust(decodedInstruction.immediate);
-
-                            let value = csrFile.read1(currentPrivilegeLevel, decodedInstruction.csrIndex);
-                            if (isValid(value)) begin
-                                let oldValue = unJust(value);
-                                let rd = unJust(decodedInstruction.rd);
-                                let rs1 = unJust(decodedInstruction.rs1);
-
-                                executedInstruction.writeBack = tagged Valid WriteBack {
-                                    rd: rd,
-                                    value: oldValue
-                                };
-
-                                $display("CSSRS($%0x): Old Value: $%0x (returned in x%0d)", decodedInstruction.csrIndex, oldValue, rd);
-
-                                // Per spec, if RS1 is x0, don't perform any writes to the CSR.
-                                if (rs1 != 0) begin
-                                    let newValue = oldValue | newCSRValue;
-                                    $display("CSSRS($%0x): New Value: $%0x", decodedInstruction.csrIndex, newValue);
-
-                                    let writeStatus <- csrFile.write1(currentPrivilegeLevel, decodedInstruction.csrIndex, newValue);
-                                    if (writeStatus == False) begin
-                                        $display("CSSRS($%0x): Write failed", decodedInstruction.csrIndex);
-                                        executedInstruction.writeBack = tagged Invalid;
-                                        executedInstruction.exception = tagged Valid tagged ExceptionCause extend(pack(ILLEGAL_INSTRUCTION));
-                                    end else begin
-                                        executedInstruction.exception = tagged Invalid;
-                                    end
-                                end else begin
-                                    executedInstruction.exception = tagged Invalid;
-                                    $display("CSRRS($%0x): RS1 is x0 - no update", decodedInstruction.csrIndex);
-                                end
-                            end else begin
-                                $display("CSRRS($%0x): Reading failed.", decodedInstruction.csrIndex);
-                            end
-                        end
-
-                        pack(CSRRW), pack(CSRRWI): begin
-                            // The CSRRW (Atomic Read/Write CSR) instruction atomically swaps values in 
-                            // the CSRs and integer registers. 
-                            // 1) CSRRW reads the old value of the CSR, zero-extends the value to XLEN bits, 
-                            //    then writes it to integer register rd. 
-                            // 2) The initial value in rs1 is written to the CSR. If rd=x0, then the instruction 
-                            //    shall not read the CSR and shall not cause any of the side effects that might 
-                            //    occur on a CSR read.
-                            Word newCSRValue = (decodedInstruction.csrOperator == pack(CSRRW)) ? 
-                                decodedInstruction.rs1Value : unJust(decodedInstruction.immediate);
-
-                            let value = csrFile.read1(currentPrivilegeLevel, decodedInstruction.csrIndex);
-                            if (isValid(value)) begin
-                                // Step #1
-                                let oldValue = unJust(value);
-                                let rd = unJust(decodedInstruction.rd);
-
-                                executedInstruction.writeBack = tagged Valid WriteBack {
-                                    rd: rd,
-                                    value: oldValue
-                                };
-
-                                let writeStatus <- csrFile.write1(currentPrivilegeLevel, decodedInstruction.csrIndex, newCSRValue);
-                                if (writeStatus == False) begin
-                                    $display("CSRRW* write failed: Index: $%x, Value: $%x", decodedInstruction.csrIndex, newCSRValue);
-                                    executedInstruction.writeBack = tagged Invalid;
-                                    executedInstruction.exception = tagged Valid tagged ExceptionCause extend(pack(ILLEGAL_INSTRUCTION));
-                                end else begin
-                                    executedInstruction.exception = tagged Invalid;
-                                end
-                            end else begin
-                                $display("CSRRW* read failed: Index: $%x", decodedInstruction.csrIndex);
-                            end
-                        end
-
-                        pack(CSRRC), pack(CSRRCI): begin
-                            // The CSRRC (Atomic Read and Clear Bits in CSR) instruction:
-                            // 1) Reads the value of the CSR, zero-extends the value to XLEN bits, and writes it to integer register rd. 
-                            //    The initial value in integer register rs1 is treated as a bit mask that specifies bit positions to be cleared in the CSR. 
-                            //    Any bit that is high in rs1 will cause the corresponding bit to be cleared in the CSR, if that CSR bit is writable. 
-                            //    Other bits in the CSR are unaffected.
-                            let value = csrFile.read1(currentPrivilegeLevel, decodedInstruction.csrIndex);
-                            if (isValid(value)) begin
-                                let oldValue = unJust(value);
-                                let rd = unJust(decodedInstruction.rd);
-                                let rs1 = unJust(decodedInstruction.rs1);
-
-                                executedInstruction.writeBack = tagged Valid WriteBack {
-                                    rd: rd,
-                                    value: oldValue
-                                };
-
-                                if (rs1 != 0) begin
-                                    let newCSRValue = oldValue & ~decodedInstruction.rs1Value;
-
-                                    let writeStatus <- csrFile.write1(currentPrivilegeLevel, decodedInstruction.csrIndex, newCSRValue);
-                                    if (writeStatus == False) begin
-                                        $display("CSRC* write failed: Index: $%x, Value: $%x", decodedInstruction.csrIndex, newCSRValue);
-                                        executedInstruction.writeBack = tagged Invalid;
-                                        executedInstruction.exception = tagged Valid tagged ExceptionCause extend(pack(ILLEGAL_INSTRUCTION));
-                                    end else begin
-                                        executedInstruction.exception = tagged Invalid;
-                                    end
-                                end else begin
-                                    executedInstruction.exception = tagged Invalid;
-                                end
-                            end else begin
-                                $display("CSRRC* read failed: Index: $%x", decodedInstruction.csrIndex);
-                            end
-                        end
-                    endcase
+                    executedInstruction <- executeCSR(decodedInstruction, csrFile, executedInstruction);
                 end
 
                 FENCE: begin
