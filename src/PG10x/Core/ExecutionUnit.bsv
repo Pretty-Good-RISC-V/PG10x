@@ -153,23 +153,35 @@ module mkExecutionUnit#(
                             let value = csrFile.read1(currentPrivilegeLevel, decodedInstruction.csrIndex);
                             if (isValid(value)) begin
                                 let oldValue = unJust(value);
+                                let rd = unJust(decodedInstruction.rd);
+                                let rs1 = unJust(decodedInstruction.rs1);
+
                                 executedInstruction.writeBack = tagged Valid WriteBack {
-                                    rd: unJust(decodedInstruction.rd),
+                                    rd: rd,
                                     value: oldValue
                                 };
 
+                                $display("CSSRS($%0x): Old Value: $%0x (returned in x%0d)", decodedInstruction.csrIndex, oldValue, rd);
+
                                 // Per spec, if RS1 is x0, don't perform any writes to the CSR.
-                                if (unJust(decodedInstruction.rs1) != 0) begin
+                                if (rs1 != 0) begin
                                     let newValue = oldValue | newCSRValue;
+                                    $display("CSSRS($%0x): New Value: $%0x", decodedInstruction.csrIndex, newValue);
+
                                     let writeStatus <- csrFile.write1(currentPrivilegeLevel, decodedInstruction.csrIndex, newValue);
                                     if (writeStatus == False) begin
+                                        $display("CSSRS($%0x): Write failed", decodedInstruction.csrIndex);
                                         executedInstruction.writeBack = tagged Invalid;
                                         executedInstruction.exception = tagged Valid tagged ExceptionCause extend(pack(ILLEGAL_INSTRUCTION));
+                                    end else begin
+                                        executedInstruction.exception = tagged Invalid;
                                     end
+                                end else begin
+                                    executedInstruction.exception = tagged Invalid;
+                                    $display("CSRRS($%0x): RS1 is x0 - no update", decodedInstruction.csrIndex);
                                 end
-
-                                $display("CSRRS: $%x (RS1: $%x, RD: $%x)", decodedInstruction.csrIndex, decodedInstruction.rs1Value, oldValue);
-                                executedInstruction.exception = tagged Invalid;
+                            end else begin
+                                $display("CSRRS($%0x): Reading failed.", decodedInstruction.csrIndex);
                             end
                         end
 
@@ -188,8 +200,10 @@ module mkExecutionUnit#(
                             if (isValid(value)) begin
                                 // Step #1
                                 let oldValue = unJust(value);
+                                let rd = unJust(decodedInstruction.rd);
+
                                 executedInstruction.writeBack = tagged Valid WriteBack {
-                                    rd: unJust(decodedInstruction.rd),
+                                    rd: rd,
                                     value: oldValue
                                 };
 
@@ -216,13 +230,14 @@ module mkExecutionUnit#(
                             if (isValid(value)) begin
                                 let oldValue = unJust(value);
                                 let rd = unJust(decodedInstruction.rd);
+                                let rs1 = unJust(decodedInstruction.rs1);
 
                                 executedInstruction.writeBack = tagged Valid WriteBack {
                                     rd: rd,
                                     value: oldValue
                                 };
 
-                                if (rd != 0) begin
+                                if (rs1 != 0) begin
                                     let newCSRValue = oldValue & ~decodedInstruction.rs1Value;
 
                                     let writeStatus <- csrFile.write1(currentPrivilegeLevel, decodedInstruction.csrIndex, newCSRValue);
@@ -321,7 +336,7 @@ module mkExecutionUnit#(
 
                     let effectiveAddress = getEffectiveAddress(decodedInstruction.rs1Value, unJust(decodedInstruction.immediate));
 
-                    $display("Store effective address: $%x", effectiveAddress);
+                   $display("Store effective address: $%x", effectiveAddress);
 
                     let result = getStoreRequest(
                         decodedInstruction.storeOperator,
@@ -357,22 +372,21 @@ module mkExecutionUnit#(
     (* fire_when_enabled *)
     rule execute;
         let decodedInstruction = inputQueue.first();
+        inputQueue.deq();
+
         let fetchIndex = decodedInstruction.fetchIndex;
         let stageEpoch = pipelineController.stageEpoch(stageNumber, 1);
 
         if (!pipelineController.isCurrentEpoch(stageNumber, 1, decodedInstruction.pipelineEpoch)) begin
             $display("%0d,%0d,%0d,%0x,%0d,execute,stale instruction (%0d != %0d)...ignoring", fetchIndex, csrFile.cycle_counter, decodedInstruction.pipelineEpoch, inputQueue.first().programCounter, stageNumber, inputQueue.first().pipelineEpoch, stageEpoch);
-            inputQueue.deq();
         end else begin
             let currentEpoch = stageEpoch;
-            inputQueue.deq();
 
             $display("%0d,%0d,%0d,%0x,%0d,execute,executing instruction: ", fetchIndex, csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber, fshow(decodedInstruction.opcode));
             $display("%0d,%0d,%0d,%0x,%0d,execute,RS1: ", fetchIndex, csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber, (isValid(decodedInstruction.rs1) ? $format("x%0d = %0d ($%0x)", unJust(decodedInstruction.rs1), decodedInstruction.rs1Value, decodedInstruction.rs1Value) : $format("INVALID")));
             $display("%0d,%0d,%0d,%0x,%0d,execute,RS2: ", fetchIndex, csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber, (isValid(decodedInstruction.rs2) ? $format("x%0d = %0d ($%0x)", unJust(decodedInstruction.rs2), decodedInstruction.rs2Value, decodedInstruction.rs2Value) : $format("INVALID")));
             
             let executedInstruction <- executeInstruction(decodedInstruction, csrFile, currentEpoch);
-
             if (executedInstruction.exception matches tagged Valid .exception) begin
                 $display("%0d,%0d,%0d,%0x,%0d,execute,EXCEPTION:", fetchIndex, cycleCounter, currentEpoch, decodedInstruction.programCounter, stageNumber, fshow(exception));
             end

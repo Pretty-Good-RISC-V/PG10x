@@ -45,7 +45,6 @@ module mkMemoryAccessUnit#(
         let executedInstruction = inputQueue.first();
         let fetchIndex = executedInstruction.fetchIndex;
         let stageEpoch = pipelineController.stageEpoch(stageNumber, 1);
-
         if (!pipelineController.isCurrentEpoch(stageNumber, 1, executedInstruction.pipelineEpoch)) begin
             $display("%0d,%0d,%0d,%0d,memory access,stale instruction (%0d != %0d)...ignoring", fetchIndex, cycleCounter, executedInstruction.pipelineEpoch, inputQueue.first().programCounter, stageNumber, inputQueue.first().pipelineEpoch, stageEpoch);
             inputQueue.deq();
@@ -54,13 +53,14 @@ module mkMemoryAccessUnit#(
                 $display("%0d,%0d,%0d,%0x,%0d,memory access,LOAD", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
                 begin
                     // NOTE: Alignment checks were already performed during the execution stage.
-                    dataMemory.request.put(loadRequest.tlRequest);
+                    //dataMemory.request.put(loadRequest.tlRequest);
 
-                    $display("%0d,%0d,%0d,%0x,%0d,memory access, Loading from $%08x", fetchIndex, cycleCounter, executedInstruction.programCounter, loadRequest.tlRequest.a_address);
+                    $display("%0d,%0d,%0d,%0x,%0d,memory access,Loading from $%08x", fetchIndex, cycleCounter, executedInstruction.programCounter, loadRequest.tlRequest.a_address);
                     instructionWaitingForLoad <= executedInstruction;
                     waitingForLoadToComplete <= True;
                 end
             end else if (executedInstruction.storeRequest matches tagged Valid .storeRequest) begin
+                $display("%0d,%0d,%0d,%0x,%0d,memory access,Storing to $0x", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, storeRequest.tlRequest.a_address);
 `ifdef MONITOR_TOHOST_ADDRESS
                 if (storeRequest.tlRequest.a_address == toHostAddress) begin
                     let test_num = (storeRequest.tlRequest.a_data >> 1);

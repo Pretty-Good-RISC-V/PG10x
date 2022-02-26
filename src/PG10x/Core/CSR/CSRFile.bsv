@@ -248,6 +248,8 @@ module mkCSRFile(CSRFile);
                     end
                 endcase
             end
+        end else begin
+            $display("CSR: Attempt to write to $%0x failed due to access check", index);
         end
 
         return result;
