@@ -36,7 +36,7 @@ module mkMemorySystem#(
         interface Put request;
             method Action put(TileLinkLiteWordRequest request);
                 if (memoryServer.isValidAddress(request.a_address)) begin
-                    request.a_address = request.a_address - baseAddress;
+                    request.a_address = request.a_address; //  - baseAddress;
                 end else begin
                     request.a_corrupt = True;
                 end

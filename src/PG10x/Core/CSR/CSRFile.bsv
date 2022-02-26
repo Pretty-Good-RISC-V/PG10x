@@ -47,6 +47,11 @@ endmodule
 
 typedef enum {
     //
+    // Supervisor Protection and Translation
+    //
+    SATP            = 12'h180,    // Supervisor address translation and protection (SRW)
+
+    //
     // Machine Trap Setup
     //
     MSTATUS         = 12'h300,    // Machine Status Register (MRW)
@@ -72,6 +77,14 @@ typedef enum {
     MTVAL2          = 12'h34B,    // Machine bad guest physical address (MRW)
 
     //
+    // Machine Memory Protection
+    //
+    PMPCFG0         = 12'h3A0,    // Physical memory protection configuration (MRW)
+    PMPCFG15        = 12'h3AF, 
+    PMPADDR0        = 12'h3B0,    // Physical memory protection address register (MRW)
+    PMPADDR63       = 12'h3EF,
+
+    //
     // Machine Counters/Timers
     //
     MCYCLE          = 12'hB00,    // Cycle counter for RDCYCLE instruction (MRW)
@@ -94,6 +107,8 @@ typedef enum {
     MHPMCOUNTER8H   = 12'hB88,    // Machine performance-monitoring counter (upper 32 bits) (MRW)
     MHPMCOUNTER9H   = 12'hB89,    // Machine performance-monitoring counter (upper 32 bits) (MRW)
 `endif
+
+    CYCLE           = 12'hC00,    // Read only mirror of MCYCLE
 
     //
     // Machine Information Registers
@@ -130,7 +145,7 @@ module mkCSRFile(CSRFile);
     Reg#(Word64)    timeCounter                 <- mkReg(0);
     Reg#(Word64)    instructionsRetiredCounter  <- mkReg(0);
 
-    Reg#(Word)      mcycle      = readOnlyReg(truncate(cycleCounter));
+    Reg#(Word)      mcycle      <- mkReg(0);
     Reg#(Word)      mtimer      = readOnlyReg(truncate(timeCounter));
     Reg#(Word)      minstret    = readOnlyReg(truncate(instructionsRetiredCounter));
 `ifdef RV32
@@ -142,47 +157,97 @@ module mkCSRFile(CSRFile);
     Reg#(Word)      mtvec[2]    <- mkCReg(2, 'hC0DEC0DE);
     Reg#(Word)      mepc[2]     <- mkCReg(2, 0);    // Machine Exception Program Counter
 
+    Reg#(Word)      mscratch    <- mkReg(0);
+
+    function Bool isWARLIgnore(CSRIndex index);
+        Bool result = False;
+
+        if ((index >= pack(PMPADDR0) && index <= pack(PMPADDR63)) ||
+            (index >= pack(PMPCFG0) && index <= pack(PMPCFG15)) ||
+            index == pack(SATP) ||
+            index == pack(MIE) || 
+            index == pack(MIP) || 
+            index == pack(MIDELEG) ||
+            index == pack(MEDELEG)) begin
+            result = True;
+        end
+
+        return result;
+    endfunction
+
     function Maybe#(Word) read(RVPrivilegeLevel curPriv, CSRIndex index, Integer portNumber);
         // Access check
         if (pack(curPriv) < index[9:8]) begin
             return tagged Invalid;
         end else begin
-            return case(unpack(index))
-                // Machine Information Registers (MRO)
-                MVENDORID:  tagged Valid extend(machineInformation.mvendorid);
-                MARCHID:    tagged Valid machineInformation.marchid;
-                MIMPID:     tagged Valid machineInformation.mimpid;
-                MHARTID:    tagged Valid machineInformation.mhartid;
+            if (isWARLIgnore(index)) begin
+                return tagged Valid 0;
+            end else begin
+                return case(unpack(index))
+                    // Machine Information Registers (MRO)
+                    MVENDORID:  tagged Valid extend(machineInformation.mvendorid);
+                    MARCHID:    tagged Valid machineInformation.marchid;
+                    MIMPID:     tagged Valid machineInformation.mimpid;
+                    MHARTID:    tagged Valid machineInformation.mhartid;
 
-                MCAUSE:     tagged Valid mcause[portNumber];
-                MTVEC:      tagged Valid mtvec[portNumber];
-                MEPC:       tagged Valid mepc[portNumber];
-                default:    tagged Invalid;
-            endcase;
+                    MCAUSE:     tagged Valid mcause[portNumber];
+                    MTVEC:      tagged Valid mtvec[portNumber];
+                    MEPC:       tagged Valid mepc[portNumber];
+
+                    MSTATUS:    tagged Valid machineStatus.mstatus();
+                    MCYCLE, CYCLE:     
+                        tagged Valid mcycle;
+                    MSCRATCH:   tagged Valid mscratch;
+                    
+                    default:    tagged Invalid;
+                endcase;
+            end
         end
     endfunction
 
     function ActionValue#(Bool) write(RVPrivilegeLevel curPriv, CSRIndex index, Word value, Integer portNumber);
         actionvalue
         let result = False;
+        $display("CSR Write: $%x = $%x", index, value);
         // Access and write to read-only CSR check.
         if (pack(curPriv) >= index[9:8] && index[11:10] != 'b11) begin
-            case(index)
-                pack(MCAUSE): begin
-                    mcause[portNumber] <= value;
-                    result = True;
-                end
+            if (isWARLIgnore(index)) begin
+                // Ignore writes to WARL ignore indices
+                result = True;
+            end else begin
+                case(index)
+                    pack(MCAUSE): begin
+                        mcause[portNumber] <= value;
+                        result = True;
+                    end
 
-                pack(MTVEC): begin
-                    mtvec[portNumber] <= value;
-                    result = True;
-                end
+                    pack(MCYCLE): begin
+                        mcycle <= value;
+                        result = True;
+                    end
 
-                pack(MEPC): begin
-                    mepc[portNumber] <= value;
-                    result = True;
-                end
-            endcase
+                    pack(MEPC): begin
+                        mepc[portNumber] <= value;
+                        result = True;
+                    end
+
+                    pack(MTVEC): begin
+                        $display("Setting MTVEC to $%x", value);
+                        mtvec[portNumber] <= value;
+                        result = True;
+                    end
+
+                    pack(MSTATUS): begin
+                        machineStatus.write(value);
+                        result = True;
+                    end
+
+                    pack(MSCRATCH): begin
+                        mscratch <= value;
+                        result = True;
+                    end
+                endcase
+            end
         end
 
         return result;

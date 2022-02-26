@@ -51,12 +51,12 @@ module mkMemoryAccessUnit#(
             inputQueue.deq();
         end else begin
             if(executedInstruction.loadRequest matches tagged Valid .loadRequest) begin
-                $display("%0d,%0d,%0d,%0d,%0d,memory access,LOAD", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
+                $display("%0d,%0d,%0d,%0x,%0d,memory access,LOAD", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
                 begin
                     // NOTE: Alignment checks were already performed during the execution stage.
                     dataMemory.request.put(loadRequest.tlRequest);
 
-                    $display("%0d,%0d,%0d,%0d,%0d,memory access, Loading from $%08x", fetchIndex, cycleCounter, executedInstruction.programCounter, loadRequest.tlRequest.a_address);
+                    $display("%0d,%0d,%0d,%0x,%0d,memory access, Loading from $%08x", fetchIndex, cycleCounter, executedInstruction.programCounter, loadRequest.tlRequest.a_address);
                     instructionWaitingForLoad <= executedInstruction;
                     waitingForLoadToComplete <= True;
                 end
@@ -72,7 +72,7 @@ module mkMemoryAccessUnit#(
 `endif
             end else begin
                 // Not a LOAD/STORE
-                $display("%0d,%0d,%0d,%0d,%0d,memory access,NO-OP", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
+                $display("%0d,%0d,%0d,%0x,%0d,memory access,NO-OP", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
 
                 inputQueue.deq();
                 outputQueue.enq(executedInstruction);

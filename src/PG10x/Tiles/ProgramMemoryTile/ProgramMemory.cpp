@@ -75,27 +75,27 @@ uint32_t program_memory_open() {
 
         for (const auto section : reader.sections) {
             if (section->get_type() == ELFIO::SHT_PROGBITS) {
-                std::cout << "Loading ELF section: " << section->get_name() << std::endl;
-                std::cout << "               Type: " << section->get_type() << std::endl;
-                std::cout << "            Address: " << std::hex << section->get_address() << std::endl;
-                std::cout << "               Size: " << std::hex << section->get_size() << std::endl;
-                std::cout << "      Address Align: " << std::dec << section->get_addr_align() << std::endl;
-                std::cout << "         Entry Size: " << std::dec << section->get_entry_size() << std::endl;
-                std::cout << "        Name Offset: " << std::hex << section->get_name_string_offset() << std::endl;
-                std::cout << "             Offset: " << std::hex << section->get_offset() << std::endl;
+                // std::cout << "Loading ELF section: " << section->get_name() << std::endl;
+                // std::cout << "               Type: " << section->get_type() << std::endl;
+                // std::cout << "            Address: " << std::hex << section->get_address() << std::endl;
+                // std::cout << "               Size: " << std::hex << section->get_size() << std::endl;
+                // std::cout << "      Address Align: " << std::dec << section->get_addr_align() << std::endl;
+                // std::cout << "         Entry Size: " << std::dec << section->get_entry_size() << std::endl;
+                // std::cout << "        Name Offset: " << std::hex << section->get_name_string_offset() << std::endl;
+                // std::cout << "             Offset: " << std::hex << section->get_offset() << std::endl;
 
                 if(previous_section && 
                     section->get_address() >= previous_section->address &&
                     section->get_address() < (previous_section->address + previous_section->data.size() + 8192)) {
 
-                    std::cout << "Merging section with previous section" << std::endl;
+                    // std::cout << "Merging section with previous section" << std::endl;
 
                     const size_t new_size = (section->get_address() + section->get_size()) -
                         previous_section->address;
 
-                    std::cout << "New section size: " << std::hex << new_size << std::endl;
+                    // std::cout << "New section size: " << std::hex << new_size << std::endl;
                     const size_t byte_offset = section->get_address() - previous_section->address;
-                    std::cout << "Copy offset: " << std::hex << byte_offset << std::endl;
+                    // std::cout << "Copy offset: " << std::hex << byte_offset << std::endl;
 
                     previous_section->data.resize(new_size);
 

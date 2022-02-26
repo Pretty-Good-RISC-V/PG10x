@@ -117,6 +117,9 @@ module mkDecodeUnit#(
             // OP-IMM
             //
             7'b0010011: begin   
+                // OP-IMM only used func3 for operator encoding.
+                decodedInstruction.aluOperator = unpack(extend(func3));
+
                 // Check for shift instructions
                 if (func3[1:0] == 2'b01) begin
                     if (func7 == 7'b0000000 || func7 == 7'b0100000) begin
@@ -138,7 +141,7 @@ module mkDecodeUnit#(
             7'b0010111: begin
                 decodedInstruction.opcode = COPY_IMMEDIATE;
                 decodedInstruction.rd = tagged Valid rd;
-                decodedInstruction.immediate = tagged Valid (signExtend({instruction[31:12], 12'b0}));
+                decodedInstruction.immediate = tagged Valid (decodedInstruction.programCounter + (signExtend({instruction[31:12], 12'b0})));
             end
             //
             // STORE
@@ -287,7 +290,7 @@ module mkDecodeUnit#(
         let stageEpoch = pipelineController.stageEpoch(stageNumber, 2);
 
         if (!pipelineController.isCurrentEpoch(stageNumber, 2, instructionMemoryResponse.pipelineEpoch)) begin
-            $display("%0d,%0d,%0d,%0d,%0d,decode,stale instruction...ignoring", fetchIndex, cycleCounter, instructionMemoryResponse.pipelineEpoch, instructionMemoryResponse.programCounter, stageNumber);
+            $display("%0d,%0d,%0d,%0x,%0d,decode,stale instruction...ignoring", fetchIndex, cycleCounter, instructionMemoryResponse.pipelineEpoch, instructionMemoryResponse.programCounter, stageNumber);
             inputQueue.deq();
         end else begin
             let encodedInstruction = instructionMemoryResponse.rawInstruction;
@@ -298,11 +301,11 @@ module mkDecodeUnit#(
             decodedInstruction.pipelineEpoch = stageEpoch;
             decodedInstruction.predictedNextProgramCounter = instructionMemoryResponse.predictedNextProgramCounter;
 
-            $display("%0d,%0d,%0d,%0d,%0d,decode,scoreboard size: %0d", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber, scoreboard.size);
+            $display("%0d,%0d,%0d,%0x,%0d,decode,scoreboard size: %0d", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber, scoreboard.size);
 
             let stallWaitingForOperands = scoreboard.search(decodedInstruction.rs1, decodedInstruction.rs2);
             if (stallWaitingForOperands) begin
-                $display("%0d,%0d,%0d,%0d,%0d,decode,stall waiting for operands", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber);
+                $display("%0d,%0d,%0d,%0x,%0d,decode,stall waiting for operands", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber);
             end else begin
                 inputQueue.deq;
 
@@ -315,7 +318,7 @@ module mkDecodeUnit#(
 
                 scoreboard.insert(decodedInstruction.rd);
 
-                $display("%0d,%0d,%0d,%0d,%0d,decode,inserting into scoreboard (new count = %0d): ", 
+                $display("%0d,%0d,%0d,%0x,%0d,decode,inserting into scoreboard (new count = %0d): ", 
                     fetchIndex, 
                     cycleCounter, 
                     stageEpoch, 
@@ -328,7 +331,7 @@ module mkDecodeUnit#(
                 // Send the decode result to the output queue.
                 outputQueue.enq(decodedInstruction);
 
-                $display("%0d,%0d,%0d,%0d,%0d,decode,decode complete", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber);
+                $display("%0d,%0d,%0d,%0x,%0d,decode,decode complete", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber);
     //                $display("%0d,%0d,%0d,2,decode,", cycleCounter, stageEpoch, programCounter, fshow(decodedInstruction));
             end
         end

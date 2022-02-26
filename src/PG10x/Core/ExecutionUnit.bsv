@@ -139,7 +139,17 @@ module mkExecutionUnit#(
 
                 CSR: begin
                     case(decodedInstruction.csrOperator)
-                        pack(CSRRS): begin
+                        pack(CSRRS), pack(CSRRSI): begin
+                            // The CSRRS (Atomic Read and Set Bits in CSR) instruction:
+                            // 1) Reads the value of the CSR, zero- extends the value to XLEN bits, and writes it to integer register rd. 
+                            // 2) The initial value in integer register rs1 is treated as a bit mask that specifies bit positions to be set in the CSR. 
+                            //    Any bit that is high in rs1 will cause the corresponding bit to be set in the CSR, if that CSR bit is writable. 
+                            //    Other bits in the CSR are unaffected (though CSRs might have side effects when written).
+                            //    if rs1=x0, then the instruction will not write to the CSR at all, and so shall not cause any of the side effects 
+                            //    that might otherwise occur on a CSR write, such as raising illegal instruction exceptions on accesses to read-only CSRs.
+                            Word newCSRValue = (decodedInstruction.csrOperator == pack(CSRRS)) ? 
+                                decodedInstruction.rs1Value : unJust(decodedInstruction.immediate);
+
                             let value = csrFile.read1(currentPrivilegeLevel, decodedInstruction.csrIndex);
                             if (isValid(value)) begin
                                 let oldValue = unJust(value);
@@ -150,7 +160,7 @@ module mkExecutionUnit#(
 
                                 // Per spec, if RS1 is x0, don't perform any writes to the CSR.
                                 if (unJust(decodedInstruction.rs1) != 0) begin
-                                    let newValue = oldValue | decodedInstruction.rs1Value;
+                                    let newValue = oldValue | newCSRValue;
                                     let writeStatus <- csrFile.write1(currentPrivilegeLevel, decodedInstruction.csrIndex, newValue);
                                     if (writeStatus == False) begin
                                         executedInstruction.writeBack = tagged Invalid;
@@ -162,7 +172,79 @@ module mkExecutionUnit#(
                                 executedInstruction.exception = tagged Invalid;
                             end
                         end
+
+                        pack(CSRRW), pack(CSRRWI): begin
+                            // The CSRRW (Atomic Read/Write CSR) instruction atomically swaps values in 
+                            // the CSRs and integer registers. 
+                            // 1) CSRRW reads the old value of the CSR, zero-extends the value to XLEN bits, 
+                            //    then writes it to integer register rd. 
+                            // 2) The initial value in rs1 is written to the CSR. If rd=x0, then the instruction 
+                            //    shall not read the CSR and shall not cause any of the side effects that might 
+                            //    occur on a CSR read.
+                            Word newCSRValue = (decodedInstruction.csrOperator == pack(CSRRW)) ? 
+                                decodedInstruction.rs1Value : unJust(decodedInstruction.immediate);
+
+                            let value = csrFile.read1(currentPrivilegeLevel, decodedInstruction.csrIndex);
+                            if (isValid(value)) begin
+                                // Step #1
+                                let oldValue = unJust(value);
+                                executedInstruction.writeBack = tagged Valid WriteBack {
+                                    rd: unJust(decodedInstruction.rd),
+                                    value: oldValue
+                                };
+
+                                let writeStatus <- csrFile.write1(currentPrivilegeLevel, decodedInstruction.csrIndex, newCSRValue);
+                                if (writeStatus == False) begin
+                                    $display("CSRRW* write failed: Index: $%x, Value: $%x", decodedInstruction.csrIndex, newCSRValue);
+                                    executedInstruction.writeBack = tagged Invalid;
+                                    executedInstruction.exception = tagged Valid tagged ExceptionCause extend(pack(ILLEGAL_INSTRUCTION));
+                                end else begin
+                                    executedInstruction.exception = tagged Invalid;
+                                end
+                            end else begin
+                                $display("CSRRW* read failed: Index: $%x", decodedInstruction.csrIndex);
+                            end
+                        end
+
+                        pack(CSRRC), pack(CSRRCI): begin
+                            // The CSRRC (Atomic Read and Clear Bits in CSR) instruction:
+                            // 1) Reads the value of the CSR, zero-extends the value to XLEN bits, and writes it to integer register rd. 
+                            //    The initial value in integer register rs1 is treated as a bit mask that specifies bit positions to be cleared in the CSR. 
+                            //    Any bit that is high in rs1 will cause the corresponding bit to be cleared in the CSR, if that CSR bit is writable. 
+                            //    Other bits in the CSR are unaffected.
+                            let value = csrFile.read1(currentPrivilegeLevel, decodedInstruction.csrIndex);
+                            if (isValid(value)) begin
+                                let oldValue = unJust(value);
+                                let rd = unJust(decodedInstruction.rd);
+
+                                executedInstruction.writeBack = tagged Valid WriteBack {
+                                    rd: rd,
+                                    value: oldValue
+                                };
+
+                                if (rd != 0) begin
+                                    let newCSRValue = oldValue & ~decodedInstruction.rs1Value;
+
+                                    let writeStatus <- csrFile.write1(currentPrivilegeLevel, decodedInstruction.csrIndex, newCSRValue);
+                                    if (writeStatus == False) begin
+                                        $display("CSRC* write failed: Index: $%x, Value: $%x", decodedInstruction.csrIndex, newCSRValue);
+                                        executedInstruction.writeBack = tagged Invalid;
+                                        executedInstruction.exception = tagged Valid tagged ExceptionCause extend(pack(ILLEGAL_INSTRUCTION));
+                                    end else begin
+                                        executedInstruction.exception = tagged Invalid;
+                                    end
+                                end else begin
+                                    executedInstruction.exception = tagged Invalid;
+                                end
+                            end else begin
+                                $display("CSRRC* read failed: Index: $%x", decodedInstruction.csrIndex);
+                            end
+                        end
                     endcase
+                end
+
+                FENCE: begin
+                    executedInstruction.exception = tagged Invalid;
                 end
 
                 JUMP: begin
@@ -232,12 +314,14 @@ module mkExecutionUnit#(
 
                 STORE: begin
                     // The actual memory request is handled in the Memory Access stage.
-                    dynamicAssert(isValid(decodedInstruction.rd), "STORE: rd is invalid");
+                    dynamicAssert(isValid(decodedInstruction.rd) == False, "STORE: rd is valid");
                     dynamicAssert(isValid(decodedInstruction.rs1), "STORE: rs1 is invalid");
                     dynamicAssert(isValid(decodedInstruction.rs2), "STORE: rs2 is invalid");
                     dynamicAssert(isValid(decodedInstruction.immediate), "STORE: immediate is invalid");
 
                     let effectiveAddress = getEffectiveAddress(decodedInstruction.rs1Value, unJust(decodedInstruction.immediate));
+
+                    $display("Store effective address: $%x", effectiveAddress);
 
                     let result = getStoreRequest(
                         decodedInstruction.storeOperator,
@@ -256,7 +340,7 @@ module mkExecutionUnit#(
                 SYSTEM: begin
                     case(decodedInstruction.systemOperator)
                         pack(ECALL): begin
-                            $display("%0d,%0d,%0d,%0d,%0d,execute,ECALL instruction encountered", decodedInstruction.fetchIndex, csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber);
+                            $display("%0d,%0d,%0d,%0x,%0d,execute,ECALL instruction encountered", decodedInstruction.fetchIndex, csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber);
                             executedInstruction.exception = tagged Valid tagged ExceptionCause extend(pack(ENVIRONMENT_CALL_FROM_M_MODE));
                         end
                         default begin
@@ -265,6 +349,7 @@ module mkExecutionUnit#(
                     endcase
                 end
             endcase
+
             return executedInstruction;
         endactionvalue
     endfunction
@@ -276,17 +361,21 @@ module mkExecutionUnit#(
         let stageEpoch = pipelineController.stageEpoch(stageNumber, 1);
 
         if (!pipelineController.isCurrentEpoch(stageNumber, 1, decodedInstruction.pipelineEpoch)) begin
-            $display("%0d,%0d,%0d,%0d,%0d,execute,stale instruction (%0d != %0d)...ignoring", fetchIndex, csrFile.cycle_counter, decodedInstruction.pipelineEpoch, inputQueue.first().programCounter, stageNumber, inputQueue.first().pipelineEpoch, stageEpoch);
+            $display("%0d,%0d,%0d,%0x,%0d,execute,stale instruction (%0d != %0d)...ignoring", fetchIndex, csrFile.cycle_counter, decodedInstruction.pipelineEpoch, inputQueue.first().programCounter, stageNumber, inputQueue.first().pipelineEpoch, stageEpoch);
             inputQueue.deq();
         end else begin
             let currentEpoch = stageEpoch;
             inputQueue.deq();
 
-            $display("%0d,%0d,%0d,%0d,%0d,execute,executing instruction: ", fetchIndex, csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber, fshow(decodedInstruction.opcode));
-            $display("%0d,%0d,%0d,%0d,%0d,execute,RS1: ", fetchIndex, csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber, (isValid(decodedInstruction.rs1) ? $format("x%0d = %0d ($%0x)", unJust(decodedInstruction.rs1), decodedInstruction.rs1Value, decodedInstruction.rs1Value) : $format("INVALID")));
-            $display("%0d,%0d,%0d,%0d,%0d,execute,RS2: ", fetchIndex, csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber, (isValid(decodedInstruction.rs2) ? $format("x%0d = %0d ($%0x)", unJust(decodedInstruction.rs2), decodedInstruction.rs2Value, decodedInstruction.rs2Value) : $format("INVALID")));
+            $display("%0d,%0d,%0d,%0x,%0d,execute,executing instruction: ", fetchIndex, csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber, fshow(decodedInstruction.opcode));
+            $display("%0d,%0d,%0d,%0x,%0d,execute,RS1: ", fetchIndex, csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber, (isValid(decodedInstruction.rs1) ? $format("x%0d = %0d ($%0x)", unJust(decodedInstruction.rs1), decodedInstruction.rs1Value, decodedInstruction.rs1Value) : $format("INVALID")));
+            $display("%0d,%0d,%0d,%0x,%0d,execute,RS2: ", fetchIndex, csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber, (isValid(decodedInstruction.rs2) ? $format("x%0d = %0d ($%0x)", unJust(decodedInstruction.rs2), decodedInstruction.rs2Value, decodedInstruction.rs2Value) : $format("INVALID")));
             
             let executedInstruction <- executeInstruction(decodedInstruction, csrFile, currentEpoch);
+
+            if (executedInstruction.exception matches tagged Valid .exception) begin
+                $display("%0d,%0d,%0d,%0x,%0d,execute,EXCEPTION:", fetchIndex, cycleCounter, currentEpoch, decodedInstruction.programCounter, stageNumber, fshow(exception));
+            end
 
             // If the program counter was changed, see if it matches a predicted branch/jump.
             // If not, redirect the program counter to the mispredicted target address.
@@ -298,7 +387,7 @@ module mkExecutionUnit#(
                     // Bump the current instruction epoch
                     executedInstruction.pipelineEpoch = ~executedInstruction.pipelineEpoch;
 
-                    $display("%0d,%0d,%0d,%0d,%0d,execute,branch/jump to: $%08x", fetchIndex, cycleCounter, currentEpoch, decodedInstruction.programCounter, stageNumber, targetAddress);
+                    $display("%0d,%0d,%0d,%0x,%0d,execute,branch/jump to: $%08x", fetchIndex, cycleCounter, currentEpoch, decodedInstruction.programCounter, stageNumber, targetAddress);
                     programCounterRedirect.branch(targetAddress);
                 end
             end
@@ -306,15 +395,9 @@ module mkExecutionUnit#(
             // If writeback data exists, that needs to be written into the previous pipeline 
             // stages using operand forwarding.
             if (executedInstruction.writeBack matches tagged Valid .wb) begin
-                $display("%0d,%0d,%0d,%0d,%0d,execute,complete (WB: x%0d = %08x)", fetchIndex, cycleCounter, currentEpoch, decodedInstruction.programCounter, stageNumber, wb.rd, wb.value);
+                $display("%0d,%0d,%0d,%0x,%0d,execute,complete (WB: x%0d = %08x)", fetchIndex, cycleCounter, currentEpoch, decodedInstruction.programCounter, stageNumber, wb.rd, wb.value);
             end else begin
-                // Note: any exceptions are passed through until handled inside the writeback
-                // stage.
-                if (executedInstruction.exception matches tagged Valid .exception) begin
-                    $display("%0d,%0d,%0d,%0d,%0d,execute,EXCEPTION:", fetchIndex, cycleCounter, currentEpoch, decodedInstruction.programCounter, stageNumber, fshow(exception));
-                end else begin
-                    $display("%0d,%0d,%0d,%0d,%0d,execute,complete", fetchIndex, cycleCounter, currentEpoch, decodedInstruction.programCounter, stageNumber);
-                end
+                $display("%0d,%0d,%0d,%0x,%0d,execute,complete", fetchIndex, cycleCounter, currentEpoch, decodedInstruction.programCounter, stageNumber);
             end
 
             outputQueue.enq(executedInstruction);

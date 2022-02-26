@@ -4,10 +4,10 @@ export MachineStatus(..), mkMachineStatusRegister;
 
 interface MachineStatus;
 
-`ifdef RV64
     method Word mstatus();
-`elsif RV32
-    method Word mstatus();
+    method Action write(Word newValue);
+
+`ifdef RV32
     method Word mstatush();
 `endif
 
@@ -80,9 +80,20 @@ module mkMachineStatusRegister(MachineStatus);
     method Word mstatus();
         return pack(sr);
     endmethod
+
+    method Action write(Word newValue);
+        src <= unpack(newValue);
+    endmethod
+
 `elsif RV32
     method Word mstatus();
         return pack(sr)[31:0];
+    endmethod
+
+    method Action write(Word newValue);
+        let value = pack(sr);
+        value[31:0] = newValue;
+        sr <= unpack(value);
     endmethod
 
     method Word mstatush();

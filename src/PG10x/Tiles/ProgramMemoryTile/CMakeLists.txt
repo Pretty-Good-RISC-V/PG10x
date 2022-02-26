@@ -20,6 +20,6 @@ set_target_properties(ProgramMemory_test PROPERTIES CXX_STANDARD 17)
 
 add_test(
     NAME ProgramMemory_test
-    COMMAND "${CMAKE_CURRENT_BINARY_DIR}/ProgramMemory_test" "./test_assets/rv32mi-p-csr" 
+    COMMAND "${CMAKE_CURRENT_BINARY_DIR}/ProgramMemory_test" 
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
 )

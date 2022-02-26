@@ -64,10 +64,10 @@ module mkFetchUnit#(
             fetchEpoch = fetchEpoch + 1;
             currentEpoch <= fetchEpoch;
 
-            $display("%0d,%0d,%0d,%0d,%0d,fetch send,redirected PC: $%08x", fetchCounter, cycleCounter, fetchEpoch, fetchProgramCounter, stageNumber, fetchProgramCounter);
+            $display("%0d,%0d,%0d,%0x,%0d,fetch send,redirected PC: $%08x", fetchCounter, cycleCounter, fetchEpoch, fetchProgramCounter, stageNumber, fetchProgramCounter);
         end
 
-        $display("%0d,%0d,%0d,%0d,%0d,fetch send,fetch address: $%08x", fetchCounter, cycleCounter, fetchEpoch, fetchProgramCounter, stageNumber, fetchProgramCounter);
+        $display("%0d,%0d,%0d,%0x,%0d,fetch send,fetch address: $%08x", fetchCounter, cycleCounter, fetchEpoch, fetchProgramCounter, stageNumber, fetchProgramCounter);
 
         instructionMemory.request.put(TileLinkLiteWordRequest {
             a_opcode: pack(A_GET),
@@ -97,20 +97,20 @@ module mkFetchUnit#(
         fetchInfoQueue.deq();
 
         if (fetchResponse.d_denied) begin
-            $display("%0d,%0d,%0d,%0d,%0d,fetch receive,FATAL - received access denied from memory system.", fetchInfo.index, cycleCounter, fetchInfo.epoch, fetchInfo.address, stageNumber);
+            $display("%0d,%0d,%0d,%0x,%0d,fetch receive,FATAL - received access denied from memory system.", fetchInfo.index, cycleCounter, fetchInfo.epoch, fetchInfo.address, stageNumber);
             $fatal();
         end else if (fetchResponse.d_corrupt) begin
-            $display("%0d,%0d,%0d,%0d,%0d,fetch receive,FATAL - received corrupted data from memory system.", fetchInfo.index, cycleCounter, fetchInfo.epoch, fetchInfo.address, stageNumber);
+            $display("%0d,%0d,%0d,%0x,%0d,fetch receive,FATAL - received corrupted data from memory system.", fetchInfo.index, cycleCounter, fetchInfo.epoch, fetchInfo.address, stageNumber);
             $fatal();
         end else if (fetchResponse.d_opcode != pack(D_ACCESS_ACK_DATA)) begin
-            $display("%0d,%0d,%0d,%0d,%0d,fetch receive,FATAL - received unexpected opcode from memory system: ", fetchInfo.index, cycleCounter, fetchInfo.epoch, fetchInfo.address, stageNumber, fshow(fetchResponse.d_opcode));
+            $display("%0d,%0d,%0d,%0x,%0d,fetch receive,FATAL - received unexpected opcode from memory system: ", fetchInfo.index, cycleCounter, fetchInfo.epoch, fetchInfo.address, stageNumber, fshow(fetchResponse.d_opcode));
             $fatal();
         end else begin
-            $display("%0d,%0d,%0d,%0d,%0d,fetch receive,encoded instruction=%08h", fetchInfo.index, cycleCounter, fetchInfo.epoch, fetchInfo.address, stageNumber, fetchResponse.d_data);
+            $display("%0d,%0d,%0d,%0x,%0d,fetch receive,encoded instruction=%08h", fetchInfo.index, cycleCounter, fetchInfo.epoch, fetchInfo.address, stageNumber, fetchResponse.d_data);
 
             // Predict what the next program counter will be
             let predictedNextProgramCounter = branchPredictor.predictNextProgramCounter(fetchInfo.address, fetchResponse.d_data[31:0]);
-            $display("%0d,%0d,%0d,%0d,%0d,fetch receive,predicted next instruction=$%x", fetchInfo.index, cycleCounter, fetchInfo.epoch, fetchInfo.address, stageNumber, predictedNextProgramCounter);
+            $display("%0d,%0d,%0d,%0x,%0d,fetch receive,predicted next instruction=$%x", fetchInfo.index, cycleCounter, fetchInfo.epoch, fetchInfo.address, stageNumber, predictedNextProgramCounter);
             programCounter[0] <= predictedNextProgramCounter;
 
             // Tell the decode stage what the program counter for the insruction it'll receive.

@@ -17,10 +17,11 @@ while [[ $# -gt 0 ]]; do
     key="$1"
 
     case $key in
-        --max_cycles)
+        --max-cycles)
             MAX_CYCLES="$2"
             shift # past argument
             shift # past value
+            ;;
         --model)
             MODEL="$2"
             shift # past argument
@@ -39,6 +40,6 @@ if [ ${#POSITIONAL[@]} -eq 0 ]; then
     exit 1;
 fi
 
-INPUT="$POSITIONAL[0]"
+INPUT_FILE="${POSITIONAL[0]}"
 
-PROGRAM_MEMORY_FILE="$INPUT" ./build/$MODEL/src/PG10x/Simulator/Simulator -m $MAX_CYCLES
+PROGRAM_MEMORY_FILE="$INPUT_FILE" ./build/$MODEL/src/PG10x/Simulator/Simulator -m $MAX_CYCLES

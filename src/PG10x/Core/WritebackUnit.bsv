@@ -51,10 +51,10 @@ module mkWritebackUnit#(
         end else begin
             inputQueue.deq();
             if (executedInstruction.writeBack matches tagged Valid .wb) begin
-                $display("%0d,%0d,%0d,%0d,%0d,writeback,writing result ($%08x) to register x%0d", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, wb.value, wb.rd);
+                $display("%0d,%0d,%0d,%0x,%0d,writeback,writing result ($%08x) to register x%0d", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, wb.value, wb.rd);
                 registerFile.write(wb.rd, wb.value);
             end else begin
-                $display("%0d,%0d,%0d,%0d,%0d,writeback,NO-OP", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
+                $display("%0d,%0d,%0d,%0x,%0d,writeback,NO-OP", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
             end
 
             scoreboard.remove;
@@ -67,12 +67,12 @@ module mkWritebackUnit#(
 
                 let exceptionVector <- exceptionController.beginException(currentPrivilegeLevel, executedInstruction.programCounter, exception);
 
-                $display("%0d,%0d,%0d,%0d,%0d,writeback,EXCEPTION:", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, fshow(exception));
-                $display("%0d,%0d,%0d,%0d,%0d,writeback,Jumping to exception handler at $%08x", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, exceptionVector);
+                $display("%0d,%0d,%0d,%0x,%0d,writeback,EXCEPTION:", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, fshow(exception));
+                $display("%0d,%0d,%0d,%0x,%0d,writeback,Jumping to exception handler at $%08x", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, exceptionVector);
 
                 programCounterRedirect.exception(exceptionVector); 
             end
-            $display("%0d,%0d,%0d,%0d,%0d,writeback,---------------------------", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
+            $display("%0d,%0d,%0d,%0x,%0d,writeback,---------------------------", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
             csrFile.increment_instructions_retired_counter();
             instructionRetired <= True;
         end
