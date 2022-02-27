@@ -52,8 +52,13 @@ module mkWritebackUnit#(
         let fetchIndex = executedInstruction.fetchIndex;
         let stageEpoch = pipelineController.stageEpoch(stageNumber, 0);
 
+        // Remove the scoreboard entry - this needs to be done regardless of the
+        // epoch because the decode stage has already run which has added an entry to
+        // the scoreboard.
+        scoreboard.remove;
+
         if (!pipelineController.isCurrentEpoch(stageNumber, 0, executedInstruction.pipelineEpoch)) begin
-            $display("%0d,%0d,%0d,%0d,writeback,stale instruction (%0d != %0d)...ignoring", fetchIndex, cycleCounter, executedInstruction.pipelineEpoch, inputQueue.first().programCounter, stageNumber, inputQueue.first().pipelineEpoch, stageEpoch);
+            $display("%0d,%0d,%0d,%0d,writeback,stale instruction (%0d != %0d)...popping bubble", fetchIndex, cycleCounter, executedInstruction.pipelineEpoch, inputQueue.first().programCounter, stageNumber, inputQueue.first().pipelineEpoch, stageEpoch);
             inputQueue.deq();
         end else begin
             inputQueue.deq();
@@ -63,8 +68,6 @@ module mkWritebackUnit#(
             end else begin
                 $display("%0d,%0d,%0d,%0x,%0d,writeback,NO-OP", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
             end
-
-            scoreboard.remove;
 
 `ifdef ENABLE_INSTRUCTION_LOGGING
             instructionLog.logInstruction(executedInstruction.programCounter, executedInstruction.rawInstruction);

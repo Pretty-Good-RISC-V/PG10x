@@ -341,7 +341,21 @@ module mkExecutionUnit#(
         let stageEpoch = pipelineController.stageEpoch(stageNumber, 1);
 
         if (!pipelineController.isCurrentEpoch(stageNumber, 1, decodedInstruction.pipelineEpoch)) begin
-            $display("%0d,%0d,%0d,%0x,%0d,execute,stale instruction (%0d != %0d)...ignoring", fetchIndex, csrFile.cycle_counter, decodedInstruction.pipelineEpoch, inputQueue.first().programCounter, stageNumber, inputQueue.first().pipelineEpoch, stageEpoch);
+            $display("%0d,%0d,%0d,%0x,%0d,execute,stale instruction (%0d != %0d)...adding bubble to pipeline", fetchIndex, csrFile.cycle_counter, decodedInstruction.pipelineEpoch, inputQueue.first().programCounter, stageNumber, inputQueue.first().pipelineEpoch, stageEpoch);
+            outputQueue.enq(ExecutedInstruction{
+                fetchIndex: decodedInstruction.fetchIndex,
+                pipelineEpoch: decodedInstruction.pipelineEpoch,
+                programCounter: decodedInstruction.programCounter,
+`ifdef ENABLE_INSTRUCTION_LOGGING
+                rawInstruction: decodedInstruction.rawInstruction,
+`endif
+                changedProgramCounter: tagged Invalid,
+                loadRequest: tagged Invalid,
+                storeRequest: tagged Invalid,
+                exception: tagged Invalid,
+                writeBack: tagged Invalid
+
+            });
         end else begin
             let currentEpoch = stageEpoch;
 

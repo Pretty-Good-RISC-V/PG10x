@@ -335,7 +335,6 @@ module mkDecodeUnit#(
                 outputQueue.enq(decodedInstruction);
 
                 $display("%0d,%0d,%0d,%0x,%0d,decode,decode complete", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber);
-    //                $display("%0d,%0d,%0d,2,decode,", cycleCounter, stageEpoch, programCounter, fshow(decodedInstruction));
             end
         end
     endrule

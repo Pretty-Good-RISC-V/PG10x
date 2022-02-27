@@ -46,8 +46,9 @@ module mkMemoryAccessUnit#(
         let fetchIndex = executedInstruction.fetchIndex;
         let stageEpoch = pipelineController.stageEpoch(stageNumber, 1);
         if (!pipelineController.isCurrentEpoch(stageNumber, 1, executedInstruction.pipelineEpoch)) begin
-            $display("%0d,%0d,%0d,%0d,memory access,stale instruction (%0d != %0d)...ignoring", fetchIndex, cycleCounter, executedInstruction.pipelineEpoch, inputQueue.first().programCounter, stageNumber, inputQueue.first().pipelineEpoch, stageEpoch);
+            $display("%0d,%0d,%0d,%0d,memory access,stale instruction (%0d != %0d)...propagating bubble", fetchIndex, cycleCounter, executedInstruction.pipelineEpoch, inputQueue.first().programCounter, stageNumber, inputQueue.first().pipelineEpoch, stageEpoch);
             inputQueue.deq();
+            outputQueue.enq(executedInstruction);
         end else begin
             if(executedInstruction.loadRequest matches tagged Valid .loadRequest) begin
                 $display("%0d,%0d,%0d,%0x,%0d,memory access,LOAD", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
