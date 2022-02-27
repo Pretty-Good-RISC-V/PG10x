@@ -1,4 +1,5 @@
 add_subdirectory(CSR)
+add_subdirectory(InstructionLogger)
 
 add_library(PG10xCore INTERFACE)
 add_library(PG10xCore::PG10xCore ALIAS PG10xCore)
@@ -8,6 +9,15 @@ target_link_libraries(PG10xCore INTERFACE
     PG10xCoreCSR::PG10xCoreCSR
     TileLink::TileLink
 )
+
+if (ENABLE_INSTRUCTION_LOGGING)
+    target_link_libraries(PG10xCore INTERFACE
+        InstructionLogger::InstructionLogger
+    )
+    target_compile_definitions(PG10xCore INTERFACE
+        ENABLE_INSTRUCTION_LOGGING
+    )
+endif()
 
 #
 # Tests

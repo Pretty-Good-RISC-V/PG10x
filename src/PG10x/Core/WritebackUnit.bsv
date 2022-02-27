@@ -9,6 +9,9 @@ import CSRFile::*;
 import Exception::*;
 import ExceptionController::*;
 import ExecutedInstruction::*;
+`ifdef ENABLE_INSTRUCTION_LOGGING
+import InstructionLogger::*;
+`endif
 import PipelineController::*;
 import ProgramCounterRedirect::*;
 import RegisterFile::*;
@@ -39,6 +42,10 @@ module mkWritebackUnit#(
 )(WritebackUnit);
     Reg#(Bool) instructionRetired <- mkDReg(False);
 
+`ifdef ENABLE_INSTRUCTION_LOGGING
+    InstructionLog instructionLog<- mkInstructionLog();
+`endif
+
     (* fire_when_enabled *)
     rule writeBack;
         let executedInstruction = inputQueue.first();
@@ -59,6 +66,9 @@ module mkWritebackUnit#(
 
             scoreboard.remove;
 
+`ifdef ENABLE_INSTRUCTION_LOGGING
+            instructionLog.logInstruction(executedInstruction.programCounter, executedInstruction.rawInstruction);
+`endif
             //
             // Handle any exceptions
             //

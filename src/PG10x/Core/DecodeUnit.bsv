@@ -75,6 +75,9 @@ module mkDecodeUnit#(
             pipelineEpoch: ?,
             opcode: UNSUPPORTED_OPCODE,
             programCounter: programCounter,
+`ifdef ENABLE_INSTRUCTION_LOGGING
+            rawInstruction: instruction,
+`endif
             predictedNextProgramCounter: ?,
             aluOperator: unpack({func7, func3}),
             loadOperator: unpack(func3),

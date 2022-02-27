@@ -39,6 +39,10 @@
         "ENABLE_ISA_TESTS": {
           "type": "BOOL",
           "value": "ON"
+        },
+        "ENABLE_INSTRUCTION_LOGGING": {
+          "type": "BOOL",
+          "value": "ON"
         }
       }
     },
@@ -63,6 +67,10 @@
           "value": "MONITOR_TOHOST_ADDRESS"
         },
         "ENABLE_ISA_TESTS": {
+          "type": "BOOL",
+          "value": "ON"
+        },
+        "ENABLE_INSTRUCTION_LOGGING": {
           "type": "BOOL",
           "value": "ON"
         }

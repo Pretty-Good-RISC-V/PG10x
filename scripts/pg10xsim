@@ -27,6 +27,11 @@ while [[ $# -gt 0 ]]; do
             shift # past argument
             shift # past value
             ;;
+        --log)
+            export INSTRUCTION_LOG_FILENAME="$2"
+            shift
+            shift
+            ;;
         *)
             # If it's a directory, assume it's an include directory
             POSITIONAL+=("$1")
@@ -40,6 +45,7 @@ if [ ${#POSITIONAL[@]} -eq 0 ]; then
     exit 1;
 fi
 
-INPUT_FILE="${POSITIONAL[0]}"
+export INPUT_FILE="${POSITIONAL[0]}"
+export PROGRAM_MEMORY_FILE="$INPUT_FILE" 
 
-PROGRAM_MEMORY_FILE="$INPUT_FILE" ./build/$MODEL/src/PG10x/Simulator/Simulator -m $MAX_CYCLES
+./build/$MODEL/src/PG10x/Simulator/Simulator -m $MAX_CYCLES

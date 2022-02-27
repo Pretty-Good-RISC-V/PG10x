@@ -72,8 +72,9 @@ module mkExecutionUnit#(
             let csrWriteEnabled = (isValid(decodedInstruction.immediate) || unJust(decodedInstruction.rs1) != 0);
             let rd = unJust(decodedInstruction.rd);
 
-            let readStatus = csrFile.read1(currentPrivilegeLevel, csrIndex);
+            let immediateIsZero = (isValid(decodedInstruction.immediate) ? unJust(decodedInstruction.immediate) == 0 : False);
 
+            let readStatus = csrFile.read1(currentPrivilegeLevel, csrIndex);
             if (isValid(readStatus)) begin
                 let currentValue = unJust(readStatus);
 
@@ -91,12 +92,12 @@ module mkExecutionUnit#(
                         writeValue = tagged Valid operand;
                     end
                     'b10: begin // CSRRS(I)
-                        if (csrWriteEnabled) begin
+                        if (csrWriteEnabled && !immediateIsZero) begin
                             writeValue = tagged Valid setBits;
                         end
                     end
                     'b11: begin // CSRRC(I)
-                        if (csrWriteEnabled) begin
+                        if (csrWriteEnabled && !immediateIsZero) begin
                             writeValue = tagged Valid clearBits;
                         end
                     end
@@ -132,6 +133,9 @@ module mkExecutionUnit#(
                 fetchIndex: decodedInstruction.fetchIndex,
                 pipelineEpoch: decodedInstruction.pipelineEpoch,
                 programCounter: decodedInstruction.programCounter,
+`ifdef ENABLE_INSTRUCTION_LOGGING
+                rawInstruction: decodedInstruction.rawInstruction,
+`endif
                 changedProgramCounter: tagged Invalid,
                 loadRequest: tagged Invalid,
                 storeRequest: tagged Invalid,
@@ -273,7 +277,7 @@ module mkExecutionUnit#(
                         executedInstruction.exception = tagged Invalid;
                     end else begin
                         executedInstruction.exception = tagged Valid result.Error;
-                    end 
+                    end
                 end
 
                 STORE: begin
@@ -306,6 +310,16 @@ module mkExecutionUnit#(
                         pack(ECALL): begin
                             $display("%0d,%0d,%0d,%0x,%0d,execute,ECALL instruction encountered", decodedInstruction.fetchIndex, csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber);
                             executedInstruction.exception = tagged Valid tagged ExceptionCause extend(pack(ENVIRONMENT_CALL_FROM_M_MODE));
+                        end
+                        pack(MRET): begin
+                            $display("%0d,%0d,%0d,%0x,%0d,execute,MRET instruction", decodedInstruction.fetchIndex, csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber);
+                            let readStatus = csrFile.read1(currentPrivilegeLevel, pack(MEPC));
+                            if (readStatus matches tagged Valid .mepc) begin
+                                executedInstruction.changedProgramCounter = tagged Valid mepc;
+                                executedInstruction.exception = tagged Invalid;
+                            end else begin
+                                $display("%0d,%0d,%0d,%0x,%0d,execute,MRET instruction - failed to read MEPC");
+                            end
                         end
                         default begin
                             executedInstruction.exception = tagged Invalid;

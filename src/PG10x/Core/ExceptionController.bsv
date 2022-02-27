@@ -16,10 +16,10 @@ module mkExceptionController#(
     Reg#(Maybe#(Exception)) currentException <- mkReg(tagged Invalid);
 
     method ActionValue#(ProgramCounter) beginException(RVPrivilegeLevel privilegeLevel, ProgramCounter exceptionProgramCounter, Exception exception);
-        if (isValid(currentException)) begin
-            $display("Exception during handling of exception...halting");
-            $fatal();
-        end
+        // if (isValid(currentException)) begin
+        //     $display("Exception during handling of exception...halting");
+        //     $fatal();
+        // end
 
         let newPrivilegeLevel = PRIVILEGE_LEVEL_MACHINE;
 

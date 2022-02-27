@@ -30,6 +30,11 @@ typedef struct {
     // programCounter - The program counter corresponding to this instruction.
     ProgramCounter programCounter;
 
+`ifdef ENABLE_INSTRUCTION_LOGGING
+    // rawInstruction - The raw instruction bits
+    Word32 rawInstruction;
+`endif
+
     // changedProgramCounter - The next program counter if this instruction was a
     //                         jump/branch/etc.
     Maybe#(ProgramCounter) changedProgramCounter;
