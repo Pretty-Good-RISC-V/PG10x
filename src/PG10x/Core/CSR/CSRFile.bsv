@@ -136,7 +136,6 @@ interface CSRFile;
 endinterface
 
 module mkCSRFile(CSRFile);
-
     MachineInformation machineInformation <- mkMachineInformationRegisters(0, 0, 0, 0, 0);
     MachineStatus machineStatus <- mkMachineStatusRegister();
     MachineTraps machineTraps <- mkMachineTrapRegisters();
@@ -189,6 +188,7 @@ module mkCSRFile(CSRFile);
                     MARCHID:    tagged Valid machineInformation.marchid;
                     MIMPID:     tagged Valid machineInformation.mimpid;
                     MHARTID:    tagged Valid machineInformation.mhartid;
+                    MISA:       tagged Valid machineTraps.setup.machineISA.read();
 
                     MCAUSE:     tagged Valid mcause[portNumber];
                     MTVEC:      tagged Valid mtvec[portNumber];
@@ -215,35 +215,40 @@ module mkCSRFile(CSRFile);
                 // Ignore writes to WARL ignore indices
                 result = True;
             end else begin
-                case(index)
-                    pack(MCAUSE): begin
+                case(unpack(index))
+                    MCAUSE: begin
                         mcause[portNumber] <= value;
                         result = True;
                     end
 
-                    pack(MCYCLE): begin
+                    MCYCLE: begin
                         mcycle <= value;
                         result = True;
                     end
 
-                    pack(MEPC): begin
+                    MEPC: begin
                         mepc[portNumber] <= value;
                         result = True;
                     end
 
-                    pack(MTVEC): begin
-                        $display("Setting MTVEC to $%x", value);
-                        mtvec[portNumber] <= value;
+                    MISA: begin
+                        machineTraps.setup.machineISA.write(value);
                         result = True;
                     end
 
-                    pack(MSTATUS): begin
+                    MSCRATCH: begin
+                        mscratch <= value;
+                        result = True;
+                    end
+
+                    MSTATUS: begin
                         machineStatus.write(value);
                         result = True;
                     end
 
-                    pack(MSCRATCH): begin
-                        mscratch <= value;
+                    MTVEC: begin
+                        $display("Setting MTVEC to $%x", value);
+                        mtvec[portNumber] <= value;
                         result = True;
                     end
                 endcase
