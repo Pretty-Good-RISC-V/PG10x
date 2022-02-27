@@ -38,10 +38,12 @@ module mkMemoryAccessUnit#(
 )(MemoryAccessUnit);
     FIFO#(ExecutedInstruction) outputQueue <- mkPipelineFIFO();
     Reg#(Bool) waitingForLoadToComplete <- mkReg(False);
-    Reg#(ExecutedInstruction) instructionWaitingForLoad <- mkRegU();
+    Reg#(Bool) waitingForStoreResponse <- mkReg(False);
+
+    Reg#(ExecutedInstruction) instructionWaitingForMemoryOperation <- mkRegU();
 
     (* fire_when_enabled *)
-    rule memoryAccess(waitingForLoadToComplete == False);
+    rule memoryAccess(waitingForLoadToComplete == False && waitingForStoreResponse == False);
         let executedInstruction = inputQueue.first();
         let fetchIndex = executedInstruction.fetchIndex;
         let stageEpoch = pipelineController.stageEpoch(stageNumber, 1);
@@ -54,10 +56,10 @@ module mkMemoryAccessUnit#(
                 $display("%0d,%0d,%0d,%0x,%0d,memory access,LOAD", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
                 begin
                     // NOTE: Alignment checks were already performed during the execution stage.
-                    //dataMemory.request.put(loadRequest.tlRequest);
+                    dataMemory.request.put(loadRequest.tlRequest);
 
                     $display("%0d,%0d,%0d,%0x,%0d,memory access,Loading from $%08x", fetchIndex, cycleCounter, executedInstruction.programCounter, loadRequest.tlRequest.a_address);
-                    instructionWaitingForLoad <= executedInstruction;
+                    instructionWaitingForMemoryOperation <= executedInstruction;
                     waitingForLoadToComplete <= True;
                 end
             end else if (executedInstruction.storeRequest matches tagged Valid .storeRequest) begin
@@ -71,6 +73,8 @@ module mkMemoryAccessUnit#(
                     $finish();
                 end
 `endif
+                dataMemory.request.put(storeRequest.tlRequest);
+                waitingForStoreResponse <= True;
             end else begin
                 // Not a LOAD/STORE
                 $display("%0d,%0d,%0d,%0x,%0d,memory access,NO-OP", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
@@ -81,9 +85,34 @@ module mkMemoryAccessUnit#(
         end
     endrule
 
-    rule handleLoadResponse(waitingForLoadToComplete == True);
+    rule handleStoreResponse(waitingForStoreResponse == True && waitingForLoadToComplete == False);
         let memoryResponse <- dataMemory.response.get;
-        let executedInstruction = instructionWaitingForLoad;
+        let executedInstruction = instructionWaitingForMemoryOperation;
+
+        waitingForStoreResponse <= False;
+
+        if (memoryResponse.d_opcode != pack(D_ACCESS_ACK)) begin
+            $display("[%0d:****:memory] FATAL - Store returned unexpected opcode: ", fshow(memoryResponse));
+            $fatal();
+        end
+
+        if (memoryResponse.d_denied) begin
+            $display("[%0d:****:memory] FATAL - Store returned access denied: ", fshow(memoryResponse));
+            $fatal();
+        end
+
+        if (memoryResponse.d_corrupt) begin
+            $display("[%0d:****:memory] FATAL - Store returned access corrupted: ", fshow(memoryResponse));
+            $fatal();
+        end
+
+        inputQueue.deq();
+        outputQueue.enq(executedInstruction);
+    endrule
+
+    rule handleLoadResponse(waitingForLoadToComplete == True && waitingForStoreResponse == False);
+        let memoryResponse <- dataMemory.response.get;
+        let executedInstruction = instructionWaitingForMemoryOperation;
 
         $display("[%0d:****:memory] Load completed", cycleCounter, executedInstruction.programCounter);
 
