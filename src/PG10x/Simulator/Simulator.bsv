@@ -22,7 +22,12 @@ module mkSimulator(Empty);
 `ifdef MONITOR_TOHOST_ADDRESS
         'h8000_1000,
 `endif
-        True // Disable Pipelining
+
+`ifdef DISABLE_PIPELINING
+        True
+`else
+        False
+`endif
     );
     Reg#(Bool) initialized <- mkReg(False);
 
