@@ -9,16 +9,17 @@ function usage
     echo "Usage: $1 [-m <maxcycles>] [--model <pg101|pg103>] <elf_binaryfile>"
 }
 
-MAX_CYCLES=0
-MODEL="pg101"
+MAX_CYCLES=""
+MODEL="<not specified>"
 INPUT=""
+CHECK=""
 
 while [[ $# -gt 0 ]]; do
     key="$1"
 
     case $key in
         --max-cycles)
-            MAX_CYCLES="$2"
+            MAX_CYCLES="-m $2"
             shift # past argument
             shift # past value
             ;;
@@ -32,8 +33,12 @@ while [[ $# -gt 0 ]]; do
             shift
             shift
             ;;
+        --check)
+            CHECK="True"
+            shift
+            ;;
         *)
-            # If it's a directory, assume it's an include directory
+            # If it's a directory, assume it's an input file
             POSITIONAL+=("$1")
             shift # past argument
             ;;
@@ -48,4 +53,12 @@ fi
 export INPUT_FILE="${POSITIONAL[0]}"
 export PROGRAM_MEMORY_FILE="$INPUT_FILE" 
 
-./build/$MODEL/src/PG10x/Simulator/Simulator -m $MAX_CYCLES
+if [ "$CHECK" == "" ]; then
+    ./build/$MODEL/src/PG10x/Simulator/Simulator $MAX_CYCLES
+else
+    if ./build/$MODEL/src/PG10x/Simulator/Simulator $MAX_CYCLES | grep '    PASS'; then
+        exit 0
+    else
+        exit 1
+    fi
+fi

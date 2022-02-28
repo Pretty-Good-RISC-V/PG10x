@@ -36,7 +36,12 @@ module mkSimulator(Empty);
         initialized <= True;
 
         $display("----------------");
+`ifdef DISABLE_PIPELINING
         $display("RG-100 Simulator");
+        $display("*Pipelining OFF*");
+`else
+        $display("RG-100 Simulator");
+`endif
         $display("----------------");
 
         core.start();

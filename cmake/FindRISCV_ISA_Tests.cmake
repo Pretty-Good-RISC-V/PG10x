@@ -10,3 +10,5 @@ ExternalProject_Add(riscv_isa_tests
     BUILD_COMMAND make
     INSTALL_COMMAND make install
 )
+
+set(RISCV_ISA_TEST_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR}/riscv_isa_tests CACHE STRING "")

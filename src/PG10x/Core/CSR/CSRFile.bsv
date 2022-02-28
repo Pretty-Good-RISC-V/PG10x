@@ -155,7 +155,6 @@ module mkCSRFile(CSRFile);
     Reg#(Word)      mcause[2]   <- mkCReg(2, 0);
     Reg#(Word)      mtvec[2]    <- mkCReg(2, 'hC0DEC0DE);
     Reg#(Word)      mepc[2]     <- mkCReg(2, 0);    // Machine Exception Program Counter
-
     Reg#(Word)      mscratch    <- mkReg(0);
 
     function Bool isWARLIgnore(CSRIndex index);
@@ -193,6 +192,7 @@ module mkCSRFile(CSRFile);
                     MCAUSE:     tagged Valid mcause[portNumber];
                     MTVEC:      tagged Valid mtvec[portNumber];
                     MEPC:       tagged Valid mepc[portNumber];
+                    MTVAL:      tagged Valid 0;
 
                     MSTATUS:    tagged Valid machineStatus.mstatus();
                     MCYCLE, CYCLE:     
@@ -243,6 +243,11 @@ module mkCSRFile(CSRFile);
 
                     MSTATUS: begin
                         machineStatus.write(value);
+                        result = True;
+                    end
+
+                    MTVAL: begin
+                        // IGNORED
                         result = True;
                     end
 

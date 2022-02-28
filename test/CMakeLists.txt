@@ -1,3 +1,3 @@
 if(ENABLE_ISA_TESTS)
-    find_package(RISCV_ISA_Tests)
+    add_subdirectory(isa_tests)
 endif()

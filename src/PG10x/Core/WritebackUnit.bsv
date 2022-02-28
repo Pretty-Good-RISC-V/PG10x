@@ -72,6 +72,7 @@ module mkWritebackUnit#(
 `ifdef ENABLE_INSTRUCTION_LOGGING
             instructionLog.logInstruction(executedInstruction.programCounter, executedInstruction.rawInstruction);
 `endif
+
             //
             // Handle any exceptions
             //

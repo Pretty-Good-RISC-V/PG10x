@@ -17,13 +17,13 @@ target_compile_definitions(Simulator PUBLIC
     ${MONITOR_TOHOST_ADDRESS}
 )
 
-if (!ENABLE_BRANCH_PREDICTION)
+if (NOT ENABLE_BRANCH_PREDICTION)
     target_compile_definitions(Simulator PUBLIC
         DISABLE_BRANCH_PREDICTION
     )
 endif()
 
-if (!ENABLE_PIPELINING)
+if (NOT ENABLE_PIPELINING)
     target_compile_definitions(Simulator PUBLIC
         DISABLE_PIPELINING
     )

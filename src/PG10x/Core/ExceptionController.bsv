@@ -13,17 +13,8 @@ endinterface
 module mkExceptionController#(
     CSRFile csrFile
 )(ExceptionController);
-    Reg#(Maybe#(Exception)) currentException <- mkReg(tagged Invalid);
-
     method ActionValue#(ProgramCounter) beginException(RVPrivilegeLevel privilegeLevel, ProgramCounter exceptionProgramCounter, Exception exception);
-        // if (isValid(currentException)) begin
-        //     $display("Exception during handling of exception...halting");
-        //     $fatal();
-        // end
-
         let newPrivilegeLevel = PRIVILEGE_LEVEL_MACHINE;
-
-        currentException <= tagged Valid exception;
 
         let mcause = getMCAUSE(exception);
         csrFile.write0(newPrivilegeLevel, pack(MCAUSE), mcause);
@@ -41,7 +32,5 @@ module mkExceptionController#(
     endmethod
 
     method Action endException;
-        dynamicAssert(isValid(currentException) == False, "Attempted to call endException when not handling exception");
-        currentException <= tagged Invalid;
     endmethod
 endmodule
