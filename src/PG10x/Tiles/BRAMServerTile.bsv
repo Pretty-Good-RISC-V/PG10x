@@ -47,7 +47,7 @@ module mkBRAMServerTileFromFile#(
         let aligned = (request.a_address & 3) == 0 ? True : False;
         let oob = (request.a_address & ~validAddressBits) != 0;
 
-        if (!oob && !request.a_corrupt && aligned && request.a_opcode == pack(A_GET)) begin
+        if (!oob && !request.a_corrupt && aligned && request.a_opcode == a_GET) begin
             bramPort.request.put(BRAMRequestBE {
                 writeen: 0,
                 responseOnWrite: False,
@@ -56,7 +56,7 @@ module mkBRAMServerTileFromFile#(
             });
             lastRequestIsWrite[portNumber] <= False;
             requestInFlight[portNumber] <= True;
-        end else if (!oob && !request.a_corrupt && aligned && request.a_opcode == pack(A_PUT_FULL_DATA)) begin
+        end else if (!oob && !request.a_corrupt && aligned && request.a_opcode == a_PUT_FULL_DATA) begin
             bramPort.request.put(BRAMRequestBE {
                 writeen: request.a_mask,
                 responseOnWrite: True,
@@ -67,7 +67,7 @@ module mkBRAMServerTileFromFile#(
             requestInFlight[portNumber] <= True;
         end else begin
             responses[portNumber].enq(TileLinkChannelDResponse32 {
-                d_opcode: pack(D_ACCESS_ACK_DATA),
+                d_opcode: d_ACCESS_ACK_DATA,
                 d_param: 0,
                 d_size: 0,
                 d_source: 0,
@@ -96,7 +96,7 @@ module mkBRAMServerTileFromFile#(
         requestInFlight[portNumber] <= False;
 
         responses[portNumber].enq(TileLinkLiteWord32Response {
-            d_opcode: lastRequestIsWrite[portNumber] ? pack(D_ACCESS_ACK) : pack(D_ACCESS_ACK_DATA),
+            d_opcode: lastRequestIsWrite[portNumber] ? d_ACCESS_ACK : d_ACCESS_ACK_DATA,
             d_param: 0,
             d_size: lastRequestIsWrite[portNumber] ? 0 : 1,
             d_source: 0,

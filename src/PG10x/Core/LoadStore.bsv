@@ -32,7 +32,7 @@ function Result#(LoadRequest, Exception) getLoadRequest(
 
     let loadRequest = LoadRequest {
         tlRequest: TileLinkLiteWordRequest {
-            a_opcode: pack(A_GET),
+            a_opcode: a_GET,
             a_param: 0,
             a_size: ?,
             a_source: 0,
@@ -140,7 +140,7 @@ function Result#(StoreRequest, Exception) getStoreRequest(
 
     let storeRequest = StoreRequest {
         tlRequest: TileLinkLiteWordRequest {
-            a_opcode: pack(A_PUT_PARTIAL_DATA),
+            a_opcode: a_PUT_PARTIAL_DATA,
             a_param: 0,
             a_size: ?,
             a_source: 0,
@@ -178,7 +178,7 @@ function Result#(StoreRequest, Exception) getStoreRequest(
                 result = tagged Error tagged ExceptionCause extend(exception_STORE_ADDRESS_MISALIGNED);
             end else begin
 `ifdef RV32
-                storeRequest.tlRequest.a_opcode = pack(A_PUT_FULL_DATA);
+                storeRequest.tlRequest.a_opcode = a_PUT_FULL_DATA;
 `endif
                 storeRequest.tlRequest.a_size = 2; // 4 bytes
                 storeRequest.tlRequest.a_mask = 'b1111;
@@ -194,7 +194,7 @@ function Result#(StoreRequest, Exception) getStoreRequest(
             if ((effectiveAddress & 'b111) != 0) begin
                 result = tagged Error tagged ExceptionCause extend(exception_STORE_ADDRESS_MISALIGNED);
             end else begin
-                storeRequest.tlRequest.a_opcode = pack(A_PUT_FULL_DATA);
+                storeRequest.tlRequest.a_opcode = a_PUT_FULL_DATA;
                 storeRequest.tlRequest.a_size = 3; // 8 bytes
                 storeRequest.tlRequest.a_mask = 'b1111_1111;
                 storeRequest.tlRequest.a_data = (value & 'hFFFF_FFFF_FFFF_FFFF);

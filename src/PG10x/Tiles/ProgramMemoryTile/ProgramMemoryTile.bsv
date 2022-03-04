@@ -47,7 +47,7 @@ module mkProgramMemoryTile(ProgramMemoryTile);
         requests[portNumber].deq;
 
         TileLinkLiteWordResponse response = TileLinkLiteWordResponse{
-            d_opcode: pack(D_ACCESS_ACK),
+            d_opcode: d_ACCESS_ACK,
             d_param: 0,
             d_size: request.a_size,
             d_source: request.a_source,
@@ -58,23 +58,23 @@ module mkProgramMemoryTile(ProgramMemoryTile);
         };
 
         let addressValid = program_memory_is_valid_address(programMemoryContext, truncate(request.a_address));
-        if (addressValid && !request.a_corrupt && request.a_opcode == pack(A_GET)) begin
+        if (addressValid && !request.a_corrupt && request.a_opcode == a_GET) begin
             case (request.a_size)
                 0:  begin   // 1 byte
-                    response.d_opcode = pack(D_ACCESS_ACK_DATA);
+                    response.d_opcode = d_ACCESS_ACK_DATA;
                     response.d_denied = False;
                     response.d_data = extend(program_memory_read_u8(programMemoryContext, request.a_address));
                 end
                 1:  begin   // 2 bytes
                     if ((request.a_address & 1) == 0) begin
-                        response.d_opcode = pack(D_ACCESS_ACK_DATA);
+                        response.d_opcode = d_ACCESS_ACK_DATA;
                         response.d_denied = False;
                         response.d_data = extend(program_memory_read_u16(programMemoryContext, request.a_address));
                     end
                 end
                 2:  begin   // 4 bytes
                     if ((request.a_address & 3) == 0) begin
-                        response.d_opcode = pack(D_ACCESS_ACK_DATA);
+                        response.d_opcode = d_ACCESS_ACK_DATA;
                         response.d_denied = False;
                         response.d_data = extend(program_memory_read_u32(programMemoryContext, request.a_address));
                     end
@@ -82,15 +82,15 @@ module mkProgramMemoryTile(ProgramMemoryTile);
 `ifdef RV64
                 3:  begin   // 8 bytes
                     if ((request.a_address & 7) == 0) begin
-                        response.d_opcode = pack(D_ACCESS_ACK_DATA);
+                        response.d_opcode = d_ACCESS_ACK_DATA;
                         response.d_denied = False;
                         response.d_data = program_memory_read_u64(programMemoryContext, request.a_address);
                     end
                 end
 `endif
             endcase
-        end else if (addressValid && !request.a_corrupt && request.a_opcode == pack(A_PUT_FULL_DATA)) begin
-            response.d_opcode = pack(D_ACCESS_ACK);
+        end else if (addressValid && !request.a_corrupt && request.a_opcode == a_PUT_FULL_DATA) begin
+            response.d_opcode = d_ACCESS_ACK;
             response.d_denied = False;
         end else begin
             response.d_denied = True;

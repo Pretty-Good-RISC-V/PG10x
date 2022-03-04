@@ -91,7 +91,7 @@ module mkMemoryAccessUnit#(
 
         waitingForStoreResponse <= False;
 
-        if (memoryResponse.d_opcode != pack(D_ACCESS_ACK)) begin
+        if (memoryResponse.d_opcode != d_ACCESS_ACK) begin
             $display("[%0d:****:memory] FATAL - Store returned unexpected opcode: ", fshow(memoryResponse));
             $fatal();
         end
@@ -118,7 +118,7 @@ module mkMemoryAccessUnit#(
 
         waitingForLoadToComplete <= False;
 
-        if (memoryResponse.d_opcode != pack(D_ACCESS_ACK_DATA)) begin
+        if (memoryResponse.d_opcode != d_ACCESS_ACK_DATA) begin
             $display("[%0d:****:memory] FATAL - Load returned unexpected opcode: ", fshow(memoryResponse));
             $fatal();
         end

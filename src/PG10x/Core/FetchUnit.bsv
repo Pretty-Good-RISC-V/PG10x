@@ -70,7 +70,7 @@ module mkFetchUnit#(
         $display("%0d,%0d,%0d,%0x,%0d,fetch send,fetch address: $%08x", fetchCounter, cycleCounter, fetchEpoch, fetchProgramCounter, stageNumber, fetchProgramCounter);
 
         instructionMemory.request.put(TileLinkLiteWordRequest {
-            a_opcode: pack(A_GET),
+            a_opcode: a_GET,
             a_param: 0,
             a_size: 2, // Log2(sizeof(Word32))
             a_source: 0,
@@ -102,7 +102,7 @@ module mkFetchUnit#(
         end else if (fetchResponse.d_corrupt) begin
             $display("%0d,%0d,%0d,%0x,%0d,fetch receive,FATAL - received corrupted data from memory system.", fetchInfo.index, cycleCounter, fetchInfo.epoch, fetchInfo.address, stageNumber);
             $fatal();
-        end else if (fetchResponse.d_opcode != pack(D_ACCESS_ACK_DATA)) begin
+        end else if (fetchResponse.d_opcode != d_ACCESS_ACK_DATA) begin
             $display("%0d,%0d,%0d,%0x,%0d,fetch receive,FATAL - received unexpected opcode from memory system: ", fetchInfo.index, cycleCounter, fetchInfo.epoch, fetchInfo.address, stageNumber, fshow(fetchResponse.d_opcode));
             $fatal();
         end else begin
