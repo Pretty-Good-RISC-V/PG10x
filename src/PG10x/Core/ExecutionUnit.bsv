@@ -319,7 +319,7 @@ module mkExecutionUnit#(
                             end
                             sys_MRET: begin
                                 $display("%0d,%0d,%0d,%0x,%0d,execute,MRET instruction", decodedInstruction.fetchIndex, exceptionController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber);
-                                let readStatus = exceptionController.csrFile.read(pack(MEPC),1);
+                                let readStatus = exceptionController.csrFile.read(csr_MEPC,1);
                                 if (readStatus matches tagged Valid .mepc) begin
                                     executedInstruction.changedProgramCounter = tagged Valid mepc;
                                     executedInstruction.exception = tagged Invalid;

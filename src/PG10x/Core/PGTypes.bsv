@@ -11,7 +11,6 @@ typedef Int#(XLEN) SignedInt;
 
 typedef Word ProgramCounter;
 typedef Bit#(5) RegisterIndex;
-typedef Bit#(12) CSRIndex;
 
 typedef TLog#(TDiv#(n,8)) DataSz#(numeric type n);
 

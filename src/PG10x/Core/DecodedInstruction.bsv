@@ -92,7 +92,7 @@ typedef struct {
     RVCSROperator csrOperator;
 
     // csrIndex - The CSR index corresponding to this instruction.
-    CSRIndex csrIndex;
+    RVCSRIndex csrIndex;
 
     // rd - The *destination* register (if any) corresponding to this instruction.
     Maybe#(RegisterIndex) rd;

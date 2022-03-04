@@ -29,10 +29,10 @@ module mkExceptionController(ExceptionController);
     method ActionValue#(ProgramCounter) beginException(ProgramCounter exceptionProgramCounter, Exception exception);
         let cause = getCause(exception);
 
-        csrFileInner.writeWithOffset(CAUSE, cause, 0);
-        csrFileInner.writeWithOffset(EPC, exceptionProgramCounter, 0);
+        csrFileInner.writeWithOffset(csr_CAUSE, cause, 0);
+        csrFileInner.writeWithOffset(csr_EPC, exceptionProgramCounter, 0);
 
-        Word vectorTableBase = unJust(csrFileInner.readWithOffset(TVEC, 0));
+        Word vectorTableBase = unJust(csrFileInner.readWithOffset(csr_TVEC, 0));
         let exceptionHandler = vectorTableBase;
         if (exceptionHandler[1:0] == 1) begin
             exceptionHandler[1:0] = 0;
@@ -50,8 +50,8 @@ module mkExceptionController(ExceptionController);
         Maybe#(Word32) result = tagged Invalid;
 
         if (csrFileInner.machineModeInterruptsEnabled) begin
-            let mie = fromMaybe(0, csrFileInner.read(pack(MIE), portNumber));
-            let mip = fromMaybe(0, csrFileInner.read(pack(MIP), portNumber));
+            let mie = fromMaybe(0, csrFileInner.read(csr_MIE, portNumber));
+            let mip = fromMaybe(0, csrFileInner.read(csr_MIP, portNumber));
 
             let actionableInterrupts = mip & mie;
             if (actionableInterrupts != 0) begin
@@ -62,7 +62,7 @@ module mkExceptionController(ExceptionController);
 
                     if (clear) begin
                         let newMIP = mip & ~(1 << highestBit);
-                        let writeResult <- csrFileInner.write(pack(MIP), newMIP, portNumber);
+                        let writeResult <- csrFileInner.write(csr_MIP, newMIP, portNumber);
                         dynamicAssert(writeResult == True, "MIP Write failed!");
                     end
                 end
