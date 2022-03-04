@@ -11,19 +11,19 @@ typedef union tagged {
     RVInterruptCause InterruptCause;
 } Exception deriving(Bits, Eq, FShow);
 
-function Word getMCAUSE(Exception exception);
+function Word getCause(Exception exception);
     return case(exception) matches
-        tagged ExceptionCause .cause: begin
-            Word mcause = ?;
-            mcause[valueOf(XLEN)-1] = 0;
-            mcause[valueOf(XLEN)-2:0] = cause;
-            return mcause;
+        tagged ExceptionCause .exceptionCause: begin
+            Word cause = ?;
+            cause[valueOf(XLEN)-1] = 0;
+            cause[valueOf(XLEN)-2:0] = exceptionCause;
+            return cause;
         end
-        tagged InterruptCause .cause: begin
-            Word mcause = ?;
-            mcause[valueOf(XLEN)-1] = 1;
-            mcause[valueOf(XLEN)-2:0] = cause;
-            return mcause;
+        tagged InterruptCause .interruptCause: begin
+            Word cause = ?;
+            cause[valueOf(XLEN)-1] = 1;
+            cause[valueOf(XLEN)-2:0] = interruptCause;
+            return cause;
         end
     endcase;
 endfunction

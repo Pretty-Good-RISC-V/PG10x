@@ -30,7 +30,7 @@ module mkDecodeUnit#(
     Scoreboard#(4) scoreboard,
     RegisterFile registerFile
 )(DecodeUnit);
-    FIFO#(DecodedInstruction) outputQueue <- mkPipelineFIFO();
+    FIFO#(DecodedInstruction) outputQueue <- mkPipelineFIFO;
 
     function Bool isValidLoadInstruction(Bit#(3) func3);
 `ifdef RV32
@@ -294,7 +294,7 @@ module mkDecodeUnit#(
 
         if (!pipelineController.isCurrentEpoch(stageNumber, 2, instructionMemoryResponse.pipelineEpoch)) begin
             $display("%0d,%0d,%0d,%0x,%0d,decode,stale instruction...ignoring", fetchIndex, cycleCounter, instructionMemoryResponse.pipelineEpoch, instructionMemoryResponse.programCounter, stageNumber);
-            inputQueue.deq();
+            inputQueue.deq;
         end else begin
             let encodedInstruction = instructionMemoryResponse.rawInstruction;
             let programCounter = instructionMemoryResponse.programCounter;

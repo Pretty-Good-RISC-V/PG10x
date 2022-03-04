@@ -36,19 +36,17 @@ module mkWritebackUnit#(
     ProgramCounterRedirect programCounterRedirect,
     Scoreboard#(4) scoreboard, 
     RegisterFile registerFile,
-    CSRFile csrFile,
-    ExceptionController exceptionController,
-    Reg#(RVPrivilegeLevel) currentPrivilegeLevel
+    ExceptionController exceptionController
 )(WritebackUnit);
     Reg#(Bool) instructionRetired <- mkDReg(False);
 
 `ifdef ENABLE_INSTRUCTION_LOGGING
-    InstructionLog instructionLog<- mkInstructionLog();
+    InstructionLog instructionLog<- mkInstructionLog;
 `endif
 
     (* fire_when_enabled *)
     rule writeBack;
-        let executedInstruction = inputQueue.first();
+        let executedInstruction = inputQueue.first;
         let fetchIndex = executedInstruction.fetchIndex;
         let stageEpoch = pipelineController.stageEpoch(stageNumber, 0);
 
@@ -59,9 +57,9 @@ module mkWritebackUnit#(
 
         if (!pipelineController.isCurrentEpoch(stageNumber, 0, executedInstruction.pipelineEpoch)) begin
             $display("%0d,%0d,%0d,%0d,writeback,stale instruction (%0d != %0d)...popping bubble", fetchIndex, cycleCounter, executedInstruction.pipelineEpoch, inputQueue.first().programCounter, stageNumber, inputQueue.first().pipelineEpoch, stageEpoch);
-            inputQueue.deq();
+            inputQueue.deq;
         end else begin
-            inputQueue.deq();
+            inputQueue.deq;
             if (executedInstruction.writeBack matches tagged Valid .wb) begin
                 $display("%0d,%0d,%0d,%0x,%0d,writeback,writing result ($%08x) to register x%0d", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, wb.value, wb.rd);
                 registerFile.write(wb.rd, wb.value);
@@ -70,7 +68,16 @@ module mkWritebackUnit#(
             end
 
 `ifdef ENABLE_INSTRUCTION_LOGGING
-            instructionLog.logInstruction(executedInstruction.programCounter, executedInstruction.rawInstruction);
+            Bool logIt = True;
+            if (isValid(executedInstruction.exception)) begin
+                if (unJust(executedInstruction.exception) matches tagged InterruptCause .*) begin
+                    // If the instruction was interrupted, don't log it.
+                    logIt = False;
+                end
+            end
+
+            if (logIt)
+                instructionLog.logInstruction(executedInstruction.programCounter, executedInstruction.rawInstruction);
 `endif
 
             //
@@ -79,7 +86,7 @@ module mkWritebackUnit#(
             if (executedInstruction.exception matches tagged Valid .exception) begin
                 pipelineController.flush(0);
 
-                let exceptionVector <- exceptionController.beginException(currentPrivilegeLevel, executedInstruction.programCounter, exception);
+                let exceptionVector <- exceptionController.beginException(executedInstruction.programCounter, exception);
 
                 $display("%0d,%0d,%0d,%0x,%0d,writeback,EXCEPTION:", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, fshow(exception));
                 $display("%0d,%0d,%0d,%0x,%0d,writeback,Jumping to exception handler at $%08x", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, exceptionVector);
@@ -87,7 +94,7 @@ module mkWritebackUnit#(
                 programCounterRedirect.exception(exceptionVector); 
             end
             $display("%0d,%0d,%0d,%0x,%0d,writeback,---------------------------", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
-            csrFile.increment_instructions_retired_counter();
+            exceptionController.csrFile.increment_instructions_retired_counter;
             instructionRetired <= True;
         end
     endrule

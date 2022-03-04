@@ -147,11 +147,17 @@ template <typename T>
 struct AlignmentTraits {
     static bool isAligned(address_t address);
     static T defaultValue();
+    static std::string name();
 };
 
 template<>
 bool AlignmentTraits<uint8_t>::isAligned(address_t address) {
     return true;
+}
+
+template<>
+std::string AlignmentTraits<uint8_t>::name() {
+    return std::string("uint8_t");
 }
 
 template<>
@@ -165,6 +171,11 @@ bool AlignmentTraits<uint16_t>::isAligned(address_t address) {
 }
 
 template<>
+std::string AlignmentTraits<uint16_t>::name() {
+    return std::string("uint16_t");
+}
+
+template<>
 uint16_t AlignmentTraits<uint16_t>::defaultValue() {
     return 0xAACC;
 }
@@ -172,6 +183,11 @@ uint16_t AlignmentTraits<uint16_t>::defaultValue() {
 template<>
 bool AlignmentTraits<uint32_t>::isAligned(address_t address) {
     return (address & 3) == 0;
+}
+
+template<>
+std::string AlignmentTraits<uint32_t>::name() {
+    return std::string("uint32_t");
 }
 
 template<>
@@ -185,6 +201,11 @@ bool AlignmentTraits<uint64_t>::isAligned(address_t address) {
 }
 
 template<>
+std::string AlignmentTraits<uint64_t>::name() {
+    return std::string("uint64_t");
+}
+
+template<>
 uint64_t AlignmentTraits<uint64_t>::defaultValue() {
     return 0xABCDABCDABCDABCD;
 }
@@ -192,7 +213,11 @@ uint64_t AlignmentTraits<uint64_t>::defaultValue() {
 template<typename T>
 T program_memory_read(context_handle handle, address_t address) {
     T result = AlignmentTraits<T>::defaultValue();
-    assert(AlignmentTraits<T>::isAligned(address));
+    if (AlignmentTraits<T>::isAligned(address) == false) {
+        std::cerr << "Alignement check " << std::hex << address << " failed for " << AlignmentTraits<T>::name() << std::endl;
+        assert(false);
+    }
+
     const auto &i = contexts.find(handle);
     if (i != contexts.end()) {
         const auto &s = (*i).second->find(address);

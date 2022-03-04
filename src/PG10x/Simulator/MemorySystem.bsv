@@ -28,7 +28,7 @@ module mkMemorySystem#(
     interface TileLinkLiteWordServer instructionMemory;
         interface Get response;
             method ActionValue#(TileLinkLiteWordResponse) get;
-                let response <- memoryServer.portA.response.get();
+                let response <- memoryServer.portA.response.get;
                 return response;
             endmethod
         endinterface

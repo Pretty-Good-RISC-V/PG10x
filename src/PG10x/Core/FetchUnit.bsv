@@ -39,15 +39,15 @@ module mkFetchUnit#(
 )(FetchUnit);
     Reg#(Word) fetchCounter <- mkReg(0);
     Reg#(ProgramCounter) programCounter[2] <- mkCReg(2, initialProgramCounter);
-    FIFO#(EncodedInstruction) outputQueue <- mkPipelineFIFO();
+    FIFO#(EncodedInstruction) outputQueue <- mkPipelineFIFO;
     Reg#(PipelineEpoch) currentEpoch <- mkReg(0);
 
-    FIFO#(FetchInfo) fetchInfoQueue <- mkPipelineFIFO(); // holds the fetch info for the current instruction request
+    FIFO#(FetchInfo) fetchInfoQueue <- mkPipelineFIFO; // holds the fetch info for the current instruction request
 
 `ifdef DISABLE_BRANCH_PREDICTOR
-    BranchPredictor branchPredictor <- mkNullBranchPredictor();
+    BranchPredictor branchPredictor <- mkNullBranchPredictor;
 `else
-    BranchPredictor branchPredictor <- mkBackwardBranchTakenPredictor();
+    BranchPredictor branchPredictor <- mkBackwardBranchTakenPredictor;
 `endif
 
     (* fire_when_enabled *)
@@ -57,7 +57,7 @@ module mkFetchUnit#(
         // increment the epoch.
         let fetchProgramCounter = programCounter[1];
         let fetchEpoch = currentEpoch;
-        let redirectedProgramCounter <- programCounterRedirect.getRedirectedProgramCounter();
+        let redirectedProgramCounter <- programCounterRedirect.getRedirectedProgramCounter;
         if (isValid(redirectedProgramCounter)) begin
             fetchProgramCounter = fromMaybe(?, redirectedProgramCounter);
 
@@ -93,8 +93,8 @@ module mkFetchUnit#(
     rule handleFetchResponse;
         let fetchResponse <- instructionMemory.response.get;
 
-        let fetchInfo = fetchInfoQueue.first();
-        fetchInfoQueue.deq();
+        let fetchInfo = fetchInfoQueue.first;
+        fetchInfoQueue.deq;
 
         if (fetchResponse.d_denied) begin
             $display("%0d,%0d,%0d,%0x,%0d,fetch receive,FATAL - received access denied from memory system.", fetchInfo.index, cycleCounter, fetchInfo.epoch, fetchInfo.address, stageNumber);

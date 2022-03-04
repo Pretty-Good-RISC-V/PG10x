@@ -13,8 +13,8 @@ endinterface
 
 (* synthesize *)
 module mkMachineTrapRegisters(MachineTraps);
-    MachineISA misa <- mkMachineISARegister();
-    MachineStatus mstatus <- mkMachineStatusRegister();
+    MachineISA misa <- mkMachineISARegister;
+    MachineStatus mstatus <- mkMachineStatusRegister;
 
     interface MachineTrapSetup setup;
         interface MachineISA machineISA = misa;

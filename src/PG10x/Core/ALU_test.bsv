@@ -11,7 +11,7 @@ typedef struct {
 (* synthesize *)
 module mkALU_test(Empty);
     Reg#(Word) testNumber <- mkReg(0);
-    ALU alu <- mkALU();
+    ALU alu <- mkALU;
 
     Integer arraySize = 18;
     ALUTest tests[arraySize] = {

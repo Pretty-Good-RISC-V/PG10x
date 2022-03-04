@@ -8,7 +8,7 @@ interface DualPortBRAMServerTile;
     interface TileLinkLiteWord32Server portA;
     interface TileLinkLiteWord32Server portB;
 
-    method Integer getMemorySize();
+    method Integer getMemorySize;
 endinterface
 
 module mkBRAMServerTileFromFile#(
@@ -40,7 +40,7 @@ module mkBRAMServerTileFromFile#(
 
     function Action handleBRAMRequest(BRAMServerBE#(Word32, Word32, 4) bramPort, Integer portNumber);
         action
-        let request = requests[portNumber].first();
+        let request = requests[portNumber].first;
         requests[portNumber].deq;
 
         let wordAddress = request.a_address >> 2;
@@ -119,7 +119,7 @@ module mkBRAMServerTileFromFile#(
     interface TileLinkLiteWord32Server portA;
         interface Get response;
             method ActionValue#(TileLinkLiteWord32Response) get;
-                let response = responses[0].first();
+                let response = responses[0].first;
                 responses[0].deq;
 
                 return response;
@@ -136,7 +136,7 @@ module mkBRAMServerTileFromFile#(
     interface TileLinkLiteWord32Server portB;
         interface Get response;
             method ActionValue#(TileLinkLiteWord32Response) get;
-                let response = responses[1].first();
+                let response = responses[1].first;
                 responses[1].deq;
 
                 return response;

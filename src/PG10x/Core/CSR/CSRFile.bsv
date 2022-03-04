@@ -47,6 +47,28 @@ endmodule
 
 typedef enum {
     //
+    // Supervisor Trap Setup
+    //
+    SSTATUS         = 12'h100,    // Supervisor Status Register (SRW)
+    SIE             = 12'h104,    // Supervisor Interrupt Enable Register (SRW)
+    STVEC           = 12'h105,    // Supervisor Trap-Handler base address (SRW)
+    SCOUNTEREN      = 12'h106,    // Supervisor Counter Enable Register (SRW)
+
+    //
+    // Supervisor Configuration
+    //
+    SENVCFG         = 12'h10A,    // Supervisor environment configuration register (SRW)
+
+    //
+    // Supervisor Trap Handling
+    //
+    SSCRATCH        = 12'h140,    // Scratch register for supervisor trap handlers (SRW)
+    SEPC            = 12'h141,    // Supervisor exception program counter (SRW)
+    SCAUSE          = 12'h142,    // Supervisor trap cause (SRW)
+    STVAL           = 12'h143,    // Supervisor bad address or instruction (SRW)
+    SIP             = 12'h144,    // Supervisor interrupt pending (SRW)
+
+    //
     // Supervisor Protection and Translation
     //
     SATP            = 12'h180,    // Supervisor address translation and protection (SRW)
@@ -120,13 +142,31 @@ typedef enum {
     MCONFIGPTR      = 12'hF15     // Pointer to configuration data structure (MRO)
 } CSR deriving(Bits, Eq);
 
+typedef enum {
+    STATUS          = 8'h00,      // Status
+    EDELEG          = 8'h02,      // Exception Delegation
+    IDELEG          = 8'h03,      // Interrupt Delegation
+    IE              = 8'h04,      // Interrupt Enable
+    TVEC            = 8'h05,      // Vector Table
+    COUNTEREN       = 8'h06,      // Counter Enable
+
+    SCRATCH         = 8'h40,      // Scratch Register
+    EPC             = 8'h41,      // Exception Program Counter
+    CAUSE           = 8'h42,      // Exception/Interrupt Cause
+    TVAL            = 8'h43,      // Bad address or instruction
+    IP              = 8'h44       // Interrupt Pending
+} CSRIndexOffset deriving(Bits, Eq);
+
 interface CSRFile;
     // Generic read/write support
-    method Maybe#(Word) read0(RVPrivilegeLevel curPriv, CSRIndex index);
-    method Maybe#(Word) read1(RVPrivilegeLevel curPriv, CSRIndex index);
+    method Maybe#(Word) read(CSRIndex index, Integer portNumber);
+    method Maybe#(Word) readWithOffset(CSRIndexOffset offset, Integer portNumber);
 
-    method ActionValue#(Bool) write0(RVPrivilegeLevel curPriv, CSRIndex index, Word value);
-    method ActionValue#(Bool) write1(RVPrivilegeLevel curPriv, CSRIndex index, Word value);
+    method ActionValue#(Bool) write(CSRIndex index, Word value, Integer portNumber);
+    method ActionValue#(Bool) writeWithOffset(CSRIndexOffset offset, Word value, Integer portNumber);
+
+    method Bool machineModeInterruptsEnabled;
+    method Action setMachineModeInterruptsEnabled(Bool areEnabled);
 
     // Special purpose
     method Word64 cycle_counter;
@@ -137,8 +177,8 @@ endinterface
 
 module mkCSRFile(CSRFile);
     MachineInformation machineInformation <- mkMachineInformationRegisters(0, 0, 0, 0, 0);
-    MachineStatus machineStatus <- mkMachineStatusRegister();
-    MachineTraps machineTraps <- mkMachineTrapRegisters();
+    MachineStatus   machineStatus <- mkMachineStatusRegister;
+    MachineTraps    machineTraps <- mkMachineTrapRegisters;
 
     Reg#(Word64)    cycleCounter                <- mkReg(0);
     Reg#(Word64)    timeCounter                 <- mkReg(0);
@@ -156,6 +196,10 @@ module mkCSRFile(CSRFile);
     Reg#(Word)      mtvec[2]    <- mkCReg(2, 'hC0DEC0DE);
     Reg#(Word)      mepc[2]     <- mkCReg(2, 0);    // Machine Exception Program Counter
     Reg#(Word)      mscratch    <- mkReg(0);
+    Reg#(Word)      mip         <- mkReg(0);
+    Reg#(Word)      mie         <- mkReg(0);
+
+    Reg#(Bit#(2))   currentPrivilegeLevel     <- mkReg(pack(PRIVILEGE_LEVEL_MACHINE));
 
     function Bool isWARLIgnore(CSRIndex index);
         Bool result = False;
@@ -163,8 +207,6 @@ module mkCSRFile(CSRFile);
         if ((index >= pack(PMPADDR0) && index <= pack(PMPADDR63)) ||
             (index >= pack(PMPCFG0) && index <= pack(PMPCFG15)) ||
             index == pack(SATP) ||
-            index == pack(MIE) || 
-            index == pack(MIP) || 
             index == pack(MIDELEG) ||
             index == pack(MEDELEG)) begin
             result = True;
@@ -173,115 +215,145 @@ module mkCSRFile(CSRFile);
         return result;
     endfunction
 
-    function Maybe#(Word) read(RVPrivilegeLevel curPriv, CSRIndex index, Integer portNumber);
-        // Access check
-        if (pack(curPriv) < index[9:8]) begin
-            return tagged Invalid;
+    function CSRIndex getIndex(CSRIndexOffset offset);
+        CSRIndex index = 0;
+        index[9:8] = currentPrivilegeLevel[1:0];
+        index[7:0] = extend(pack(offset));
+        return index;
+    endfunction
+
+    function Maybe#(Word) readInternal(CSRIndex index, Integer portNumber);
+        if (isWARLIgnore(index)) begin
+            return tagged Valid 0;
         end else begin
-            if (isWARLIgnore(index)) begin
-                return tagged Valid 0;
-            end else begin
-                return case(unpack(index))
-                    // Machine Information Registers (MRO)
-                    MVENDORID:  tagged Valid extend(machineInformation.mvendorid);
-                    MARCHID:    tagged Valid machineInformation.marchid;
-                    MIMPID:     tagged Valid machineInformation.mimpid;
-                    MHARTID:    tagged Valid machineInformation.mhartid;
-                    MISA:       tagged Valid machineTraps.setup.machineISA.read();
+            return case(unpack(index))
+                // Machine Information Registers (MRO)
+                MVENDORID:  tagged Valid extend(machineInformation.mvendorid);
+                MARCHID:    tagged Valid machineInformation.marchid;
+                MIMPID:     tagged Valid machineInformation.mimpid;
+                MHARTID:    tagged Valid machineInformation.mhartid;
+                MISA:       tagged Valid machineTraps.setup.machineISA.read;
 
-                    MCAUSE:     tagged Valid mcause[portNumber];
-                    MTVEC:      tagged Valid mtvec[portNumber];
-                    MEPC:       tagged Valid mepc[portNumber];
-                    MTVAL:      tagged Valid 0;
+                MCAUSE:     tagged Valid mcause[portNumber];
+                MTVEC:      tagged Valid mtvec[portNumber];
+                MEPC:       tagged Valid mepc[portNumber];
+                MTVAL:      tagged Valid 0;
 
-                    MSTATUS:    tagged Valid machineStatus.mstatus();
-                    MCYCLE, CYCLE:     
-                        tagged Valid mcycle;
-                    MSCRATCH:   tagged Valid mscratch;
-                    
-                    default:    tagged Invalid;
-                endcase;
-            end
+                MSTATUS, SSTATUS:    tagged Valid machineStatus.read;
+                MCYCLE, CYCLE:     
+                    tagged Valid mcycle;
+                MSCRATCH:   tagged Valid mscratch;
+                MIP:        tagged Valid mip;
+                MIE:        tagged Valid mie;
+                
+                default:    tagged Invalid;
+            endcase;
         end
     endfunction
 
-    function ActionValue#(Bool) write(RVPrivilegeLevel curPriv, CSRIndex index, Word value, Integer portNumber);
+    function ActionValue#(Bool) writeInternal(CSRIndex index, Word value, Integer portNumber);
         actionvalue
         let result = False;
         $display("CSR Write: $%x = $%x", index, value);
         // Access and write to read-only CSR check.
-        if (pack(curPriv) >= index[9:8] && index[11:10] != 'b11) begin
-            if (isWARLIgnore(index)) begin
-                // Ignore writes to WARL ignore indices
-                result = True;
-            end else begin
-                case(unpack(index))
-                    MCAUSE: begin
-                        mcause[portNumber] <= value;
-                        result = True;
-                    end
-
-                    MCYCLE: begin
-                        mcycle <= value;
-                        result = True;
-                    end
-
-                    MEPC: begin
-                        mepc[portNumber] <= value;
-                        result = True;
-                    end
-
-                    MISA: begin
-                        machineTraps.setup.machineISA.write(value);
-                        result = True;
-                    end
-
-                    MSCRATCH: begin
-                        mscratch <= value;
-                        result = True;
-                    end
-
-                    MSTATUS: begin
-                        machineStatus.write(value);
-                        result = True;
-                    end
-
-                    MTVAL: begin
-                        // IGNORED
-                        result = True;
-                    end
-
-                    MTVEC: begin
-                        $display("Setting MTVEC to $%x", value);
-                        mtvec[portNumber] <= value;
-                        result = True;
-                    end
-                endcase
-            end
+        if (isWARLIgnore(index)) begin
+            // Ignore writes to WARL ignore indices
+            result = True;
         end else begin
-            $display("CSR: Attempt to write to $%0x failed due to access check", index);
+            case(unpack(index))
+                MCAUSE: begin
+                    mcause[portNumber] <= value;
+                    result = True;
+                end
+
+                MCYCLE: begin
+                    mcycle <= value;
+                    result = True;
+                end
+
+                MEPC: begin
+                    mepc[portNumber] <= value;
+                    result = True;
+                end
+
+                MISA: begin
+                    machineTraps.setup.machineISA.write(value);
+                    result = True;
+                end
+
+                MSCRATCH: begin
+                    mscratch <= value;
+                    result = True;
+                end
+
+                MSTATUS, SSTATUS: begin
+                    machineStatus.write(value);
+                    result = True;
+                end
+
+                MTVAL: begin
+                    // IGNORED
+                    result = True;
+                end
+
+                MTVEC: begin
+                    $display("Setting MTVEC to $%0x", value);
+                    mtvec[portNumber] <= value;
+                    result = True;
+                end
+
+                MIE: begin
+                    $display("Setting MIE to $%0x", value);
+                    mie <= value;
+                    result = True;
+                end
+
+                MIP: begin
+                    $display("Setting MIP to $%0x", value);
+                    mip <= value;
+                    result = True;
+                end
+            endcase
         end
 
         return result;
         endactionvalue
     endfunction
 
-    method Maybe#(Word) read0(RVPrivilegeLevel curPriv, CSRIndex index);
-        return read(curPriv, index, 0);
+    method Maybe#(Word) read(CSRIndex index, Integer portNumber);
+        if (currentPrivilegeLevel < index[9:8]) begin
+            return tagged Invalid;
+        end else begin
+            return readInternal(index, portNumber);
+        end
     endmethod
 
-    method Maybe#(Word) read1(RVPrivilegeLevel curPriv, CSRIndex index);
-        return read(curPriv, index, 1);
+    method Maybe#(Word) readWithOffset(CSRIndexOffset offset, Integer portNumber);
+        return readInternal(getIndex(offset), portNumber);
     endmethod
 
-    method ActionValue#(Bool) write0(RVPrivilegeLevel curPriv, CSRIndex index, Word value);
-        let result <- write(curPriv, index, value, 0);
+    method ActionValue#(Bool) write(CSRIndex index, Word value, Integer portNumber);
+        let result = False;
+        if (currentPrivilegeLevel >= index[9:8] && index[11:10] != 'b11) begin
+            result <- writeInternal(index, value, portNumber);
+        end else begin
+            $display("CSR: Attempt to write to $%0x failed due to access check", index);
+        end
+
         return result;
     endmethod
 
-    method ActionValue#(Bool) write1(RVPrivilegeLevel curPriv, CSRIndex index, Word value);
-        let result <- write(curPriv, index, value, 1);
+    method ActionValue#(Bool) writeWithOffset(CSRIndexOffset offset, Word value, Integer portNumber);
+        let result <- writeInternal(getIndex(offset), value, portNumber);
         return result;
+    endmethod
+
+    method Bool machineModeInterruptsEnabled;
+        return machineStatus.machineModeInterruptsEnabled;
+    endmethod
+
+    method Action setMachineModeInterruptsEnabled(Bool areEnabled);
+        machineStatus.setMachineModeInterruptsEnabled(areEnabled);
     endmethod
 
     method Word64 cycle_counter;

@@ -13,6 +13,9 @@ MAX_CYCLES=""
 MODEL="<not specified>"
 INPUT=""
 CHECK=""
+SPIKE=""
+ISA="RV32I"
+LOGFILENAME_BASE=""
 
 while [[ $# -gt 0 ]]; do
     key="$1"
@@ -28,8 +31,22 @@ while [[ $# -gt 0 ]]; do
             shift # past argument
             shift # past value
             ;;
+        --spike)
+            SPIKE="True"
+            shift
+            ;;
+        --isa)
+            if [ "$2" == "RV32" ]; then
+                ISA="RV32I"
+            elif [ "$2" == "RV64" ]; then
+                ISA="RV64I"
+            fi
+            shift
+            shift
+            ;;
         --log)
-            export INSTRUCTION_LOG_FILENAME="$2"
+            LOGFILENAME_BASE="${2%.*}"
+            export INSTRUCTION_LOG_FILENAME="${LOGFILENAME_BASE}.trace.txt"
             shift
             shift
             ;;
@@ -53,10 +70,21 @@ fi
 export INPUT_FILE="${POSITIONAL[0]}"
 export PROGRAM_MEMORY_FILE="$INPUT_FILE" 
 
+# See if the spike simulator needs to be run
+if [ "$SPIKE" != "" ] && [ "$LOGFILENAME_BASE" != "" ]; then
+    spike --isa=$ISA -l --log=${LOGFILENAME_BASE}.trace.spike.txt $INPUT_FILE
+fi
+
 if [ "$CHECK" == "" ]; then
     ./build/$MODEL/src/PG10x/Simulator/Simulator $MAX_CYCLES
 else
-    if ./build/$MODEL/src/PG10x/Simulator/Simulator $MAX_CYCLES | grep '    PASS'; then
+    ./build/$MODEL/src/PG10x/Simulator/Simulator $MAX_CYCLES > /tmp/simoutput.txt
+
+    if [ "$LOGFILENAME_BASE" != "" ]; then
+        cp /tmp/simoutput.txt ${LOGFILENAME_BASE%.*}.stdout.txt
+    fi
+
+    if grep '    PASS' /tmp/simoutput.txt ; then
         exit 0
     else
         exit 1

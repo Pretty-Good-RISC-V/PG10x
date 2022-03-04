@@ -1,6 +1,5 @@
 import PGTypes::*;
 
-import CSRFile::*;
 import DecodeUnit::*;
 import ExceptionController::*;
 import ExecutionUnit::*;
@@ -34,7 +33,7 @@ typedef enum {
 } CoreState deriving(Bits, Eq, FShow);
 
 interface PG100Core;
-    method Action start();
+    method Action start;
     method CoreState state;
 endinterface
 
@@ -76,14 +75,9 @@ module mkPG100Core#(
     Reg#(Bool) halt <- mkReg(False);
 
     //
-    // CSR (Control and Status Register) file
-    //
-    CSRFile csrFile <- mkCSRFile();
-
-    //
     // Register file
     //
-    RegisterFile registerFile <- mkRegisterFile();
+    RegisterFile registerFile <- mkRegisterFile;
 
     //
     // Scoreboard
@@ -91,9 +85,9 @@ module mkPG100Core#(
     Scoreboard#(4) scoreboard <- mkScoreboard;
 
     //
-    // Exception controller
+    // Exception controller (and CSRFile)
     //
-    ExceptionController exceptionController <- mkExceptionController(csrFile);
+    ExceptionController exceptionController <- mkExceptionController;
 
     //
     // Pipeline stage epochs
@@ -104,11 +98,6 @@ module mkPG100Core#(
     // Program Counter Redirect
     //
     ProgramCounterRedirect programCounterRedirect <- mkProgramCounterRedirect;
-
-    //
-    // Current privilege level
-    //
-    Reg#(RVPrivilegeLevel) currentPrivilegeLevel <- mkReg(PRIVILEGE_LEVEL_MACHINE);
 
     //
     // Stage 1 - Instruction fetch
@@ -144,8 +133,7 @@ module mkPG100Core#(
         pipelineController,
         decodeUnit.getDecodedInstructionQueue,
         programCounterRedirect,
-        currentPrivilegeLevel,
-        csrFile,
+        exceptionController,
         halt
     );
 
@@ -176,9 +164,7 @@ module mkPG100Core#(
         programCounterRedirect,
         scoreboard,
         registerFile,
-        csrFile,
-        exceptionController,
-        currentPrivilegeLevel
+        exceptionController
     );
 
     //
@@ -190,7 +176,7 @@ module mkPG100Core#(
     // HALTING,        // -> HALTED
     // HALTED,         // -> RESUMING
     // RESUMING        // -> RUNNING
-    FIFO#(CoreState) stateTransitionQueue <- mkFIFO();
+    FIFO#(CoreState) stateTransitionQueue <- mkFIFO;
 
     rule handleStartingState(coreState == STARTING);
         stateTransitionQueue.enq(RUNNING);
@@ -220,7 +206,7 @@ module mkPG100Core#(
     endrule
 
     rule handleHaltedState(coreState == HALTED);
-        $display("CPU HALTED. Cycles: %0d - Instructions retired: %0d", csrFile.cycle_counter, csrFile.instructions_retired_counter);
+        $display("CPU HALTED. Cycles: %0d - Instructions retired: %0d", exceptionController.csrFile.cycle_counter, exceptionController.csrFile.instructions_retired_counter);
         $finish();
     endrule
 
@@ -239,7 +225,7 @@ module mkPG100Core#(
     (* fire_when_enabled, no_implicit_conditions *)
     rule incrementCycleCounter;
         cycleCounter <= cycleCounter + 1;
-        csrFile.increment_cycle_counter();
+        exceptionController.csrFile.increment_cycle_counter;
     endrule
 
     method Action start;

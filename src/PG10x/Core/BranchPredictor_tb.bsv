@@ -11,7 +11,7 @@ typedef struct {
 module mkBranchPredictor_tb(Empty);
     Reg#(Word) testNumber <- mkReg(0);
 
-    BranchPredictor branchPredictor <- mkBackwardBranchTakenPredictor();
+    BranchPredictor branchPredictor <- mkBackwardBranchTakenPredictor;
 
     Integer arraySize = 4;
     BranchPredictorTest tests[arraySize] = {

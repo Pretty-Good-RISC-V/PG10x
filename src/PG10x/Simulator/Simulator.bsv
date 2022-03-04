@@ -8,7 +8,7 @@ import MemorySystem::*;
 
 (* synthesize *)
 module mkSimulator(Empty);
-    ProgramMemoryTile memory <- mkProgramMemoryTile();
+    ProgramMemoryTile memory <- mkProgramMemoryTile;
 
     // Memory System
     let memoryBaseAddress = 'h80000000;
@@ -44,6 +44,6 @@ module mkSimulator(Empty);
 `endif
         $display("----------------");
 
-        core.start();
+        core.start;
     endrule
 endmodule

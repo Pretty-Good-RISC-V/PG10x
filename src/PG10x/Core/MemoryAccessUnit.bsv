@@ -36,20 +36,20 @@ module mkMemoryAccessUnit#(
     TileLinkLiteWordServer dataMemory
 `endif
 )(MemoryAccessUnit);
-    FIFO#(ExecutedInstruction) outputQueue <- mkPipelineFIFO();
+    FIFO#(ExecutedInstruction) outputQueue <- mkPipelineFIFO;
     Reg#(Bool) waitingForLoadToComplete <- mkReg(False);
     Reg#(Bool) waitingForStoreResponse <- mkReg(False);
 
-    Reg#(ExecutedInstruction) instructionWaitingForMemoryOperation <- mkRegU();
+    Reg#(ExecutedInstruction) instructionWaitingForMemoryOperation <- mkRegU;
 
     (* fire_when_enabled *)
     rule memoryAccess(waitingForLoadToComplete == False && waitingForStoreResponse == False);
-        let executedInstruction = inputQueue.first();
+        let executedInstruction = inputQueue.first;
         let fetchIndex = executedInstruction.fetchIndex;
         let stageEpoch = pipelineController.stageEpoch(stageNumber, 1);
         if (!pipelineController.isCurrentEpoch(stageNumber, 1, executedInstruction.pipelineEpoch)) begin
             $display("%0d,%0d,%0d,%0d,memory access,stale instruction (%0d != %0d)...propagating bubble", fetchIndex, cycleCounter, executedInstruction.pipelineEpoch, inputQueue.first().programCounter, stageNumber, inputQueue.first().pipelineEpoch, stageEpoch);
-            inputQueue.deq();
+            inputQueue.deq;
             outputQueue.enq(executedInstruction);
         end else begin
             if(executedInstruction.loadRequest matches tagged Valid .loadRequest) begin
@@ -79,7 +79,7 @@ module mkMemoryAccessUnit#(
                 // Not a LOAD/STORE
                 $display("%0d,%0d,%0d,%0x,%0d,memory access,NO-OP", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
 
-                inputQueue.deq();
+                inputQueue.deq;
                 outputQueue.enq(executedInstruction);
             end
         end
@@ -106,7 +106,7 @@ module mkMemoryAccessUnit#(
             $fatal();
         end
 
-        inputQueue.deq();
+        inputQueue.deq;
         outputQueue.enq(executedInstruction);
     endrule
 
@@ -171,7 +171,7 @@ module mkMemoryAccessUnit#(
             value: value
         };
 
-        inputQueue.deq();
+        inputQueue.deq;
         outputQueue.enq(executedInstruction);
     endrule
 

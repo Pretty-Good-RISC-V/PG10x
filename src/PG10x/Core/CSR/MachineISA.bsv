@@ -28,12 +28,12 @@ typedef enum {
 } Extensions deriving(Bits, Eq);
 
 interface MachineISA;
-    method Word read();
+    method Word read;
     method Action write(Word value);
 endinterface
 
 module mkMachineISARegister(MachineISA);
-    method Word read();
+    method Word read;
         Word result = 0;
 `ifdef RV32
         result[31:30] = 'b01;
