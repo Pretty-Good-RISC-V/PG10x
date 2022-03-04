@@ -40,19 +40,19 @@ module mkExecutionUnit#(
     ALU alu <- mkALU;
 
     function Bool isValidBranchOperator(RVBranchOperator operator);
-        return (operator != pack(UNSUPPORTED_BRANCH_OPERATOR_010) &&
-                operator != pack(UNSUPPORTED_BRANCH_OPERATOR_011)) ? True : False;
+        return ((operator != branch_UNSUPPORTED_010 &&
+                operator != branch_UNSUPPORTED_011) ? True : False);
     endfunction
 
     function Bool isBranchTaken(DecodedInstruction decodedInstruction);
         // NOTE: Validity of the branch operator has already been checked.
         return case(decodedInstruction.branchOperator)
-            pack(BEQ): return (decodedInstruction.rs1Value == decodedInstruction.rs2Value);
-            pack(BNE): return (decodedInstruction.rs1Value != decodedInstruction.rs2Value);
-            pack(BLT): return (signedLT(decodedInstruction.rs1Value, decodedInstruction.rs2Value));
-            pack(BGE): return (signedGE(decodedInstruction.rs1Value, decodedInstruction.rs2Value));
-            pack(BGEU): return (decodedInstruction.rs1Value >= decodedInstruction.rs2Value);
-            pack(BLTU): return (decodedInstruction.rs1Value < decodedInstruction.rs2Value);
+            branch_BEQ: return (decodedInstruction.rs1Value == decodedInstruction.rs2Value);
+            branch_BNE: return (decodedInstruction.rs1Value != decodedInstruction.rs2Value);
+            branch_BLT: return (signedLT(decodedInstruction.rs1Value, decodedInstruction.rs2Value));
+            branch_BGE: return (signedGE(decodedInstruction.rs1Value, decodedInstruction.rs2Value));
+            branch_BGEU: return (decodedInstruction.rs1Value >= decodedInstruction.rs2Value);
+            branch_BLTU: return (decodedInstruction.rs1Value < decodedInstruction.rs2Value);
         endcase;
     endfunction
 
@@ -105,7 +105,7 @@ module mkExecutionUnit#(
                     let writeSucceeded <- exceptionController.csrFile.write(csrIndex, v, 1);
                     if (writeSucceeded == False) begin
                         $display("CSR($%0x): Write failed", csrIndex);
-                        executedInstruction.exception = tagged Valid tagged ExceptionCause extend(pack(ILLEGAL_INSTRUCTION));
+                        executedInstruction.exception = tagged Valid tagged ExceptionCause exception_ILLEGAL_INSTRUCTION;
                     end else begin
                         executedInstruction.exception = tagged Invalid;
                     end
@@ -114,7 +114,7 @@ module mkExecutionUnit#(
                     executedInstruction.exception = tagged Invalid;
                 end
             end else begin
-                executedInstruction.exception = tagged Valid tagged ExceptionCause extend(pack(ILLEGAL_INSTRUCTION));
+                executedInstruction.exception = tagged Valid tagged ExceptionCause exception_ILLEGAL_INSTRUCTION;
                 $display("CSR($%0x): Read failed", decodedInstruction.csrIndex);
             end
         end
@@ -136,7 +136,7 @@ module mkExecutionUnit#(
                 changedProgramCounter: tagged Invalid,
                 loadRequest: tagged Invalid,
                 storeRequest: tagged Invalid,
-                exception: tagged Valid tagged ExceptionCause extend(pack(ILLEGAL_INSTRUCTION)),
+                exception: tagged Valid tagged ExceptionCause exception_ILLEGAL_INSTRUCTION,
                 writeBack: tagged Invalid
             };
 
@@ -144,7 +144,7 @@ module mkExecutionUnit#(
             let pendingInterrupt = False;
             let highestPriorityInterrupt <- exceptionController.getHighestPriorityInterrupt(True, 1);
             if (highestPriorityInterrupt matches tagged Valid .highest) begin
-                executedInstruction.exception = tagged Valid tagged InterruptCause extend(pack(SUPERVISOR_SOFTWARE_INTERRUPT));
+                executedInstruction.exception = tagged Valid tagged InterruptCause interrupt_SUPERVISOR_SOFTWARE_INTERRUPT;
                 pendingInterrupt = True;
             end
 
@@ -184,7 +184,7 @@ module mkExecutionUnit#(
                                 let branchTarget = getEffectiveAddress(decodedInstruction.programCounter, unJust(decodedInstruction.immediate));
                                 // Branch target must be 32 bit aligned.
                                 if (branchTarget[1:0] != 0) begin
-                                    executedInstruction.exception = tagged Valid tagged ExceptionCause extend(pack(INSTRUCTION_ADDRESS_MISALIGNED));
+                                    executedInstruction.exception = tagged Valid tagged ExceptionCause exception_INSTRUCTION_ADDRESS_MISALIGNED;
                                 end else begin
                                     // Target address aligned
                                     executedInstruction.exception = tagged Invalid;
@@ -229,7 +229,7 @@ module mkExecutionUnit#(
                         
                         let jumpTarget = getEffectiveAddress(decodedInstruction.programCounter, unJust(decodedInstruction.immediate));
                         if (jumpTarget[1:0] != 0) begin
-                            executedInstruction.exception = tagged Valid tagged ExceptionCause extend(pack(INSTRUCTION_ADDRESS_MISALIGNED));
+                            executedInstruction.exception = tagged Valid tagged ExceptionCause exception_INSTRUCTION_ADDRESS_MISALIGNED;
                         end else begin
                             executedInstruction.changedProgramCounter = tagged Valid jumpTarget;
                             executedInstruction.writeBack = tagged Valid WriteBack {
@@ -250,7 +250,7 @@ module mkExecutionUnit#(
                         jumpTarget[0] = 0;
 
                         if (jumpTarget[1:0] != 0) begin
-                            executedInstruction.exception = tagged Valid tagged ExceptionCause extend(pack(INSTRUCTION_ADDRESS_MISALIGNED));
+                            executedInstruction.exception = tagged Valid tagged ExceptionCause exception_INSTRUCTION_ADDRESS_MISALIGNED;
                         end else begin
                             executedInstruction.changedProgramCounter = tagged Valid jumpTarget;
                             executedInstruction.writeBack = tagged Valid WriteBack {
@@ -313,11 +313,11 @@ module mkExecutionUnit#(
 
                     SYSTEM: begin
                         case(decodedInstruction.systemOperator)
-                            pack(ECALL): begin
+                            sys_ECALL: begin
                                 $display("%0d,%0d,%0d,%0x,%0d,execute,ECALL instruction encountered", decodedInstruction.fetchIndex, exceptionController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber);
-                                executedInstruction.exception = tagged Valid tagged ExceptionCause extend(pack(ENVIRONMENT_CALL_FROM_M_MODE));
+                                executedInstruction.exception = tagged Valid tagged ExceptionCause exception_ENVIRONMENT_CALL_FROM_M_MODE;
                             end
-                            pack(MRET): begin
+                            sys_MRET: begin
                                 $display("%0d,%0d,%0d,%0x,%0d,execute,MRET instruction", decodedInstruction.fetchIndex, exceptionController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber);
                                 let readStatus = exceptionController.csrFile.read(pack(MEPC),1);
                                 if (readStatus matches tagged Valid .mepc) begin

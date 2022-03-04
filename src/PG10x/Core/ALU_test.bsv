@@ -37,7 +37,7 @@ module mkALU_test(Empty);
 
     rule runme;
         let test = tests[testNumber];
-        let result = alu.execute(pack(test.operator), test.operand1, test.operand2);
+        let result = alu.execute(test.operator, test.operand1, test.operand2);
         if (isValid(result) == False) begin
             $display("FAILED test #%0d - result invalid:", testNumber, fshow(test));
             $fatal();

@@ -25,7 +25,7 @@ module mkExceptionController_tb(Empty);
 
     Word actualExceptionVector = 'h8000;
     ProgramCounter exceptionProgramCounter = 'h4000;
-    RVExceptionCause exceptionCause = extend(pack(ILLEGAL_INSTRUCTION));
+    RVExceptionCause exceptionCause = exception_ILLEGAL_INSTRUCTION;
 
     rule init(state == INIT);
         let succeeded <- exceptionController.csrFile.writeWithOffset(TVEC, actualExceptionVector, 0);

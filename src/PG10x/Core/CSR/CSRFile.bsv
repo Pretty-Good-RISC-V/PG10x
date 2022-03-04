@@ -199,7 +199,7 @@ module mkCSRFile(CSRFile);
     Reg#(Word)      mip         <- mkReg(0);
     Reg#(Word)      mie         <- mkReg(0);
 
-    Reg#(Bit#(2))   currentPrivilegeLevel     <- mkReg(pack(PRIVILEGE_LEVEL_MACHINE));
+    Reg#(Bit#(2))   currentPrivilegeLevel     <- mkReg(priv_MACHINE);
 
     function Bool isWARLIgnore(CSRIndex index);
         Bool result = False;
@@ -239,7 +239,7 @@ module mkCSRFile(CSRFile);
                 MEPC:       tagged Valid mepc[portNumber];
                 MTVAL:      tagged Valid 0;
 
-                MSTATUS, SSTATUS:    tagged Valid machineStatus.read;
+                MSTATUS:    tagged Valid machineStatus.read;
                 MCYCLE, CYCLE:     
                     tagged Valid mcycle;
                 MSCRATCH:   tagged Valid mscratch;
@@ -286,7 +286,7 @@ module mkCSRFile(CSRFile);
                     result = True;
                 end
 
-                MSTATUS, SSTATUS: begin
+                MSTATUS: begin
                     machineStatus.write(value);
                     result = True;
                 end

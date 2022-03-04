@@ -34,11 +34,11 @@ module mkDecodeUnit#(
 
     function Bool isValidLoadInstruction(Bit#(3) func3);
 `ifdef RV32
-        return (func3 == pack(UNSUPPORTED_LOAD_OPERATOR_011) ||
-                func3 == pack(UNSUPPORTED_LOAD_OPERATOR_110) ||
-                func3 == pack(UNSUPPORTED_LOAD_OPERATOR_111) ? False : True);
+        return ((func3 == load_UNSUPPORTED_011 ||
+                func3 == load_UNSUPPORTED_110 ||
+                func3 == load_UNSUPPORTED_111) ? False : True);
 `elsif RV64
-        return (func3 == pack(UNSUPPORTED_LOAD_OPERATOR_111) ? False : True);
+        return (func3 == load_UNSUPPORTED_111) ? False : True);
 `else
         return False;
 `endif
@@ -55,8 +55,8 @@ module mkDecodeUnit#(
     endfunction
 
     function Bool isValidBranchInstruction(Bit#(3) func3);
-        return (func3 == pack(UNSUPPORTED_BRANCH_OPERATOR_010) || 
-                func3 == pack(UNSUPPORTED_BRANCH_OPERATOR_011) ? False : True);
+        return (func3 == branch_UNSUPPORTED_010 || 
+                func3 == branch_UNSUPPORTED_011) ? False : True;
     endfunction
 
     function DecodedInstruction decodeInstruction(ProgramCounter programCounter, Word32 instruction);
@@ -79,10 +79,10 @@ module mkDecodeUnit#(
             rawInstruction: instruction,
 `endif
             predictedNextProgramCounter: ?,
-            aluOperator: unpack({func7, func3}),
-            loadOperator: unpack(func3),
-            storeOperator: unpack(func3),
-            csrOperator: unpack(func3),
+            aluOperator: {func7, func3},
+            loadOperator: func3,
+            storeOperator: func3,
+            csrOperator: func3,
             csrIndex: {func7, rs2},
             branchOperator: ?,
             systemOperator: ?,
@@ -121,7 +121,7 @@ module mkDecodeUnit#(
             //
             7'b0010011: begin   
                 // OP-IMM only used func3 for operator encoding.
-                decodedInstruction.aluOperator = unpack(extend(func3));
+                decodedInstruction.aluOperator = extend(func3);
 
                 // Check for shift instructions
                 if (func3[1:0] == 2'b01) begin
@@ -232,35 +232,35 @@ module mkDecodeUnit#(
                             //
                             25'b0000000_00000_00000_000_00000: begin
                                 decodedInstruction.opcode = SYSTEM;
-                                decodedInstruction.systemOperator = pack(ECALL);
+                                decodedInstruction.systemOperator = sys_ECALL;
                             end
                             //
                             // EBREAK
                             //
                             25'b0000000_00001_00000_000_00000: begin
                                 decodedInstruction.opcode = SYSTEM;
-                                decodedInstruction.systemOperator = pack(EBREAK);
+                                decodedInstruction.systemOperator = sys_EBREAK;
                             end
                             //
                             // SRET
                             //
                             25'b0001000_00010_00000_000_00000: begin
                                 decodedInstruction.opcode = SYSTEM;
-                                decodedInstruction.systemOperator = pack(SRET);
+                                decodedInstruction.systemOperator = sys_SRET;
                             end
                             //
                             // MRET
                             //
                             25'b0011000_00010_00000_000_00000: begin
                                 decodedInstruction.opcode = SYSTEM;
-                                decodedInstruction.systemOperator = pack(MRET);
+                                decodedInstruction.systemOperator = sys_MRET;
                             end
                             //
                             // WFI
                             //
                             25'b0001000_00101_00000_000_00000: begin
                                 decodedInstruction.opcode = SYSTEM;
-                                decodedInstruction.systemOperator = pack(WFI);
+                                decodedInstruction.systemOperator = sys_WFI;
                             end
                         endcase
                     end
@@ -268,13 +268,13 @@ module mkDecodeUnit#(
                     //
                     // CSR operations
                     //
-                    pack(CSRRW), pack(CSRRS), pack(CSRRC): begin
+                    csr_CSRRW, csr_CSRRS, csr_CSRRC: begin
                         decodedInstruction.opcode = CSR;
                         decodedInstruction.rd = tagged Valid rd;
                         decodedInstruction.rs1 = tagged Valid rs1;
                     end
 
-                    pack(CSRRWI), pack(CSRRSI), pack(CSRRCI): begin
+                    csr_CSRRWI, csr_CSRRSI, csr_CSRRCI: begin
                         decodedInstruction.opcode = CSR;
                         decodedInstruction.rd = tagged Valid rd;
                         decodedInstruction.immediate = tagged Valid extend(uimm);

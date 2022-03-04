@@ -109,6 +109,7 @@ module mkMachineStatusRegister(MachineStatus);
     endmethod
 
     method Action write(Word newValue);
+        newValue[12:11] = priv_MACHINE;
         sr[31:0] <= newValue;
     endmethod
 

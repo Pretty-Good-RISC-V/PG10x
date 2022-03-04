@@ -28,7 +28,7 @@ function Result#(LoadRequest, Exception) getLoadRequest(
     Word effectiveAddress);
 
     Result#(LoadRequest, Exception) result = 
-        tagged Error tagged ExceptionCause extend(pack(ILLEGAL_INSTRUCTION));
+        tagged Error tagged ExceptionCause exception_ILLEGAL_INSTRUCTION;
 
     let loadRequest = LoadRequest {
         tlRequest: TileLinkLiteWordRequest {
@@ -47,13 +47,13 @@ function Result#(LoadRequest, Exception) getLoadRequest(
 
     case (loadOperator)
         // Byte
-        pack(LB): begin
+        load_LB: begin
             loadRequest.tlRequest.a_size = 0; // 1 byte
             loadRequest.tlRequest.a_mask = 'b1;
             result = tagged Success loadRequest;
         end
 
-        pack(LBU): begin
+        load_LBU: begin
             loadRequest.tlRequest.a_size = 0; // 1 byte
             loadRequest.tlRequest.a_mask = 'b1;
             loadRequest.signExtend = False;
@@ -61,9 +61,9 @@ function Result#(LoadRequest, Exception) getLoadRequest(
         end
 
         // Half-word
-        pack(LH): begin
+        load_LH: begin
             if ((effectiveAddress & 'b01) != 0) begin
-                result = tagged Error tagged ExceptionCause extend(pack(LOAD_ADDRESS_MISALIGNED));
+                result = tagged Error tagged ExceptionCause extend(exception_LOAD_ADDRESS_MISALIGNED);
             end else begin
                 loadRequest.tlRequest.a_size = 1; // 2 bytes
                 loadRequest.tlRequest.a_mask = 'b11;
@@ -71,9 +71,9 @@ function Result#(LoadRequest, Exception) getLoadRequest(
             end
         end
 
-        pack(LHU): begin
+        load_LHU: begin
             if ((effectiveAddress & 'b01) != 0) begin
-                result = tagged Error tagged ExceptionCause extend(pack(LOAD_ADDRESS_MISALIGNED));
+                result = tagged Error tagged ExceptionCause extend(exception_LOAD_ADDRESS_MISALIGNED);
             end else begin
                 loadRequest.tlRequest.a_size = 1; // 2 bytes
                 loadRequest.tlRequest.a_mask = 'b11;
@@ -83,9 +83,9 @@ function Result#(LoadRequest, Exception) getLoadRequest(
         end
 
         // Word
-        pack(LW): begin
+        load_LW: begin
             if ((effectiveAddress & 'b11) != 0) begin
-                result = tagged Error tagged ExceptionCause extend(pack(LOAD_ADDRESS_MISALIGNED));
+                result = tagged Error tagged ExceptionCause extend(exception_LOAD_ADDRESS_MISALIGNED);
             end else begin
                 loadRequest.tlRequest.a_size = 2; // 4 bytes
                 loadRequest.tlRequest.a_mask = 'b1111;
@@ -94,9 +94,9 @@ function Result#(LoadRequest, Exception) getLoadRequest(
         end
 
 `ifdef RV64
-        pack(LWU): begin
+        load_LWU: begin
             if ((effectiveAddress & 'b11) != 0) begin
-                result = tagged Error tagged ExceptionCause extend(pack(LOAD_ADDRESS_MISALIGNED));
+                result = tagged Error tagged ExceptionCause extend(exception_LOAD_ADDRESS_MISALIGNED);
             end else begin
                 loadRequest.tlRequest.a_size = 2; // 4 bytes
                 loadRequest.tlRequest.a_mask = 'b1111;
@@ -105,9 +105,9 @@ function Result#(LoadRequest, Exception) getLoadRequest(
             end
         end
 
-        pack(LD): begin
+        load_LD: begin
             if ((effectiveAddress & 'b111) != 0) begin
-                result = tagged Error tagged ExceptionCause extend(pack(LOAD_ADDRESS_MISALIGNED));
+                result = tagged Error tagged ExceptionCause extend(exception_LOAD_ADDRESS_MISALIGNED);
             end else begin
                 loadRequest.tlRequest.a_size = 3; // 8 bytes
                 loadRequest.tlRequest.a_mask = 'b1111_1111;
@@ -136,7 +136,7 @@ function Result#(StoreRequest, Exception) getStoreRequest(
     Word value);
 
     Result#(StoreRequest, Exception) result = 
-        tagged Error tagged ExceptionCause extend(pack(ILLEGAL_INSTRUCTION));
+        tagged Error tagged ExceptionCause exception_ILLEGAL_INSTRUCTION;
 
     let storeRequest = StoreRequest {
         tlRequest: TileLinkLiteWordRequest {
@@ -153,7 +153,7 @@ function Result#(StoreRequest, Exception) getStoreRequest(
 
     case (storeOperator)
         // Byte
-        pack(SB): begin
+        store_SB: begin
             storeRequest.tlRequest.a_size = 0; // 1 byte
             storeRequest.tlRequest.a_mask = 'b1;
             storeRequest.tlRequest.a_data = (value & 'hFF);
@@ -161,9 +161,9 @@ function Result#(StoreRequest, Exception) getStoreRequest(
             result = tagged Success storeRequest;
         end
         // Half-word
-        pack(SH): begin
+        store_SH: begin
             if ((effectiveAddress & 'b01) != 0) begin
-                result = tagged Error tagged ExceptionCause extend(pack(STORE_ADDRESS_MISALIGNED));
+                result = tagged Error tagged ExceptionCause extend(exception_STORE_ADDRESS_MISALIGNED);
             end else begin
                 storeRequest.tlRequest.a_size = 1; // 2 bytes
                 storeRequest.tlRequest.a_mask = 'b11;
@@ -173,9 +173,9 @@ function Result#(StoreRequest, Exception) getStoreRequest(
             end
         end
         // Word
-        pack(SW): begin
+        store_SW: begin
             if ((effectiveAddress & 'b11) != 0) begin
-                result = tagged Error tagged ExceptionCause extend(pack(STORE_ADDRESS_MISALIGNED));
+                result = tagged Error tagged ExceptionCause extend(exception_STORE_ADDRESS_MISALIGNED);
             end else begin
 `ifdef RV32
                 storeRequest.tlRequest.a_opcode = pack(A_PUT_FULL_DATA);
@@ -190,9 +190,9 @@ function Result#(StoreRequest, Exception) getStoreRequest(
         end
 `ifdef RV64
         // Double-word
-        pack(SD): begin
+        store_SD: begin
             if ((effectiveAddress & 'b111) != 0) begin
-                result = tagged Error tagged ExceptionCause extend(pack(STORE_ADDRESS_MISALIGNED));
+                result = tagged Error tagged ExceptionCause extend(exception_STORE_ADDRESS_MISALIGNED);
             end else begin
                 storeRequest.tlRequest.a_opcode = pack(A_PUT_FULL_DATA);
                 storeRequest.tlRequest.a_size = 3; // 8 bytes

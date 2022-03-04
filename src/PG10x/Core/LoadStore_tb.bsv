@@ -52,7 +52,7 @@ module mkLoadStore_tb(Empty);
         //
         StoreTestCase { 
             shouldSucceed:          True,
-            storeOperator:          pack(SB),
+            storeOperator:          store_SB,
             effectiveAddress:       'h4000,
             value:                  'hff,
 
@@ -62,7 +62,7 @@ module mkLoadStore_tb(Empty);
         },
         StoreTestCase { 
             shouldSucceed:          True,
-            storeOperator:          pack(SB),
+            storeOperator:          store_SB,
             effectiveAddress:       'h4001,
             value:                  'hff,
 
@@ -72,7 +72,7 @@ module mkLoadStore_tb(Empty);
         },
         StoreTestCase { 
             shouldSucceed:          True,
-            storeOperator:          pack(SB),
+            storeOperator:          store_SB,
             effectiveAddress:       'h4002,
             value:                  'hff,
 
@@ -82,7 +82,7 @@ module mkLoadStore_tb(Empty);
         },
         StoreTestCase { 
             shouldSucceed:          True,
-            storeOperator:          pack(SB),
+            storeOperator:          store_SB,
             effectiveAddress:       'h4003,
             value:                  'hff,
 
@@ -93,7 +93,7 @@ module mkLoadStore_tb(Empty);
 `ifdef RV64
         StoreTestCase { 
             shouldSucceed:          True,
-            storeOperator:          pack(SB),
+            storeOperator:          store_SB,
             effectiveAddress:       'h4004,
             value:                  'hff,
 
@@ -103,7 +103,7 @@ module mkLoadStore_tb(Empty);
         },
         StoreTestCase { 
             shouldSucceed:          True,
-            storeOperator:          pack(SB),
+            storeOperator:          store_SB,
             effectiveAddress:       'h4005,
             value:                  'hff,
 
@@ -113,7 +113,7 @@ module mkLoadStore_tb(Empty);
         },
         StoreTestCase { 
             shouldSucceed:          True,
-            storeOperator:          pack(SB),
+            storeOperator:          store_SB,
             effectiveAddress:       'h4006,
             value:                  'hff,
 
@@ -123,7 +123,7 @@ module mkLoadStore_tb(Empty);
         },
         StoreTestCase { 
             shouldSucceed:          True,
-            storeOperator:          pack(SB),
+            storeOperator:          store_SB,
             effectiveAddress:       'h4007,
             value:                  'hff,
 
@@ -138,7 +138,7 @@ module mkLoadStore_tb(Empty);
         //
         StoreTestCase { 
             shouldSucceed:          True,
-            storeOperator:          pack(SH),
+            storeOperator:          store_SH,
             effectiveAddress:       'h4000,
             value:                  'hff44,
 
@@ -148,7 +148,7 @@ module mkLoadStore_tb(Empty);
         },
         StoreTestCase { 
             shouldSucceed:          True,
-            storeOperator:          pack(SH),
+            storeOperator:          store_SH,
             effectiveAddress:       'h4002,
             value:                  'h0000_ff44,
 
@@ -159,7 +159,7 @@ module mkLoadStore_tb(Empty);
 `ifdef RV64
         StoreTestCase { 
             shouldSucceed:          True,
-            storeOperator:          pack(SH),
+            storeOperator:          store_SH,
             effectiveAddress:       'h4004,
             value:                  'hff44,
 
@@ -169,7 +169,7 @@ module mkLoadStore_tb(Empty);
         },
         StoreTestCase { 
             shouldSucceed:          True,
-            storeOperator:          pack(SH),
+            storeOperator:          store_SH,
             effectiveAddress:       'h4006,
             value:                  'hff44,
 
@@ -180,49 +180,49 @@ module mkLoadStore_tb(Empty);
 `endif
         StoreTestCase { 
             shouldSucceed:          False,
-            storeOperator:          pack(SH),
+            storeOperator:          store_SH,
             effectiveAddress:       'h4001,
             value:                  ?,
 
-            expectedException:      tagged Valid tagged ExceptionCause extend(pack(STORE_ADDRESS_MISALIGNED)),
+            expectedException:      tagged Valid tagged ExceptionCause extend(exception_STORE_ADDRESS_MISALIGNED),
             expectedMask:           'b11,
             expectedValue:          ?
         },
 `ifdef RV64
         StoreTestCase { 
             shouldSucceed:          False,
-            storeOperator:          pack(SH),
+            storeOperator:          store_SH,
             effectiveAddress:       'h4003,
             value:                  ?,
 
-            expectedException:      tagged Valid tagged ExceptionCause extend(pack(STORE_ADDRESS_MISALIGNED)),
+            expectedException:      tagged Valid tagged ExceptionCause extend(exception_STORE_ADDRESS_MISALIGNED),
             expectedMask:           'b11,
             expectedValue:          ?
         },
         StoreTestCase { 
             shouldSucceed:          False,
-            storeOperator:          pack(SH),
+            storeOperator:          store_SH,
             effectiveAddress:       'h4005,
             value:                  ?,
 
-            expectedException:      tagged Valid tagged ExceptionCause extend(pack(STORE_ADDRESS_MISALIGNED)),
+            expectedException:      tagged Valid tagged ExceptionCause extend(exception_STORE_ADDRESS_MISALIGNED),
             expectedMask:           'b11,
             expectedValue:          ?
         },
         StoreTestCase { 
             shouldSucceed:          False,
-            storeOperator:          pack(SH),
+            storeOperator:          store_SH,
             effectiveAddress:       'h4007,
             value:                  ?,
 
-            expectedException:      tagged Valid tagged ExceptionCause extend(pack(STORE_ADDRESS_MISALIGNED)),
+            expectedException:      tagged Valid tagged ExceptionCause extend(exception_STORE_ADDRESS_MISALIGNED),
             expectedMask:           'b11,
             expectedValue:          ?
         },
 `endif
         StoreTestCase { 
             shouldSucceed:          True,
-            storeOperator:          pack(SW),
+            storeOperator:          store_SW,
             effectiveAddress:       'h4000,
             value:                  'hff44_AA11,
 
@@ -234,7 +234,7 @@ module mkLoadStore_tb(Empty);
         ,
         StoreTestCase { 
             shouldSucceed:          True,
-            storeOperator:          pack(SW),
+            storeOperator:          store_SW,
             effectiveAddress:       'h4004,
             value:                  'hff44_AA11,
 
@@ -244,11 +244,11 @@ module mkLoadStore_tb(Empty);
         },
         StoreTestCase { 
             shouldSucceed:          False,
-            storeOperator:          pack(SW),
+            storeOperator:          store_SW,
             effectiveAddress:       'h4002,
             value:                  ?,
 
-            expectedException:      tagged Valid tagged ExceptionCause extend(pack(STORE_ADDRESS_MISALIGNED)),
+            expectedException:      tagged Valid tagged ExceptionCause extend(exception_STORE_ADDRESS_MISALIGNED),
             expectedMask:           ?,
             expectedValue:          ?
         }
@@ -263,7 +263,7 @@ module mkLoadStore_tb(Empty);
     LoadTestCase loadTestCases[loadTestCaseCount] = {
         LoadTestCase {
             shouldSucceed: True,
-            loadOperator: pack(LB),
+            loadOperator: load_LB,
             effectiveAddress: 'h4000,
 
             expectedException: tagged Invalid,
@@ -273,7 +273,7 @@ module mkLoadStore_tb(Empty);
         },
         LoadTestCase {
             shouldSucceed: True,
-            loadOperator: pack(LB),
+            loadOperator: load_LB,
             effectiveAddress: 'h4001,
 
             expectedException: tagged Invalid,
@@ -283,7 +283,7 @@ module mkLoadStore_tb(Empty);
         },
         LoadTestCase {
             shouldSucceed: True,
-            loadOperator: pack(LB),
+            loadOperator: load_LB,
             effectiveAddress: 'h4002,
 
             expectedException: tagged Invalid,
@@ -293,7 +293,7 @@ module mkLoadStore_tb(Empty);
         },
         LoadTestCase {
             shouldSucceed: True,
-            loadOperator: pack(LB),
+            loadOperator: load_LB,
             effectiveAddress: 'h4003,
 
             expectedException: tagged Invalid,
@@ -305,7 +305,7 @@ module mkLoadStore_tb(Empty);
         ,
         LoadTestCase {
             shouldSucceed: True,
-            loadOperator: pack(LB),
+            loadOperator: load_LB,
             effectiveAddress: 'h4004,
 
             expectedException: tagged Invalid,
@@ -315,7 +315,7 @@ module mkLoadStore_tb(Empty);
         },
         LoadTestCase {
             shouldSucceed: True,
-            loadOperator: pack(LB),
+            loadOperator: load_LB,
             effectiveAddress: 'h4005,
 
             expectedException: tagged Invalid,
@@ -325,7 +325,7 @@ module mkLoadStore_tb(Empty);
         },
         LoadTestCase {
             shouldSucceed: True,
-            loadOperator: pack(LB),
+            loadOperator: load_LB,
             effectiveAddress: 'h4006,
 
             expectedException: tagged Invalid,
@@ -335,7 +335,7 @@ module mkLoadStore_tb(Empty);
         },
         LoadTestCase {
             shouldSucceed: True,
-            loadOperator: pack(LB),
+            loadOperator: load_LB,
             effectiveAddress: 'h4007,
 
             expectedException: tagged Invalid,

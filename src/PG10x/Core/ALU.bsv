@@ -23,17 +23,17 @@ module mkALU(ALU);
     endfunction
 
     method Maybe#(Word) execute(RVALUOperator operator, Word operand1, Word operand2);
-        return case(unpack(operator))
-            ADD:    tagged Valid (operand1 + operand2);
-            SUB:    tagged Valid (operand1 - operand2);
-            AND:    tagged Valid (operand1 & operand2);
-            OR:     tagged Valid (operand1 | operand2);
-            XOR:    tagged Valid (operand1 ^ operand2);
-            SLTU:   tagged Valid setLessThanUnsigned(operand1, operand2);
-            SLT:    tagged Valid setLessThan(operand1, operand2);
-            SLL:    tagged Valid (operand1 << operand2[4:0]);
-            SRA:    tagged Valid signedShiftRight(operand1, operand2[4:0]);
-            SRL:    tagged Valid (operand1 >> operand2[4:0]);
+        return case(operator)
+            alu_ADD:    tagged Valid (operand1 + operand2);
+            alu_SUB:    tagged Valid (operand1 - operand2);
+            alu_AND:    tagged Valid (operand1 & operand2);
+            alu_OR:     tagged Valid (operand1 | operand2);
+            alu_XOR:    tagged Valid (operand1 ^ operand2);
+            alu_SLTU:   tagged Valid setLessThanUnsigned(operand1, operand2);
+            alu_SLT:    tagged Valid setLessThan(operand1, operand2);
+            alu_SLL:    tagged Valid (operand1 << operand2[4:0]);
+            alu_SRA:    tagged Valid signedShiftRight(operand1, operand2[4:0]);
+            alu_SRL:    tagged Valid (operand1 >> operand2[4:0]);
             default: tagged Invalid;
         endcase;
     endmethod
