@@ -69,10 +69,18 @@ module mkExceptionController_tb(Empty);
     endrule
 
     rule softwareInterruptTest(state == SOFTWARE_INTERRUPT_TEST);
-        exceptionController.csrFile.setMachineModeInterruptsEnabled(True);
-        let result <- exceptionController.csrFile.writeWithOffset(csr_IE, 'h2002, 0);
+        // Enable machine mode interrupts
+        let result = exceptionController.csrFile.read(csr_MSTATUS, 0);
+        dynamicAssert(isValid(result), "MSTATUS should be readable");
+
+        let mstatus = unJust(result);
+        mstatus[3] = 1;
+        result <- exceptionController.csrFile.write(csr_MSTATUS, mstatus, 0);
+        dynamicAssert(result, "MSTATUS should be writable");
+
+        result <- exceptionController.csrFile.writeWithOffset(csr_IE, 'h2002, 0);
         dynamicAssert(result == True, "Unable to write to MIE");
-        result <- exceptionController.csrFile.writeWithOffset(csr_IP, 'h2002, 1);
+        result <- exceptionController.csrFile.writeWithOffset(csr_IP, 'h2002, 0);
         dynamicAssert(result == True, "Unable to write to MIP");
 
         state <= SOFTWARE_INTERRUPT_VERIFY;
