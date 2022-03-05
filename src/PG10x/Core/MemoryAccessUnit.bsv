@@ -58,12 +58,12 @@ module mkMemoryAccessUnit#(
                     // NOTE: Alignment checks were already performed during the execution stage.
                     dataMemory.request.put(loadRequest.tlRequest);
 
-                    $display("%0d,%0d,%0d,%0x,%0d,memory access,Loading from $%08x", fetchIndex, cycleCounter, executedInstruction.programCounter, loadRequest.tlRequest.a_address);
+                    $display("%0d,%0d,%0d,%0x,%0d,memory access,Loading from $%08x with size: %d", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, loadRequest.tlRequest.a_address, loadRequest.tlRequest.a_size);
                     instructionWaitingForMemoryOperation <= executedInstruction;
                     waitingForLoadToComplete <= True;
                 end
             end else if (executedInstruction.storeRequest matches tagged Valid .storeRequest) begin
-                $display("%0d,%0d,%0d,%0x,%0d,memory access,Storing to $0x", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, storeRequest.tlRequest.a_address);
+                $display("%0d,%0d,%0d,%0x,%0d,memory access,Storing to $0x", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, storeRequest.tlRequest.a_address);
 `ifdef MONITOR_TOHOST_ADDRESS
                 if (storeRequest.tlRequest.a_address == toHostAddress) begin
                     let test_num = (storeRequest.tlRequest.a_data >> 1);

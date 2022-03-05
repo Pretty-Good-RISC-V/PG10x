@@ -27,16 +27,43 @@ module mkExceptionController(ExceptionController);
     endfunction
 
     method ActionValue#(ProgramCounter) beginException(ProgramCounter exceptionProgramCounter, Exception exception);
-        let cause = getCause(exception);
+        Word cause = 0;
+        let curPriv = csrFileInner.getCurrentPrivilegeLevel;
+
+        case(exception.cause) matches
+            tagged ExceptionCause .c: begin
+                cause[valueOf(XLEN)-2:0] = c;
+            end
+
+            tagged InterruptCause .c: begin
+                cause[valueOf(XLEN)-1] = 1;
+                cause[valueOf(XLEN)-2:0] = c;
+            end
+
+            tagged EnvironmentCallCause .c: begin
+                cause[valueOf(XLEN)-2:0] = exception_ENVIRONMENT_CALL_FROM_U_MODE + extend(curPriv);
+            end
+
+            default: begin
+                $display("ERROR: Unexpected exception cause during exception handling");
+                $fatal();
+            end
+        endcase
+
+        // !todo:
+        // xPIE
+        // xPP
 
         csrFileInner.writeWithOffset(csr_CAUSE, cause, 0);
         csrFileInner.writeWithOffset(csr_EPC, exceptionProgramCounter, 0);
-
+        csrFileInner.writeWithOffset(csr_TVAL, exception.tval, 0);
         Word vectorTableBase = unJust(csrFileInner.readWithOffset(csr_TVEC, 0));
         let exceptionHandler = vectorTableBase;
+
+        // Check and handle a vectored trap handler table
         if (exceptionHandler[1:0] == 1) begin
             exceptionHandler[1:0] = 0;
-            if(exception matches tagged InterruptCause .interruptCause) begin
+            if(exception.cause matches tagged InterruptCause .interruptCause) begin
                 exceptionHandler = exceptionHandler + extend(4 * interruptCause);
             end
         end

@@ -66,14 +66,14 @@ module mkProgramMemoryTile(ProgramMemoryTile);
                     response.d_data = extend(program_memory_read_u8(programMemoryContext, request.a_address));
                 end
                 1:  begin   // 2 bytes
-                    if ((request.a_address & 1) == 0) begin
+                    if (request.a_address[0] == 0) begin
                         response.d_opcode = d_ACCESS_ACK_DATA;
                         response.d_denied = False;
                         response.d_data = extend(program_memory_read_u16(programMemoryContext, request.a_address));
                     end
                 end
                 2:  begin   // 4 bytes
-                    if ((request.a_address & 3) == 0) begin
+                    if (request.a_address[1:0] == 0) begin
                         response.d_opcode = d_ACCESS_ACK_DATA;
                         response.d_denied = False;
                         response.d_data = extend(program_memory_read_u32(programMemoryContext, request.a_address));
@@ -81,7 +81,7 @@ module mkProgramMemoryTile(ProgramMemoryTile);
                 end
 `ifdef RV64
                 3:  begin   // 8 bytes
-                    if ((request.a_address & 7) == 0) begin
+                    if (request.a_address[2:0] == 0) begin
                         response.d_opcode = d_ACCESS_ACK_DATA;
                         response.d_denied = False;
                         response.d_data = program_memory_read_u64(programMemoryContext, request.a_address);

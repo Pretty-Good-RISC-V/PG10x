@@ -3,8 +3,8 @@ find_package(RISCV_ISA_Tests)
 if ("${BASE_ISA}" STREQUAL "RV32")
     set(ISA_TEST_BINARIES
         "${RISCV_ISA_TEST_BUILD_DIR}/src/riscv_isa_tests-build/isa/rv32mi-p-csr"     # CSR handling
-        # Not run since misaligned load/store not supported"${RISCV_ISA_TEST_BUILD_DIR}/src/riscv_isa_tests-build/isa/rv32mi-p-ma_addr" # Misaligned LD/ST handling
-        "${RISCV_ISA_TEST_BUILD_DIR}/src/riscv_isa_tests-build/isa/rv32mi-p-illegal" # Misaligned LD/ST handling
+        "${RISCV_ISA_TEST_BUILD_DIR}/src/riscv_isa_tests-build/isa/rv32mi-p-ma_addr" # Misaligned LD/ST handling
+        "${RISCV_ISA_TEST_BUILD_DIR}/src/riscv_isa_tests-build/isa/rv32mi-p-illegal" # Illegal instructino traps
     )
 endif()
 

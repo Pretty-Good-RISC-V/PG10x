@@ -42,7 +42,10 @@ module mkExceptionController_tb(Empty);
     endrule
 
     rule beginException(state == TEST);
-        Exception exception = tagged ExceptionCause exceptionCause;
+        Exception exception = Exception {
+            cause: tagged ExceptionCause exceptionCause,
+            tval: 0
+        };
         let receivedExceptionVector <- exceptionController.beginException(exceptionProgramCounter, exception);
         dynamicAssert(receivedExceptionVector == actualExceptionVector, "Exception Vector isn't correct.");
 
@@ -60,10 +63,6 @@ module mkExceptionController_tb(Empty);
 
         let mcause = exceptionController.csrFile.readWithOffset(csr_CAUSE, 0);
         dynamicAssert(isValid(mcause), "Reading MCAUSE in machine mode should succeed.");
-
-        Exception exceptionActual = tagged ExceptionCause exceptionCause;
-        let mcauseActual = getCause(exceptionActual);
-        dynamicAssert(unJust(mcause) == mcauseActual, "Reading MCAUSE should contain value written");
 
         state <= SOFTWARE_INTERRUPT_TEST;
     endrule

@@ -184,7 +184,7 @@ module mkLoadStore_tb(Empty);
             effectiveAddress:       'h4001,
             value:                  ?,
 
-            expectedException:      tagged Valid tagged ExceptionCause extend(exception_STORE_ADDRESS_MISALIGNED),
+            expectedException:      tagged Valid createMisalignedStoreException('h4001),
             expectedMask:           'b11,
             expectedValue:          ?
         },
@@ -195,7 +195,7 @@ module mkLoadStore_tb(Empty);
             effectiveAddress:       'h4003,
             value:                  ?,
 
-            expectedException:      tagged Valid tagged ExceptionCause extend(exception_STORE_ADDRESS_MISALIGNED),
+            expectedException:      tagged Valid createMisalignedStoreException('h4003),
             expectedMask:           'b11,
             expectedValue:          ?
         },
@@ -205,7 +205,7 @@ module mkLoadStore_tb(Empty);
             effectiveAddress:       'h4005,
             value:                  ?,
 
-            expectedException:      tagged Valid tagged ExceptionCause extend(exception_STORE_ADDRESS_MISALIGNED),
+            expectedException:      tagged Valid createMisalignedStoreException('h4005),
             expectedMask:           'b11,
             expectedValue:          ?
         },
@@ -215,7 +215,7 @@ module mkLoadStore_tb(Empty);
             effectiveAddress:       'h4007,
             value:                  ?,
 
-            expectedException:      tagged Valid tagged ExceptionCause extend(exception_STORE_ADDRESS_MISALIGNED),
+            expectedException:      tagged Valid createMisalignedStoreException('h4007),
             expectedMask:           'b11,
             expectedValue:          ?
         },
@@ -248,7 +248,7 @@ module mkLoadStore_tb(Empty);
             effectiveAddress:       'h4002,
             value:                  ?,
 
-            expectedException:      tagged Valid tagged ExceptionCause extend(exception_STORE_ADDRESS_MISALIGNED),
+            expectedException:      tagged Valid createMisalignedStoreException('h4002),
             expectedMask:           ?,
             expectedValue:          ?
         }

@@ -18,6 +18,8 @@ interface CSRFile;
 
     method Bool machineModeInterruptsEnabled;
 
+    method RVPrivilegeLevel getCurrentPrivilegeLevel;
+
     // Special purpose
     method Word64 cycle_counter;
     method Action increment_cycle_counter;
@@ -48,6 +50,8 @@ module mkCSRFile(CSRFile);
     Reg#(Word)      mscratch    <- mkReg(0);
     Reg#(Word)      mip         <- mkReg(0);
     Reg#(Word)      mie         <- mkReg(0);
+
+    Reg#(Word)      mtval[2]    <- mkCReg(2, 0);
 
     Reg#(Bit#(2))   currentPrivilegeLevel     <- mkReg(priv_MACHINE);
 
@@ -87,7 +91,7 @@ module mkCSRFile(CSRFile);
                 csr_MCAUSE:     tagged Valid mcause[portNumber];
                 csr_MTVEC:      tagged Valid mtvec[portNumber];
                 csr_MEPC:       tagged Valid mepc[portNumber];
-                csr_MTVAL:      tagged Valid 0;
+                csr_MTVAL:      tagged Valid mtval[portNumber];
 
                 csr_MSTATUS:    tagged Valid machineStatus.read;
                 csr_MCYCLE, csr_CYCLE:     
@@ -142,7 +146,7 @@ module mkCSRFile(CSRFile);
                 end
 
                 csr_MTVAL: begin
-                    // IGNORED
+                    mtval[portNumber] <= value;
                     result = True;
                 end
 
@@ -200,6 +204,10 @@ module mkCSRFile(CSRFile);
 
     method Bool machineModeInterruptsEnabled;
         return machineStatus.machineModeInterruptsEnabled;
+    endmethod
+
+    method RVPrivilegeLevel getCurrentPrivilegeLevel;
+        return currentPrivilegeLevel;
     endmethod
 
     method Word64 cycle_counter;

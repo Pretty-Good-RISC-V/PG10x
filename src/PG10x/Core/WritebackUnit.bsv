@@ -70,7 +70,7 @@ module mkWritebackUnit#(
 `ifdef ENABLE_INSTRUCTION_LOGGING
             Bool logIt = True;
             if (isValid(executedInstruction.exception)) begin
-                if (unJust(executedInstruction.exception) matches tagged InterruptCause .*) begin
+                if (unJust(executedInstruction.exception).cause matches tagged InterruptCause .*) begin
                     // If the instruction was interrupted, don't log it.
                     logIt = False;
                 end

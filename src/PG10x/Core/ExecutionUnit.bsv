@@ -105,7 +105,7 @@ module mkExecutionUnit#(
                     let writeSucceeded <- exceptionController.csrFile.write(csrIndex, v, 1);
                     if (writeSucceeded == False) begin
                         $display("CSR($%0x): Write failed", csrIndex);
-                        executedInstruction.exception = tagged Valid tagged ExceptionCause exception_ILLEGAL_INSTRUCTION;
+                        executedInstruction.exception = tagged Valid createIllegalInstructionException(decodedInstruction.rawInstruction);
                     end else begin
                         executedInstruction.exception = tagged Invalid;
                     end
@@ -114,7 +114,7 @@ module mkExecutionUnit#(
                     executedInstruction.exception = tagged Invalid;
                 end
             end else begin
-                executedInstruction.exception = tagged Valid tagged ExceptionCause exception_ILLEGAL_INSTRUCTION;
+                executedInstruction.exception = tagged Valid createIllegalInstructionException(decodedInstruction.rawInstruction);
                 $display("CSR($%0x): Read failed", decodedInstruction.csrIndex);
             end
         end
@@ -136,7 +136,7 @@ module mkExecutionUnit#(
                 changedProgramCounter: tagged Invalid,
                 loadRequest: tagged Invalid,
                 storeRequest: tagged Invalid,
-                exception: tagged Valid tagged ExceptionCause exception_ILLEGAL_INSTRUCTION,
+                exception: tagged Valid createIllegalInstructionException(decodedInstruction.rawInstruction),
                 writeBack: tagged Invalid
             };
 
@@ -144,7 +144,7 @@ module mkExecutionUnit#(
             let pendingInterrupt = False;
             let highestPriorityInterrupt <- exceptionController.getHighestPriorityInterrupt(True, 1);
             if (highestPriorityInterrupt matches tagged Valid .highest) begin
-                executedInstruction.exception = tagged Valid tagged InterruptCause interrupt_SUPERVISOR_SOFTWARE_INTERRUPT;
+                executedInstruction.exception = tagged Valid createInterruptException(decodedInstruction.programCounter, truncate(highest));
                 pendingInterrupt = True;
             end
 
@@ -184,7 +184,7 @@ module mkExecutionUnit#(
                                 let branchTarget = getEffectiveAddress(decodedInstruction.programCounter, unJust(decodedInstruction.immediate));
                                 // Branch target must be 32 bit aligned.
                                 if (branchTarget[1:0] != 0) begin
-                                    executedInstruction.exception = tagged Valid tagged ExceptionCause exception_INSTRUCTION_ADDRESS_MISALIGNED;
+                                    executedInstruction.exception = tagged Valid createMisalignedInstructionException(branchTarget);
                                 end else begin
                                     // Target address aligned
                                     executedInstruction.exception = tagged Invalid;
@@ -229,7 +229,7 @@ module mkExecutionUnit#(
                         
                         let jumpTarget = getEffectiveAddress(decodedInstruction.programCounter, unJust(decodedInstruction.immediate));
                         if (jumpTarget[1:0] != 0) begin
-                            executedInstruction.exception = tagged Valid tagged ExceptionCause exception_INSTRUCTION_ADDRESS_MISALIGNED;
+                            executedInstruction.exception = tagged Valid createMisalignedInstructionException(jumpTarget);
                         end else begin
                             executedInstruction.changedProgramCounter = tagged Valid jumpTarget;
                             executedInstruction.writeBack = tagged Valid WriteBack {
@@ -250,7 +250,7 @@ module mkExecutionUnit#(
                         jumpTarget[0] = 0;
 
                         if (jumpTarget[1:0] != 0) begin
-                            executedInstruction.exception = tagged Valid tagged ExceptionCause exception_INSTRUCTION_ADDRESS_MISALIGNED;
+                            executedInstruction.exception = tagged Valid createMisalignedInstructionException(jumpTarget);
                         end else begin
                             executedInstruction.changedProgramCounter = tagged Valid jumpTarget;
                             executedInstruction.writeBack = tagged Valid WriteBack {
@@ -273,11 +273,12 @@ module mkExecutionUnit#(
                         let rd = unJust(decodedInstruction.rd);
 
                         let result = getLoadRequest(
-                            decodedInstruction.storeOperator,
+                            decodedInstruction.loadOperator,
                             rd,
                             effectiveAddress
                         );
 
+                        $display("LEA: $%0x - $%0x", effectiveAddress, decodedInstruction.loadOperator);
                         if (isSuccess(result)) begin
                             executedInstruction.loadRequest = tagged Valid result.Success;
                             executedInstruction.exception = tagged Invalid;
@@ -295,7 +296,7 @@ module mkExecutionUnit#(
 
                         let effectiveAddress = getEffectiveAddress(decodedInstruction.rs1Value, unJust(decodedInstruction.immediate));
 
-                    $display("Store effective address: $%x", effectiveAddress);
+                        $display("Store effective address: $%x", effectiveAddress);
 
                         let result = getStoreRequest(
                             decodedInstruction.storeOperator,
@@ -315,7 +316,7 @@ module mkExecutionUnit#(
                         case(decodedInstruction.systemOperator)
                             sys_ECALL: begin
                                 $display("%0d,%0d,%0d,%0x,%0d,execute,ECALL instruction encountered", decodedInstruction.fetchIndex, exceptionController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber);
-                                executedInstruction.exception = tagged Valid tagged ExceptionCause exception_ENVIRONMENT_CALL_FROM_M_MODE;
+                                executedInstruction.exception = tagged Valid createEnvironmentCallException(decodedInstruction.programCounter);
                             end
                             sys_MRET: begin
                                 $display("%0d,%0d,%0d,%0x,%0d,execute,MRET instruction", decodedInstruction.fetchIndex, exceptionController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber);
@@ -371,9 +372,6 @@ module mkExecutionUnit#(
             $display("%0d,%0d,%0d,%0x,%0d,execute,RS2: ", fetchIndex, exceptionController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber, (isValid(decodedInstruction.rs2) ? $format("x%0d = %0d ($%0x)", unJust(decodedInstruction.rs2), decodedInstruction.rs2Value, decodedInstruction.rs2Value) : $format("INVALID")));
             
             let executedInstruction <- executeInstruction(decodedInstruction, currentEpoch);
-            if (executedInstruction.exception matches tagged Valid .exception) begin
-                $display("%0d,%0d,%0d,%0x,%0d,execute,EXCEPTION:", fetchIndex, cycleCounter, currentEpoch, decodedInstruction.programCounter, stageNumber, fshow(exception));
-            end
 
             // If the program counter was changed, see if it matches a predicted branch/jump.
             // If not, redirect the program counter to the mispredicted target address.
@@ -382,12 +380,20 @@ module mkExecutionUnit#(
                 if (decodedInstruction.predictedNextProgramCounter != targetAddress) begin
                     pipelineController.flush(1);
 
-                    // Bump the current instruction epoch
-                    executedInstruction.pipelineEpoch = ~executedInstruction.pipelineEpoch;
+                    if ((targetAddress & 3) != 0) begin
+                        executedInstruction.exception = tagged Valid createMisalignedInstructionException(targetAddress);
+                    end else begin
+                        // Bump the current instruction epoch
+                        executedInstruction.pipelineEpoch = ~executedInstruction.pipelineEpoch;
 
-                    $display("%0d,%0d,%0d,%0x,%0d,execute,branch/jump to: $%08x", fetchIndex, cycleCounter, currentEpoch, decodedInstruction.programCounter, stageNumber, targetAddress);
-                    programCounterRedirect.branch(targetAddress);
+                        $display("%0d,%0d,%0d,%0x,%0d,execute,branch/jump to: $%08x", fetchIndex, cycleCounter, currentEpoch, decodedInstruction.programCounter, stageNumber, targetAddress);
+                        programCounterRedirect.branch(targetAddress);
+                    end
                 end
+            end
+
+            if (executedInstruction.exception matches tagged Valid .exception) begin
+                $display("%0d,%0d,%0d,%0x,%0d,execute,EXCEPTION:", fetchIndex, cycleCounter, currentEpoch, decodedInstruction.programCounter, stageNumber, fshow(exception));
             end
 
             // If writeback data exists, that needs to be written into the previous pipeline 

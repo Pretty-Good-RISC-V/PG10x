@@ -28,7 +28,7 @@ function Result#(LoadRequest, Exception) getLoadRequest(
     Word effectiveAddress);
 
     Result#(LoadRequest, Exception) result = 
-        tagged Error tagged ExceptionCause exception_ILLEGAL_INSTRUCTION;
+        tagged Error createIllegalInstructionException(0);
 
     let loadRequest = LoadRequest {
         tlRequest: TileLinkLiteWordRequest {
@@ -63,7 +63,7 @@ function Result#(LoadRequest, Exception) getLoadRequest(
         // Half-word
         load_LH: begin
             if ((effectiveAddress & 'b01) != 0) begin
-                result = tagged Error tagged ExceptionCause extend(exception_LOAD_ADDRESS_MISALIGNED);
+                result = tagged Error createMisalignedLoadException(effectiveAddress);
             end else begin
                 loadRequest.tlRequest.a_size = 1; // 2 bytes
                 loadRequest.tlRequest.a_mask = 'b11;
@@ -73,7 +73,7 @@ function Result#(LoadRequest, Exception) getLoadRequest(
 
         load_LHU: begin
             if ((effectiveAddress & 'b01) != 0) begin
-                result = tagged Error tagged ExceptionCause extend(exception_LOAD_ADDRESS_MISALIGNED);
+                result = tagged Error createMisalignedLoadException(effectiveAddress);
             end else begin
                 loadRequest.tlRequest.a_size = 1; // 2 bytes
                 loadRequest.tlRequest.a_mask = 'b11;
@@ -85,7 +85,7 @@ function Result#(LoadRequest, Exception) getLoadRequest(
         // Word
         load_LW: begin
             if ((effectiveAddress & 'b11) != 0) begin
-                result = tagged Error tagged ExceptionCause extend(exception_LOAD_ADDRESS_MISALIGNED);
+                result = tagged Error createMisalignedLoadException(effectiveAddress);
             end else begin
                 loadRequest.tlRequest.a_size = 2; // 4 bytes
                 loadRequest.tlRequest.a_mask = 'b1111;
@@ -96,7 +96,7 @@ function Result#(LoadRequest, Exception) getLoadRequest(
 `ifdef RV64
         load_LWU: begin
             if ((effectiveAddress & 'b11) != 0) begin
-                result = tagged Error tagged ExceptionCause extend(exception_LOAD_ADDRESS_MISALIGNED);
+                result = tagged Error createMisalignedLoadException(effectiveAddress);
             end else begin
                 loadRequest.tlRequest.a_size = 2; // 4 bytes
                 loadRequest.tlRequest.a_mask = 'b1111;
@@ -107,7 +107,7 @@ function Result#(LoadRequest, Exception) getLoadRequest(
 
         load_LD: begin
             if ((effectiveAddress & 'b111) != 0) begin
-                result = tagged Error tagged ExceptionCause extend(exception_LOAD_ADDRESS_MISALIGNED);
+                result = tagged Error createMisalignedLoadException(effectiveAddress);
             end else begin
                 loadRequest.tlRequest.a_size = 3; // 8 bytes
                 loadRequest.tlRequest.a_mask = 'b1111_1111;
@@ -136,7 +136,7 @@ function Result#(StoreRequest, Exception) getStoreRequest(
     Word value);
 
     Result#(StoreRequest, Exception) result = 
-        tagged Error tagged ExceptionCause exception_ILLEGAL_INSTRUCTION;
+        tagged Error createIllegalInstructionException(0);
 
     let storeRequest = StoreRequest {
         tlRequest: TileLinkLiteWordRequest {
@@ -163,7 +163,7 @@ function Result#(StoreRequest, Exception) getStoreRequest(
         // Half-word
         store_SH: begin
             if ((effectiveAddress & 'b01) != 0) begin
-                result = tagged Error tagged ExceptionCause extend(exception_STORE_ADDRESS_MISALIGNED);
+                result = tagged Error createMisalignedStoreException(effectiveAddress);
             end else begin
                 storeRequest.tlRequest.a_size = 1; // 2 bytes
                 storeRequest.tlRequest.a_mask = 'b11;
@@ -175,7 +175,7 @@ function Result#(StoreRequest, Exception) getStoreRequest(
         // Word
         store_SW: begin
             if ((effectiveAddress & 'b11) != 0) begin
-                result = tagged Error tagged ExceptionCause extend(exception_STORE_ADDRESS_MISALIGNED);
+                result = tagged Error createMisalignedStoreException(effectiveAddress);
             end else begin
 `ifdef RV32
                 storeRequest.tlRequest.a_opcode = a_PUT_FULL_DATA;
@@ -192,7 +192,7 @@ function Result#(StoreRequest, Exception) getStoreRequest(
         // Double-word
         store_SD: begin
             if ((effectiveAddress & 'b111) != 0) begin
-                result = tagged Error tagged ExceptionCause extend(exception_STORE_ADDRESS_MISALIGNED);
+                result = tagged Error createMisalignedStoreException(effectiveAddress);
             end else begin
                 storeRequest.tlRequest.a_opcode = a_PUT_FULL_DATA;
                 storeRequest.tlRequest.a_size = 3; // 8 bytes

@@ -9,21 +9,52 @@ import PGTypes::*;
 typedef union tagged {
     RVExceptionCause ExceptionCause;
     RVInterruptCause InterruptCause;
+    Bool EnvironmentCallCause;
+} Cause deriving(Bits, Eq, FShow);
+
+typedef struct {
+    Cause cause;
+    Word tval;
 } Exception deriving(Bits, Eq, FShow);
 
-function Word getCause(Exception exception);
-    return case(exception) matches
-        tagged ExceptionCause .exceptionCause: begin
-            Word cause = ?;
-            cause[valueOf(XLEN)-1] = 0;
-            cause[valueOf(XLEN)-2:0] = exceptionCause;
-            return cause;
-        end
-        tagged InterruptCause .interruptCause: begin
-            Word cause = ?;
-            cause[valueOf(XLEN)-1] = 1;
-            cause[valueOf(XLEN)-2:0] = interruptCause;
-            return cause;
-        end
-    endcase;
+function Exception createIllegalInstructionException(Word32 rawInstruction);
+    return Exception {
+        cause: tagged ExceptionCause exception_ILLEGAL_INSTRUCTION,
+        tval: extend(rawInstruction)
+    };
+endfunction
+
+function Exception createMisalignedInstructionException(ProgramCounter programCounter);
+    return Exception {
+        cause: tagged ExceptionCause exception_INSTRUCTION_ADDRESS_MISALIGNED,
+        tval: programCounter
+    };
+endfunction
+
+function Exception createMisalignedLoadException(Word effectiveAddress);
+    return Exception {
+        cause: tagged ExceptionCause exception_LOAD_ADDRESS_MISALIGNED,
+        tval: effectiveAddress
+    };
+endfunction
+
+function Exception createMisalignedStoreException(Word effectiveAddress);
+    return Exception {
+        cause: tagged ExceptionCause exception_STORE_ADDRESS_MISALIGNED,
+        tval: effectiveAddress
+    };
+endfunction
+
+function Exception createEnvironmentCallException(ProgramCounter programCounter);
+    return Exception {
+        cause: tagged EnvironmentCallCause True,
+        tval: programCounter
+    };
+endfunction
+
+function Exception createInterruptException(ProgramCounter programCounter, Bit#(31) interruptNumber);
+    return Exception {
+        cause: tagged InterruptCause pack(interruptNumber),
+        tval: programCounter
+    };
 endfunction

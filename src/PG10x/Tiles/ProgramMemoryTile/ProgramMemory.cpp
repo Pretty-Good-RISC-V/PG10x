@@ -214,7 +214,7 @@ template<typename T>
 T program_memory_read(context_handle handle, address_t address) {
     T result = AlignmentTraits<T>::defaultValue();
     if (AlignmentTraits<T>::isAligned(address) == false) {
-        std::cerr << "Alignement check " << std::hex << address << " failed for " << AlignmentTraits<T>::name() << std::endl;
+        std::cout << "Alignment check " << std::hex << address << " failed for " << AlignmentTraits<T>::name() << "size: " << std::to_string(sizeof(T)) << std::endl;
         assert(false);
     }
 
@@ -256,7 +256,7 @@ uint32_t program_memory_read_u32(context_handle handle, address_t address) {
 }
 
 uint64_t program_memory_read_u64(context_handle handle, address_t address) {
-    return program_memory_read<address_t>(handle, address);
+    return program_memory_read<uint64_t>(handle, address);
 }
 
 void program_memory_write_u8(context_handle handle, address_t address, uint8_t value) {
