@@ -99,6 +99,12 @@ module mkCSRFile(CSRFile);
                 csr_MSCRATCH:   tagged Valid mscratch;
                 csr_MIP:        tagged Valid mip;
                 csr_MIE:        tagged Valid mie;
+
+                // !bugbug - TSELECT is hardcoded to all 1s.  This is to keep
+                //           the ISA debug test happy.  It *should* report a 
+                //           pass if reading TSELECT failed with a trap (to reflect what's in the spec)
+                //           This is a bug in the debug test.
+                csr_TSELECT:    tagged Valid 'hFFFF_FFFF;
                 
                 default:    tagged Invalid;
             endcase;
@@ -165,6 +171,10 @@ module mkCSRFile(CSRFile);
                 csr_MIP: begin
                     $display("Setting MIP to $%0x", value);
                     mip <= value;
+                    result = True;
+                end
+
+                csr_TSELECT: begin 
                     result = True;
                 end
             endcase

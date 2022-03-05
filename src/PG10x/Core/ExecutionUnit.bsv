@@ -378,12 +378,12 @@ module mkExecutionUnit#(
             if (isValid(executedInstruction.changedProgramCounter)) begin
                 let targetAddress = unJust(executedInstruction.changedProgramCounter);
                 if (decodedInstruction.predictedNextProgramCounter != targetAddress) begin
-                    pipelineController.flush(1);
-
                     if ((targetAddress & 3) != 0) begin
                         executedInstruction.exception = tagged Valid createMisalignedInstructionException(targetAddress);
                     end else begin
                         // Bump the current instruction epoch
+                        pipelineController.flush(1);
+
                         executedInstruction.pipelineEpoch = ~executedInstruction.pipelineEpoch;
 
                         $display("%0d,%0d,%0d,%0x,%0d,execute,branch/jump to: $%08x", fetchIndex, cycleCounter, currentEpoch, decodedInstruction.programCounter, stageNumber, targetAddress);
