@@ -59,7 +59,7 @@ function Exception createBreakpointException(ProgramCounter programCounter);
     };
 endfunction
 
-function Exception createInterruptException(ProgramCounter programCounter, Bit#(31) interruptNumber);
+function Exception createInterruptException(ProgramCounter programCounter, Bit#(TSub#(XLEN, 1)) interruptNumber);
     return Exception {
         cause: tagged InterruptCause pack(interruptNumber),
         tval: programCounter

@@ -55,10 +55,8 @@ typedef struct {
     // programCounter - The program counter corresponding to this instruction.
     ProgramCounter programCounter;
 
-`ifdef ENABLE_INSTRUCTION_LOGGING
     // rawInstruction - The raw 32 bit instruction.
     Word32 rawInstruction;
-`endif
 
     // predictedNextProgramCounter - Contains the *predicted* program counter following this
     //                               instruction.

@@ -38,7 +38,7 @@ module mkDecodeUnit#(
                 func3 == load_UNSUPPORTED_110 ||
                 func3 == load_UNSUPPORTED_111) ? False : True);
 `elsif RV64
-        return (func3 == load_UNSUPPORTED_111) ? False : True);
+        return (func3 == load_UNSUPPORTED_111 ? False : True);
 `else
         return False;
 `endif
@@ -75,9 +75,7 @@ module mkDecodeUnit#(
             pipelineEpoch: ?,
             opcode: UNSUPPORTED_OPCODE,
             programCounter: programCounter,
-`ifdef ENABLE_INSTRUCTION_LOGGING
             rawInstruction: instruction,
-`endif
             predictedNextProgramCounter: ?,
             aluOperator: {func7, func3},
             loadOperator: func3,

@@ -11,7 +11,7 @@ interface ExceptionController;
     interface CSRFile csrFile;
 
     method ActionValue#(ProgramCounter) beginException(ProgramCounter exceptionProgramCounter, Exception exception);
-    method ActionValue#(Maybe#(Word32)) getHighestPriorityInterrupt(Bool clear, Integer portNumber);
+    method ActionValue#(Maybe#(Bit#(TSub#(XLEN, 1)))) getHighestPriorityInterrupt(Bool clear, Integer portNumber);
 endinterface
 
 module mkExceptionController(ExceptionController);
@@ -73,8 +73,8 @@ module mkExceptionController(ExceptionController);
 
     interface CSRFile csrFile = csrFileInner;
 
-    method ActionValue#(Maybe#(Word32)) getHighestPriorityInterrupt(Bool clear, Integer portNumber);
-        Maybe#(Word32) result = tagged Invalid;
+    method ActionValue#(Maybe#(Bit#(TSub#(XLEN, 1)))) getHighestPriorityInterrupt(Bool clear, Integer portNumber);
+        Maybe#(Bit#(TSub#(XLEN, 1))) result = tagged Invalid;
 
         if (csrFileInner.machineModeInterruptsEnabled) begin
             let mie = fromMaybe(0, csrFileInner.read(csr_MIE, portNumber));

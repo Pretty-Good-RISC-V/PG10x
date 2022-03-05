@@ -130,9 +130,7 @@ module mkExecutionUnit#(
                 fetchIndex: decodedInstruction.fetchIndex,
                 pipelineEpoch: decodedInstruction.pipelineEpoch,
                 programCounter: decodedInstruction.programCounter,
-`ifdef ENABLE_INSTRUCTION_LOGGING
                 rawInstruction: decodedInstruction.rawInstruction,
-`endif
                 changedProgramCounter: tagged Invalid,
                 loadRequest: tagged Invalid,
                 storeRequest: tagged Invalid,
@@ -144,7 +142,7 @@ module mkExecutionUnit#(
             let pendingInterrupt = False;
             let highestPriorityInterrupt <- exceptionController.getHighestPriorityInterrupt(True, 1);
             if (highestPriorityInterrupt matches tagged Valid .highest) begin
-                executedInstruction.exception = tagged Valid createInterruptException(decodedInstruction.programCounter, truncate(highest));
+                executedInstruction.exception = tagged Valid createInterruptException(decodedInstruction.programCounter, extend(highest));
                 pendingInterrupt = True;
             end
 
@@ -358,15 +356,12 @@ module mkExecutionUnit#(
                 fetchIndex: decodedInstruction.fetchIndex,
                 pipelineEpoch: decodedInstruction.pipelineEpoch,
                 programCounter: decodedInstruction.programCounter,
-`ifdef ENABLE_INSTRUCTION_LOGGING
                 rawInstruction: decodedInstruction.rawInstruction,
-`endif
                 changedProgramCounter: tagged Invalid,
                 loadRequest: tagged Invalid,
                 storeRequest: tagged Invalid,
                 exception: tagged Invalid,
                 writeBack: tagged Invalid
-
             });
         end else begin
             let currentEpoch = stageEpoch;
