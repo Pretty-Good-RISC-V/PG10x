@@ -10,6 +10,7 @@ if ("${BASE_ISA}" STREQUAL "RV32")
         "${RISCV_ISA_TEST_BUILD_DIR}/src/riscv_isa_tests-build/isa/rv32mi-p-mcsr"       # Machine Mode CSR tests
         "${RISCV_ISA_TEST_BUILD_DIR}/src/riscv_isa_tests-build/isa/rv32mi-p-sbreak"     # EBREAK (formerly SBREAK) tests
         "${RISCV_ISA_TEST_BUILD_DIR}/src/riscv_isa_tests-build/isa/rv32mi-p-scall"      # ECALL (formerly SCALL) tests
+        "${RISCV_ISA_TEST_BUILD_DIR}/src/riscv_isa_tests-build/isa/rv32mi-p-shamt"      # Illegal shamt tests
     )
 endif()
 
