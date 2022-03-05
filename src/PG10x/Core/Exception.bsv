@@ -52,6 +52,13 @@ function Exception createEnvironmentCallException(ProgramCounter programCounter)
     };
 endfunction
 
+function Exception createBreakpointException(ProgramCounter programCounter);
+    return Exception {
+        cause: tagged ExceptionCause exception_BREAKPOINT,
+        tval: programCounter
+    };
+endfunction
+
 function Exception createInterruptException(ProgramCounter programCounter, Bit#(31) interruptNumber);
     return Exception {
         cause: tagged InterruptCause pack(interruptNumber),

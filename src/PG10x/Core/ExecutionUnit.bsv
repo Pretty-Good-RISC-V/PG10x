@@ -318,6 +318,10 @@ module mkExecutionUnit#(
                                 $display("%0d,%0d,%0d,%0x,%0d,execute,ECALL instruction encountered", decodedInstruction.fetchIndex, exceptionController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber);
                                 executedInstruction.exception = tagged Valid createEnvironmentCallException(decodedInstruction.programCounter);
                             end
+                            sys_EBREAK: begin
+                                $display("%0d,%0d,%0d,%0x,%0d,execute,EBREAK instruction encountered", decodedInstruction.fetchIndex, exceptionController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber);
+                                executedInstruction.exception = tagged Valid createBreakpointException(decodedInstruction.programCounter);
+                            end
                             sys_MRET: begin
                                 $display("%0d,%0d,%0d,%0x,%0d,execute,MRET instruction", decodedInstruction.fetchIndex, exceptionController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber);
                                 let readStatus = exceptionController.csrFile.read(csr_MEPC,1);

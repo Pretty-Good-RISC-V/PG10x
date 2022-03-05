@@ -4,10 +4,11 @@ if ("${BASE_ISA}" STREQUAL "RV32")
     set(ISA_TEST_BINARIES
         "${RISCV_ISA_TEST_BUILD_DIR}/src/riscv_isa_tests-build/isa/rv32mi-p-breakpoint" # Breakpoint Tests
         "${RISCV_ISA_TEST_BUILD_DIR}/src/riscv_isa_tests-build/isa/rv32mi-p-csr"        # CSR tests
+        "${RISCV_ISA_TEST_BUILD_DIR}/src/riscv_isa_tests-build/isa/rv32mi-p-illegal"    # Illegal instructino traps
         "${RISCV_ISA_TEST_BUILD_DIR}/src/riscv_isa_tests-build/isa/rv32mi-p-ma_addr"    # Misaligned LD/ST handling
         "${RISCV_ISA_TEST_BUILD_DIR}/src/riscv_isa_tests-build/isa/rv32mi-p-ma_fetch"   # Misaligned Fetch handling
         "${RISCV_ISA_TEST_BUILD_DIR}/src/riscv_isa_tests-build/isa/rv32mi-p-mcsr"       # Machine Mode CSR tests
-        "${RISCV_ISA_TEST_BUILD_DIR}/src/riscv_isa_tests-build/isa/rv32mi-p-illegal"    # Illegal instructino traps
+        "${RISCV_ISA_TEST_BUILD_DIR}/src/riscv_isa_tests-build/isa/rv32mi-p-sbreak"     # EBREAK (formerly SBREAK) tests
     )
 endif()
 
