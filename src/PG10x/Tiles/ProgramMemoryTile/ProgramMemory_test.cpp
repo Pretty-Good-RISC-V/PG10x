@@ -21,6 +21,9 @@ int main(int argc, const char *argv[]) {
         addr = 0x800000c8;
         assert(program_memory_read_u32(handle, addr) == 0xf1402573);
 
+        addr = 0x800000c8;
+        assert(program_memory_read_u8(handle, addr) == 0x73);
+
         status = 0;
         program_memory_close(handle);
     }

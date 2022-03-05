@@ -213,11 +213,6 @@ uint64_t AlignmentTraits<uint64_t>::defaultValue() {
 template<typename T>
 T program_memory_read(context_handle handle, address_t address) {
     T result = AlignmentTraits<T>::defaultValue();
-    if (AlignmentTraits<T>::isAligned(address) == false) {
-        std::cout << "Alignment check " << std::hex << address << " failed for " << AlignmentTraits<T>::name() << "size: " << std::to_string(sizeof(T)) << std::endl;
-        assert(false);
-    }
-
     const auto &i = contexts.find(handle);
     if (i != contexts.end()) {
         const auto &s = (*i).second->find(address);
@@ -232,7 +227,6 @@ T program_memory_read(context_handle handle, address_t address) {
 
 template<typename T>
 void program_memory_write(context_handle handle, address_t address, T value) {
-    assert(AlignmentTraits<T>::isAligned(address));
     const auto &i = contexts.find(handle);
     if (i != contexts.end()) {
         const auto &s = (*i).second->find(address);
