@@ -18,7 +18,7 @@ option(ENABLE_ISA_TESTS "Enable the RISC-V ISA Architecture Tests" OFF)
 option(ENABLE_INSTRUCTION_LOGGING "Enable disassembled instruction logging" OFF)
 
 option(ENABLE_BRANCH_PREDICTION "Enable branch prediction inside RISC-V core" ON)
-option(ENABLE_PIPELINING "Enable instruction pipelining inside RISC-V core" OFF)
+option(ENABLE_PIPELINING "Enable instruction pipelining inside RISC-V core" ON)
 
 enable_testing()
 
