@@ -14,7 +14,9 @@ FetchContent_Declare(
     GIT_TAG        "master"
 )
 
+message("Ensuring BLUE_CHECK is available")
 FetchContent_MakeAvailable(blue_check)
+message("Ensuring BLUE_CHECK is available...complete")
 
 FetchContent_GetProperties(blue_check SOURCE_DIR BLUECHECK_DIR)
 

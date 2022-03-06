@@ -6,4 +6,6 @@ FetchContent_Declare(
     GIT_TAG        "main"
 )
 
+message("Ensuring Spike-DISASM is available")
 FetchContent_MakeAvailable(spike_disasm)
+message("Ensuring Spike-DISASM is available...complete")

@@ -6,4 +6,6 @@ FetchContent_Declare(
     GIT_TAG        "main"
 )
 
+message("Ensuring RVCommon is available")
 FetchContent_MakeAvailable(rvcommon)
+message("Ensuring RVCommon is available...complete")

@@ -66,7 +66,11 @@ module mkDecodeUnit#(
         let rs1 = instruction[19:15];
         let uimm = instruction[19:15];   // same bits as rs1
         let rs2 = instruction[24:20];
+`ifdef RV32
         let shamt = instruction[24:20];  // same bits as rs2
+`elsif RV64
+        let shamt = instruction[25:20];  // same bits as rs2 including 1 bit above.
+`endif
         let func7 = instruction[31:25];
         let immediate31_20 = signExtend(instruction[31:20]); // same bits as {func7, rs2}
 
@@ -123,7 +127,11 @@ module mkDecodeUnit#(
 
                 // Check for shift instructions
                 if (func3[1:0] == 2'b01) begin
+`ifdef RV32
                     if (func7 == 7'b0000000 || func7 == 7'b0100000) begin
+`elsif RV64
+                    if (func7[6:1] == 6'b000000 || func7[6:1] == 6'b010000) begin
+`endif
                         decodedInstruction.opcode = ALU;
                         decodedInstruction.rd = tagged Valid rd;
                         decodedInstruction.rs1 = tagged Valid rs1;
@@ -136,6 +144,30 @@ module mkDecodeUnit#(
                     decodedInstruction.immediate = tagged Valid immediate31_20;
                 end
             end
+`ifdef RV64
+            //
+            // OP-IMM32
+            //
+            7'b0011011: begin
+                // OP-IMM only used func3 for operator encoding.
+                decodedInstruction.aluOperator = extend(func3);
+
+                // Check for shift instructions
+                if (func3[1:0] == 2'b01) begin
+                    if (func7 == 7'b0000000 || func7 == 7'b0100000) begin
+                        decodedInstruction.opcode = ALU3264;
+                        decodedInstruction.rd = tagged Valid rd;
+                        decodedInstruction.rs1 = tagged Valid rs1;
+                        decodedInstruction.immediate = tagged Valid extend(shamt);
+                    end
+                end else begin
+                    decodedInstruction.opcode = ALU3264;
+                    decodedInstruction.rd = tagged Valid rd;
+                    decodedInstruction.rs1 = tagged Valid rs1;
+                    decodedInstruction.immediate = tagged Valid immediate31_20;
+                end
+            end
+`endif
             //
             // AUIPC
             //

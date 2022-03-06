@@ -6,4 +6,6 @@ FetchContent_Declare(
     GIT_TAG        "main"
 )
 
+message("Ensuring TileLink is available")
 FetchContent_MakeAvailable(tilelink)
+message("Ensuring TileLink is available...complete")

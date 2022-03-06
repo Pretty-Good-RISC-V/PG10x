@@ -14,7 +14,9 @@ FetchContent_Declare(
     GIT_TAG        "main"
 )
 
+message("Ensuring BSC_CONTRIB is available")
 FetchContent_MakeAvailable(bsc_contrib)
+message("Ensuring BSC_CONTRIB is available...complete")
 
 FetchContent_GetProperties(bsc_contrib SOURCE_DIR BSC_CONTRIB_DIR)
 

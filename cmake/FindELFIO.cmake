@@ -6,4 +6,6 @@ FetchContent_Declare(
     GIT_TAG        "Release_3.10"
 )
 
+message("Ensuring ELFIO is available")
 FetchContent_MakeAvailable(ELFIO)
+message("Ensuring ELFIO is available...complete")

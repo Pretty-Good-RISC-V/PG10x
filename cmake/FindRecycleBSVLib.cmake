@@ -14,7 +14,9 @@ FetchContent_Declare(
     GIT_TAG        "master"
 )
 
+message("Ensuring RecycleBSVLib is available")
 FetchContent_MakeAvailable(recycle_bsv_lib)
+message("Ensuring RecycleBSVLib is available...complete")
 
 FetchContent_GetProperties(recycle_bsv_lib SOURCE_DIR RECYCLE_BSV_DIR)
 

@@ -1,5 +1,6 @@
 include(ExternalProject)
 
+message("Ensuring RISC-V ISA Tests are available")
 ExternalProject_Add(riscv_isa_tests
     GIT_REPOSITORY https://github.com/riscv-software-src/riscv-tests.git
     GIT_TAG        "master"
@@ -10,5 +11,6 @@ ExternalProject_Add(riscv_isa_tests
     BUILD_COMMAND make
     INSTALL_COMMAND make install
 )
+message("Ensuring RISC-V ISA Tests are available...complete")
 
 set(RISCV_ISA_TEST_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR}/riscv_isa_tests CACHE STRING "")

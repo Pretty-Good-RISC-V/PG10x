@@ -39,6 +39,14 @@ module mkExecutionUnit#(
 
     ALU alu <- mkALU;
 
+    function Bool isValidInstructionAddress(ProgramCounter programCounter);
+`ifdef RV32
+        return (programCounter[1:0] == 0 ? True : False);
+`elsif RV64
+        return ((programCounter[1:0] == 0 && programCounter[63] == 0) ? True : False);
+`endif
+    endfunction
+
     function Bool isValidBranchOperator(RVBranchOperator operator);
         return ((operator != branch_UNSUPPORTED_010 &&
                 operator != branch_UNSUPPORTED_011) ? True : False);
@@ -167,6 +175,27 @@ module mkExecutionUnit#(
                         end
                     end
 
+`ifdef RV64
+                    ALU3264: begin
+                        dynamicAssert(isValid(decodedInstruction.rd), "ALU: rd is invalid");
+                        dynamicAssert(isValid(decodedInstruction.rs1), "ALU: rs1 is invalid");
+
+                        let result = alu.execute3264(
+                            decodedInstruction.aluOperator, 
+                            decodedInstruction.rs1Value,
+                            fromMaybe(decodedInstruction.rs2Value, decodedInstruction.immediate)
+                        );
+
+                        if (isValid(result)) begin
+                            executedInstruction.writeBack = tagged Valid WriteBack {
+                                rd: fromMaybe(?, decodedInstruction.rd),
+                                value: fromMaybe(?, result)
+                            };
+                            executedInstruction.exception = tagged Invalid;
+                        end
+                    end
+`endif
+
                     BRANCH: begin
                         dynamicAssert(isValid(decodedInstruction.rd) == False, "BRANCH: rd SHOULD BE invalid");
                         dynamicAssert(isValid(decodedInstruction.rs1), "BRANCH: rs1 is invalid");
@@ -175,26 +204,26 @@ module mkExecutionUnit#(
 
                         if (isValidBranchOperator(decodedInstruction.branchOperator) &&
                             isValid(decodedInstruction.immediate)) begin
-                            let nextProgramCounter = ?;
+                            Maybe#(ProgramCounter) nextProgramCounter = tagged Invalid;
                             if (isBranchTaken(decodedInstruction)) begin
                                 // Determine branch target address and check
                                 // for address misalignment.
                                 let branchTarget = getEffectiveAddress(decodedInstruction.programCounter, unJust(decodedInstruction.immediate));
                                 // Branch target must be 32 bit aligned.
-                                if (branchTarget[1:0] != 0) begin
+                                if (isValidInstructionAddress(branchTarget) == False) begin
                                     executedInstruction.exception = tagged Valid createMisalignedInstructionException(branchTarget);
                                 end else begin
                                     // Target address aligned
                                     executedInstruction.exception = tagged Invalid;
-                                    nextProgramCounter = branchTarget;
+                                    nextProgramCounter = tagged Valid branchTarget;
                                 end
                             end else begin
                                 executedInstruction.exception = tagged Invalid;
-                                nextProgramCounter = decodedInstruction.programCounter + 4;
+                                nextProgramCounter = tagged Valid (decodedInstruction.programCounter + 4);
                             end
 
-                            if (nextProgramCounter != decodedInstruction.predictedNextProgramCounter) begin
-                                executedInstruction.changedProgramCounter = tagged Valid nextProgramCounter;
+                            if (isValid(nextProgramCounter) && unJust(nextProgramCounter) != decodedInstruction.predictedNextProgramCounter) begin
+                                executedInstruction.changedProgramCounter = tagged Valid unJust(nextProgramCounter);
                             end
                         end
                     end
@@ -224,9 +253,13 @@ module mkExecutionUnit#(
                         dynamicAssert(isValid(decodedInstruction.rs1) == False, "JUMP: rs1 SHOULD BE invalid");
                         dynamicAssert(isValid(decodedInstruction.rs2) == False, "JUMP: rs2 SHOULD BE invalid");
                         dynamicAssert(isValid(decodedInstruction.immediate), "JUMP: immediate is invalid");
-                        
-                        let jumpTarget = getEffectiveAddress(decodedInstruction.programCounter, unJust(decodedInstruction.immediate));
-                        if (jumpTarget[1:0] != 0) begin
+  
+                        let immediate = unJust(decodedInstruction.immediate);
+                        let jumpTarget = getEffectiveAddress(decodedInstruction.programCounter, immediate);
+
+                        $display("JUMP: RS1: $%0x - Offset: $%0x - JumpTarget: $%0x", decodedInstruction.rs1Value, immediate, jumpTarget);
+
+                        if (isValidInstructionAddress(jumpTarget) == False) begin
                             executedInstruction.exception = tagged Valid createMisalignedInstructionException(jumpTarget);
                         end else begin
                             executedInstruction.changedProgramCounter = tagged Valid jumpTarget;
@@ -244,10 +277,13 @@ module mkExecutionUnit#(
                         dynamicAssert(isValid(decodedInstruction.rs2) == False, "JUMP_INDIRECT: rs2 SHOULD BE invalid");
                         dynamicAssert(isValid(decodedInstruction.immediate), "JUMP_INDIRECT: immediate is invalid");
                         
-                        let jumpTarget = getEffectiveAddress(decodedInstruction.rs1Value, unJust(decodedInstruction.immediate));
+                        let immediate = unJust(decodedInstruction.immediate);
+                        let jumpTarget = getEffectiveAddress(decodedInstruction.rs1Value, immediate);
                         jumpTarget[0] = 0;
 
-                        if (jumpTarget[1:0] != 0) begin
+                        $display("JUMP_INDIRECT: RS1: $%0x - Offset: $%0x - JumpTarget: $%0x", decodedInstruction.rs1Value, immediate, jumpTarget);
+
+                        if (isValidInstructionAddress(jumpTarget) == False) begin
                             executedInstruction.exception = tagged Valid createMisalignedInstructionException(jumpTarget);
                         end else begin
                             executedInstruction.changedProgramCounter = tagged Valid jumpTarget;
@@ -257,7 +293,6 @@ module mkExecutionUnit#(
                             };
                             executedInstruction.exception = tagged Invalid;
                         end
-
                     end
 
                     LOAD: begin
@@ -377,17 +412,13 @@ module mkExecutionUnit#(
             if (isValid(executedInstruction.changedProgramCounter)) begin
                 let targetAddress = unJust(executedInstruction.changedProgramCounter);
                 if (decodedInstruction.predictedNextProgramCounter != targetAddress) begin
-                    if ((targetAddress & 3) != 0) begin
-                        executedInstruction.exception = tagged Valid createMisalignedInstructionException(targetAddress);
-                    end else begin
-                        // Bump the current instruction epoch
-                        pipelineController.flush(1);
+                    // Bump the current instruction epoch
+                    pipelineController.flush(1);
 
-                        executedInstruction.pipelineEpoch = ~executedInstruction.pipelineEpoch;
+                    executedInstruction.pipelineEpoch = ~executedInstruction.pipelineEpoch;
 
-                        $display("%0d,%0d,%0d,%0x,%0d,execute,branch/jump to: $%08x", fetchIndex, cycleCounter, currentEpoch, decodedInstruction.programCounter, stageNumber, targetAddress);
-                        programCounterRedirect.branch(targetAddress);
-                    end
+                    $display("%0d,%0d,%0d,%0x,%0d,execute,branch/jump to: $%08x", fetchIndex, cycleCounter, currentEpoch, decodedInstruction.programCounter, stageNumber, targetAddress);
+                    programCounterRedirect.branch(targetAddress);
                 end
             end
 

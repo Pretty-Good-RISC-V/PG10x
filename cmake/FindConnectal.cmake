@@ -14,7 +14,9 @@ FetchContent_Declare(
     GIT_TAG        "master"
 )
 
+message("Ensuring Connectal is available")
 FetchContent_MakeAvailable(connectal)
+message("Ensuring Connectal is available...complete")
 
 FetchContent_GetProperties(connectal SOURCE_DIR CONNECTAL_DIR)
 
