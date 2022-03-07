@@ -33,19 +33,12 @@ import "BDPI" function void program_memory_write_u64(ContextHandle ctx, Word add
 module mkProgramMemoryTile(ProgramMemoryTile);
     Word32 programMemoryContext = program_memory_open();
 
-    FIFO#(TileLinkLiteWordRequest) requests[2];
-    requests[0] <- mkFIFO;
-    requests[1] <- mkFIFO;
-
     FIFO#(TileLinkLiteWordResponse) responses[2];
     responses[0] <- mkFIFO;
     responses[1] <- mkFIFO;
 
-    function Action handleRequest(Integer portNumber);
+    function Action handleRequestToPort(TileLinkLiteWordRequest request, Integer portNumber);
         action
-        let request = requests[portNumber].first;
-        requests[portNumber].deq;
-
         TileLinkLiteWordResponse response = TileLinkLiteWordResponse{
             d_opcode: d_ACCESS_ACK,
             d_param: 0,
@@ -101,14 +94,6 @@ module mkProgramMemoryTile(ProgramMemoryTile);
         endaction
     endfunction
 
-    rule requestA;
-        handleRequest(0);
-    endrule
-
-    rule requestB;
-        handleRequest(1);
-    endrule
-
     interface TileLinkLiteWordServer portA;
         interface Get response;
             method ActionValue#(TileLinkLiteWordResponse) get;
@@ -121,7 +106,7 @@ module mkProgramMemoryTile(ProgramMemoryTile);
 
         interface Put request;
             method Action put(TileLinkLiteWordRequest request);
-                requests[0].enq(request);
+                handleRequestToPort(request, 0);
             endmethod
         endinterface
     endinterface
@@ -138,7 +123,7 @@ module mkProgramMemoryTile(ProgramMemoryTile);
 
         interface Put request;
             method Action put(TileLinkLiteWordRequest request);
-                requests[1].enq(request);
+                handleRequestToPort(request, 1);
             endmethod
         endinterface
     endinterface

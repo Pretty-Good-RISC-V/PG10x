@@ -412,13 +412,5 @@ module mkDecodeUnit#(
         endmethod
     endinterface
 
-    interface Get getDecodedInstruction;
-        method ActionValue#(DecodedInstruction) get;
-            let instruction = outputQueue.first;
-            outputQueue.deq;
-
-            return instruction;
-        endmethod
-    endinterface
-
+    interface Get getDecodedInstruction = toGet(outputQueue);
 endmodule

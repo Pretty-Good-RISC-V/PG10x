@@ -124,12 +124,5 @@ module mkFetchUnit#(
         end
     endrule
 
-    interface Get getEncodedInstruction;
-        method ActionValue#(EncodedInstruction) get;
-            let instruction = outputQueue.first;
-            outputQueue.deq;
-
-            return instruction;
-        endmethod
-    endinterface
+    interface Get getEncodedInstruction = toGet(outputQueue);
 endmodule

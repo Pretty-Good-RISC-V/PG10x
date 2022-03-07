@@ -190,12 +190,5 @@ module mkMemoryAccessUnit#(
         endmethod
     endinterface
 
-    interface Get getExecutedInstruction;
-        method ActionValue#(ExecutedInstruction) get;
-            let instruction = outputQueue.first;
-            outputQueue.deq;
-
-            return instruction;
-        endmethod
-    endinterface
+    interface Get getExecutedInstruction = toGet(outputQueue);
 endmodule
