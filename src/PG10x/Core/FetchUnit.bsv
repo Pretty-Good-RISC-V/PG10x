@@ -26,7 +26,7 @@ typedef struct {
 } FetchInfo deriving(Bits, Eq, FShow);
 
 interface FetchUnit;
-    interface FIFO#(EncodedInstruction) getEncodedInstructionQueue;
+    interface Get#(EncodedInstruction) getEncodedInstruction;
 endinterface
 
 module mkFetchUnit#(
@@ -124,6 +124,12 @@ module mkFetchUnit#(
         end
     endrule
 
-    interface FIFO getEncodedInstructionQueue = outputQueue;
+    interface Get getEncodedInstruction;
+        method ActionValue#(EncodedInstruction) get;
+            let instruction = outputQueue.first;
+            outputQueue.deq;
 
+            return instruction;
+        endmethod
+    endinterface
 endmodule

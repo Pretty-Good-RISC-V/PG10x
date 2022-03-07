@@ -13,25 +13,24 @@ import RegisterFile::*;
 import Scoreboard::*;
 
 import FIFO::*;
+import FIFOF::*;
 import GetPut::*;
 import SpecialFIFOs::*;
 
 export DecodeUnit(..), mkDecodeUnit;
 
 interface DecodeUnit;
-    interface FIFO#(DecodedInstruction) getDecodedInstructionQueue;
+    interface Put#(EncodedInstruction) putEncodedInstruction;
+    interface Get#(DecodedInstruction) getDecodedInstruction;
 endinterface
 
 module mkDecodeUnit#(
     Reg#(Word64) cycleCounter,
     Integer stageNumber,
     PipelineController pipelineController,
-    FIFO#(EncodedInstruction) inputQueue,
     Scoreboard#(4) scoreboard,
     RegisterFile registerFile
 )(DecodeUnit);
-    FIFO#(DecodedInstruction) outputQueue <- mkPipelineFIFO;
-
     function Bool isValidLoadInstruction(Bit#(3) func3);
 `ifdef RV32
         return ((func3 == load_UNSUPPORTED_011 ||
@@ -316,58 +315,110 @@ module mkDecodeUnit#(
         return decodedInstruction;
     endfunction
 
+    FIFO#(DecodedInstruction) outputQueue <- mkPipelineFIFO;
+
+    FIFOF#(DecodedInstruction) decodedInstructionWaitingForOperands <- mkFIFOF;
+
     (* fire_when_enabled *)
-    rule decode;
-        let instructionMemoryResponse = inputQueue.first;
-        let fetchIndex = instructionMemoryResponse.fetchIndex;
+    rule waitForOperands;
+        let decodedInstruction = decodedInstructionWaitingForOperands.first;
+
+        let fetchIndex = decodedInstruction.fetchIndex;
+        let programCounter = decodedInstruction.programCounter;
         let stageEpoch = pipelineController.stageEpoch(stageNumber, 2);
 
-        if (!pipelineController.isCurrentEpoch(stageNumber, 2, instructionMemoryResponse.pipelineEpoch)) begin
-            $display("%0d,%0d,%0d,%0x,%0d,decode,stale instruction...ignoring", fetchIndex, cycleCounter, instructionMemoryResponse.pipelineEpoch, instructionMemoryResponse.programCounter, stageNumber);
-            inputQueue.deq;
+        let stallWaitingForOperands = scoreboard.search(decodedInstruction.rs1, decodedInstruction.rs2);
+        if (stallWaitingForOperands) begin
+            $display("%0d,%0d,%0d,%0x,%0d,decode,stall waiting for operands", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber);
         end else begin
-            let encodedInstruction = instructionMemoryResponse.rawInstruction;
-            let programCounter = instructionMemoryResponse.programCounter;
+            decodedInstructionWaitingForOperands.deq;
 
-            let decodedInstruction = decodeInstruction(programCounter, encodedInstruction);
-            decodedInstruction.fetchIndex = instructionMemoryResponse.fetchIndex;
-            decodedInstruction.pipelineEpoch = stageEpoch;
-            decodedInstruction.predictedNextProgramCounter = instructionMemoryResponse.predictedNextProgramCounter;
-
-            $display("%0d,%0d,%0d,%0x,%0d,decode,scoreboard size: %0d", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber, scoreboard.size);
-
-            let stallWaitingForOperands = scoreboard.search(decodedInstruction.rs1, decodedInstruction.rs2);
-            if (stallWaitingForOperands) begin
-                $display("%0d,%0d,%0d,%0x,%0d,decode,stall waiting for operands", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber);
-            end else begin
-                inputQueue.deq;
-
-                // Read the source operand registers since the scoreboard indicates it's available.
-                if (isValid(decodedInstruction.rs1))
-                    decodedInstruction.rs1Value = registerFile.read1(unJust(decodedInstruction.rs1));
-
-                if (isValid(decodedInstruction.rs2))
-                    decodedInstruction.rs2Value = registerFile.read2(unJust(decodedInstruction.rs2));
-
-                scoreboard.insert(decodedInstruction.rd);
-
-                $display("%0d,%0d,%0d,%0x,%0d,decode,inserting into scoreboard (new count = %0d): ", 
-                    fetchIndex, 
-                    cycleCounter, 
-                    stageEpoch, 
-                    programCounter, 
-                    stageNumber, 
-                    scoreboard.size,
-                    (isValid(decodedInstruction.rd) ? 
-                        $format("x%0d", unJust(decodedInstruction.rd)) : $format("INVALID")));
-
-                // Send the decode result to the output queue.
-                outputQueue.enq(decodedInstruction);
-
-                $display("%0d,%0d,%0d,%0x,%0d,decode,decode complete", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber);
+            // Read the source operand registers since the scoreboard indicates it's available.
+            if (isValid(decodedInstruction.rs1)) begin
+                decodedInstruction.rs1Value = registerFile.read1(unJust(decodedInstruction.rs1));
             end
+
+            if (isValid(decodedInstruction.rs2)) begin
+                decodedInstruction.rs2Value = registerFile.read2(unJust(decodedInstruction.rs2));
+            end
+
+            scoreboard.insert(decodedInstruction.rd);
+
+            $display("%0d,%0d,%0d,%0x,%0d,decode,inserting into scoreboard (new count = %0d): ", 
+                fetchIndex, 
+                cycleCounter, 
+                stageEpoch, 
+                programCounter, 
+                stageNumber, 
+                scoreboard.size,
+                (isValid(decodedInstruction.rd) ? 
+                    $format("x%0d", unJust(decodedInstruction.rd)) : $format("INVALID")));
+
+            // Send the decode result to the output queue.
+            outputQueue.enq(decodedInstruction);
+
+            $display("%0d,%0d,%0d,%0x,%0d,decode,decode complete", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber);
         end
     endrule
 
-    interface FIFO getDecodedInstructionQueue = outputQueue;
+    interface Put putEncodedInstruction;
+        method Action put(EncodedInstruction encodedInstruction) if(decodedInstructionWaitingForOperands.notEmpty == False);
+            let fetchIndex = encodedInstruction.fetchIndex;
+            let stageEpoch = pipelineController.stageEpoch(stageNumber, 2);
+
+            if (!pipelineController.isCurrentEpoch(stageNumber, 2, encodedInstruction.pipelineEpoch)) begin
+                $display("%0d,%0d,%0d,%0x,%0d,decode,stale instruction...ignoring", fetchIndex, cycleCounter, encodedInstruction.pipelineEpoch, encodedInstruction.programCounter, stageNumber);
+            end else begin
+                let rawInstruction = encodedInstruction.rawInstruction;
+                let programCounter = encodedInstruction.programCounter;
+
+                let decodedInstruction = decodeInstruction(programCounter, rawInstruction);
+                decodedInstruction.fetchIndex = encodedInstruction.fetchIndex;
+                decodedInstruction.pipelineEpoch = stageEpoch;
+                decodedInstruction.predictedNextProgramCounter = encodedInstruction.predictedNextProgramCounter;
+
+                $display("%0d,%0d,%0d,%0x,%0d,decode,scoreboard size: %0d", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber, scoreboard.size);
+
+                let stallWaitingForOperands = scoreboard.search(decodedInstruction.rs1, decodedInstruction.rs2);
+                if (stallWaitingForOperands) begin
+                    $display("%0d,%0d,%0d,%0x,%0d,decode,stall waiting for operands", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber);
+                    decodedInstructionWaitingForOperands.enq(decodedInstruction);
+                end else begin
+                    // Read the source operand registers since the scoreboard indicates it's available.
+                    if (isValid(decodedInstruction.rs1))
+                        decodedInstruction.rs1Value = registerFile.read1(unJust(decodedInstruction.rs1));
+
+                    if (isValid(decodedInstruction.rs2))
+                        decodedInstruction.rs2Value = registerFile.read2(unJust(decodedInstruction.rs2));
+
+                    scoreboard.insert(decodedInstruction.rd);
+
+                    $display("%0d,%0d,%0d,%0x,%0d,decode,inserting into scoreboard (new count = %0d): ", 
+                        fetchIndex, 
+                        cycleCounter, 
+                        stageEpoch, 
+                        programCounter, 
+                        stageNumber, 
+                        scoreboard.size,
+                        (isValid(decodedInstruction.rd) ? 
+                            $format("x%0d", unJust(decodedInstruction.rd)) : $format("INVALID")));
+
+                    // Send the decode result to the output queue.
+                    outputQueue.enq(decodedInstruction);
+
+                    $display("%0d,%0d,%0d,%0x,%0d,decode,decode complete", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber);
+                end
+            end
+        endmethod
+    endinterface
+
+    interface Get getDecodedInstruction;
+        method ActionValue#(DecodedInstruction) get;
+            let instruction = outputQueue.first;
+            outputQueue.deq;
+
+            return instruction;
+        endmethod
+    endinterface
+
 endmodule

@@ -25,6 +25,7 @@ import SpecialFIFOs::*;
 export WritebackUnit(..), mkWritebackUnit;
 
 interface WritebackUnit;
+    interface Put#(ExecutedInstruction) putExecutedInstruction;
     method Bool wasInstructionRetired;
 endinterface
 
@@ -32,7 +33,6 @@ module mkWritebackUnit#(
     Reg#(Word64) cycleCounter,
     Integer stageNumber,
     PipelineController pipelineController,
-    FIFO#(ExecutedInstruction) inputQueue,
     ProgramCounterRedirect programCounterRedirect,
     Scoreboard#(4) scoreboard, 
     RegisterFile registerFile,
@@ -44,60 +44,58 @@ module mkWritebackUnit#(
     InstructionLog instructionLog<- mkInstructionLog;
 `endif
 
-    (* fire_when_enabled *)
-    rule writeBack;
-        let executedInstruction = inputQueue.first;
-        let fetchIndex = executedInstruction.fetchIndex;
-        let stageEpoch = pipelineController.stageEpoch(stageNumber, 0);
+    interface Put putExecutedInstruction;
+        method Action put(ExecutedInstruction executedInstruction);
+            let fetchIndex = executedInstruction.fetchIndex;
+            let stageEpoch = pipelineController.stageEpoch(stageNumber, 0);
 
-        // Remove the scoreboard entry - this needs to be done regardless of the
-        // epoch because the decode stage has already run which has added an entry to
-        // the scoreboard.
-        scoreboard.remove;
+            // Remove the scoreboard entry - this needs to be done regardless of the
+            // epoch because the decode stage has already run which has added an entry to
+            // the scoreboard.
+            scoreboard.remove;
 
-        if (!pipelineController.isCurrentEpoch(stageNumber, 0, executedInstruction.pipelineEpoch)) begin
-            $display("%0d,%0d,%0d,%0d,writeback,stale instruction (%0d != %0d)...popping bubble", fetchIndex, cycleCounter, executedInstruction.pipelineEpoch, inputQueue.first().programCounter, stageNumber, inputQueue.first().pipelineEpoch, stageEpoch);
-            inputQueue.deq;
-        end else begin
-            inputQueue.deq;
-            if (executedInstruction.writeBack matches tagged Valid .wb) begin
-                $display("%0d,%0d,%0d,%0x,%0d,writeback,writing result ($%08x) to register x%0d", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, wb.value, wb.rd);
-                registerFile.write(wb.rd, wb.value);
+            if (!pipelineController.isCurrentEpoch(stageNumber, 0, executedInstruction.pipelineEpoch)) begin
+                $display("%0d,%0d,%0d,%0d,%0d,writeback,stale instruction...popping bubble", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
             end else begin
-                $display("%0d,%0d,%0d,%0x,%0d,writeback,NO-OP", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
-            end
+                if (executedInstruction.writeBack matches tagged Valid .wb) begin
+                    $display("%0d,%0d,%0d,%0x,%0d,writeback,writing result ($%08x) to register x%0d", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, wb.value, wb.rd);
+                    registerFile.write(wb.rd, wb.value);
+                end else begin
+                    $display("%0d,%0d,%0d,%0x,%0d,writeback,NO-OP", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
+                end
 
 `ifdef ENABLE_INSTRUCTION_LOGGING
-            Bool logIt = True;
-            if (isValid(executedInstruction.exception)) begin
-                if (unJust(executedInstruction.exception).cause matches tagged InterruptCause .*) begin
-                    // If the instruction was interrupted, don't log it.
-                    logIt = False;
+                Bool logIt = True;
+                if (isValid(executedInstruction.exception)) begin
+                    if (unJust(executedInstruction.exception).cause matches tagged InterruptCause .*) begin
+                        // If the instruction was interrupted, don't log it.
+                        logIt = False;
+                    end
                 end
-            end
 
-            if (logIt)
-                instructionLog.logInstruction(executedInstruction.programCounter, executedInstruction.rawInstruction);
+                if (logIt)
+                    instructionLog.logInstruction(executedInstruction.programCounter, executedInstruction.rawInstruction);
 `endif
 
-            //
-            // Handle any exceptions
-            //
-            if (executedInstruction.exception matches tagged Valid .exception) begin
-                pipelineController.flush(0);
+                //
+                // Handle any exceptions
+                //
+                if (executedInstruction.exception matches tagged Valid .exception) begin
+                    pipelineController.flush(0);
 
-                let exceptionVector <- exceptionController.beginException(executedInstruction.programCounter, exception);
+                    let exceptionVector <- exceptionController.beginException(executedInstruction.programCounter, exception);
 
-                $display("%0d,%0d,%0d,%0x,%0d,writeback,EXCEPTION:", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, fshow(exception));
-                $display("%0d,%0d,%0d,%0x,%0d,writeback,Jumping to exception handler at $%08x", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, exceptionVector);
+                    $display("%0d,%0d,%0d,%0x,%0d,writeback,EXCEPTION:", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, fshow(exception));
+                    $display("%0d,%0d,%0d,%0x,%0d,writeback,Jumping to exception handler at $%08x", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, exceptionVector);
 
-                programCounterRedirect.exception(exceptionVector); 
+                    programCounterRedirect.exception(exceptionVector); 
+                end
+                $display("%0d,%0d,%0d,%0x,%0d,writeback,---------------------------", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
+                exceptionController.csrFile.increment_instructions_retired_counter;
+                instructionRetired <= True;
             end
-            $display("%0d,%0d,%0d,%0x,%0d,writeback,---------------------------", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
-            exceptionController.csrFile.increment_instructions_retired_counter;
-            instructionRetired <= True;
-        end
-    endrule
+        endmethod
+    endinterface
 
     method Bool wasInstructionRetired;
         return instructionRetired;

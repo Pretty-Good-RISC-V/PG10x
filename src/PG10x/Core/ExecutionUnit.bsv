@@ -23,14 +23,14 @@ import SpecialFIFOs::*;
 export ExecutionUnit(..), mkExecutionUnit;
 
 interface ExecutionUnit;
-    interface FIFO#(ExecutedInstruction) getExecutedInstructionQueue;
+    interface Put#(DecodedInstruction) putDecodedInstruction;
+    interface Get#(ExecutedInstruction) getExecutedInstruction;
 endinterface
 
 module mkExecutionUnit#(
     Reg#(Word64) cycleCounter,
     Integer stageNumber,
     PipelineController pipelineController,
-    FIFO#(DecodedInstruction) inputQueue,
     ProgramCounterRedirect programCounterRedirect,
     ExceptionController exceptionController,
     Reg#(Bool) halt
@@ -377,66 +377,71 @@ module mkExecutionUnit#(
         endactionvalue
     endfunction
 
-    (* fire_when_enabled *)
-    rule execute;
-        let decodedInstruction = inputQueue.first;
-        inputQueue.deq;
+    interface Put putDecodedInstruction;
+        method Action put(DecodedInstruction decodedInstruction);
+            let fetchIndex = decodedInstruction.fetchIndex;
+            let stageEpoch = pipelineController.stageEpoch(stageNumber, 1);
 
-        let fetchIndex = decodedInstruction.fetchIndex;
-        let stageEpoch = pipelineController.stageEpoch(stageNumber, 1);
-
-        if (!pipelineController.isCurrentEpoch(stageNumber, 1, decodedInstruction.pipelineEpoch)) begin
-            $display("%0d,%0d,%0d,%0x,%0d,execute,stale instruction (%0d != %0d)...adding bubble to pipeline", fetchIndex, exceptionController.csrFile.cycle_counter, decodedInstruction.pipelineEpoch, inputQueue.first().programCounter, stageNumber, inputQueue.first().pipelineEpoch, stageEpoch);
-            outputQueue.enq(ExecutedInstruction{
-                fetchIndex: decodedInstruction.fetchIndex,
-                pipelineEpoch: decodedInstruction.pipelineEpoch,
-                programCounter: decodedInstruction.programCounter,
-                rawInstruction: decodedInstruction.rawInstruction,
-                changedProgramCounter: tagged Invalid,
-                loadRequest: tagged Invalid,
-                storeRequest: tagged Invalid,
-                exception: tagged Invalid,
-                writeBack: tagged Invalid
-            });
-        end else begin
-            let currentEpoch = stageEpoch;
-
-            $display("%0d,%0d,%0d,%0x,%0d,execute,executing instruction: ", fetchIndex, exceptionController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber, fshow(decodedInstruction.opcode));
-            $display("%0d,%0d,%0d,%0x,%0d,execute,RS1: ", fetchIndex, exceptionController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber, (isValid(decodedInstruction.rs1) ? $format("x%0d = %0d ($%0x)", unJust(decodedInstruction.rs1), decodedInstruction.rs1Value, decodedInstruction.rs1Value) : $format("INVALID")));
-            $display("%0d,%0d,%0d,%0x,%0d,execute,RS2: ", fetchIndex, exceptionController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber, (isValid(decodedInstruction.rs2) ? $format("x%0d = %0d ($%0x)", unJust(decodedInstruction.rs2), decodedInstruction.rs2Value, decodedInstruction.rs2Value) : $format("INVALID")));
-            
-            let executedInstruction <- executeInstruction(decodedInstruction, currentEpoch);
-
-            // If the program counter was changed, see if it matches a predicted branch/jump.
-            // If not, redirect the program counter to the mispredicted target address.
-            if (isValid(executedInstruction.changedProgramCounter)) begin
-                let targetAddress = unJust(executedInstruction.changedProgramCounter);
-                if (decodedInstruction.predictedNextProgramCounter != targetAddress) begin
-                    // Bump the current instruction epoch
-                    pipelineController.flush(1);
-
-                    executedInstruction.pipelineEpoch = ~executedInstruction.pipelineEpoch;
-
-                    $display("%0d,%0d,%0d,%0x,%0d,execute,branch/jump to: $%08x", fetchIndex, cycleCounter, currentEpoch, decodedInstruction.programCounter, stageNumber, targetAddress);
-                    programCounterRedirect.branch(targetAddress);
-                end
-            end
-
-            if (executedInstruction.exception matches tagged Valid .exception) begin
-                $display("%0d,%0d,%0d,%0x,%0d,execute,EXCEPTION:", fetchIndex, cycleCounter, currentEpoch, decodedInstruction.programCounter, stageNumber, fshow(exception));
-            end
-
-            // If writeback data exists, that needs to be written into the previous pipeline 
-            // stages using operand forwarding.
-            if (executedInstruction.writeBack matches tagged Valid .wb) begin
-                $display("%0d,%0d,%0d,%0x,%0d,execute,complete (WB: x%0d = %08x)", fetchIndex, cycleCounter, currentEpoch, decodedInstruction.programCounter, stageNumber, wb.rd, wb.value);
+            if (!pipelineController.isCurrentEpoch(stageNumber, 1, decodedInstruction.pipelineEpoch)) begin
+                $display("%0d,%0d,%0d,%0x,%0d,execute,stale instruction (%0d != %0d)...adding bubble to pipeline", fetchIndex, exceptionController.csrFile.cycle_counter, decodedInstruction.pipelineEpoch, decodedInstruction.programCounter, stageNumber, decodedInstruction.pipelineEpoch, stageEpoch);
+                outputQueue.enq(ExecutedInstruction{
+                    fetchIndex: decodedInstruction.fetchIndex,
+                    pipelineEpoch: decodedInstruction.pipelineEpoch,
+                    programCounter: decodedInstruction.programCounter,
+                    rawInstruction: decodedInstruction.rawInstruction,
+                    changedProgramCounter: tagged Invalid,
+                    loadRequest: tagged Invalid,
+                    storeRequest: tagged Invalid,
+                    exception: tagged Invalid,
+                    writeBack: tagged Invalid
+                });
             end else begin
-                $display("%0d,%0d,%0d,%0x,%0d,execute,complete", fetchIndex, cycleCounter, currentEpoch, decodedInstruction.programCounter, stageNumber);
+                let currentEpoch = stageEpoch;
+
+                $display("%0d,%0d,%0d,%0x,%0d,execute,executing instruction: ", fetchIndex, exceptionController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber, fshow(decodedInstruction.opcode));
+                $display("%0d,%0d,%0d,%0x,%0d,execute,RS1: ", fetchIndex, exceptionController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber, (isValid(decodedInstruction.rs1) ? $format("x%0d = %0d ($%0x)", unJust(decodedInstruction.rs1), decodedInstruction.rs1Value, decodedInstruction.rs1Value) : $format("INVALID")));
+                $display("%0d,%0d,%0d,%0x,%0d,execute,RS2: ", fetchIndex, exceptionController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber, (isValid(decodedInstruction.rs2) ? $format("x%0d = %0d ($%0x)", unJust(decodedInstruction.rs2), decodedInstruction.rs2Value, decodedInstruction.rs2Value) : $format("INVALID")));
+                
+                let executedInstruction <- executeInstruction(decodedInstruction, currentEpoch);
+
+                // If the program counter was changed, see if it matches a predicted branch/jump.
+                // If not, redirect the program counter to the mispredicted target address.
+                if (isValid(executedInstruction.changedProgramCounter)) begin
+                    let targetAddress = unJust(executedInstruction.changedProgramCounter);
+                    if (decodedInstruction.predictedNextProgramCounter != targetAddress) begin
+                        // Bump the current instruction epoch
+                        pipelineController.flush(1);
+
+                        executedInstruction.pipelineEpoch = ~executedInstruction.pipelineEpoch;
+
+                        $display("%0d,%0d,%0d,%0x,%0d,execute,branch/jump to: $%08x", fetchIndex, cycleCounter, currentEpoch, decodedInstruction.programCounter, stageNumber, targetAddress);
+                        programCounterRedirect.branch(targetAddress);
+                    end
+                end
+
+                if (executedInstruction.exception matches tagged Valid .exception) begin
+                    $display("%0d,%0d,%0d,%0x,%0d,execute,EXCEPTION:", fetchIndex, cycleCounter, currentEpoch, decodedInstruction.programCounter, stageNumber, fshow(exception));
+                end
+
+                // If writeback data exists, that needs to be written into the previous pipeline 
+                // stages using operand forwarding.
+                if (executedInstruction.writeBack matches tagged Valid .wb) begin
+                    $display("%0d,%0d,%0d,%0x,%0d,execute,complete (WB: x%0d = %08x)", fetchIndex, cycleCounter, currentEpoch, decodedInstruction.programCounter, stageNumber, wb.rd, wb.value);
+                end else begin
+                    $display("%0d,%0d,%0d,%0x,%0d,execute,complete", fetchIndex, cycleCounter, currentEpoch, decodedInstruction.programCounter, stageNumber);
+                end
+
+                outputQueue.enq(executedInstruction);
             end
+        endmethod
+    endinterface
 
-            outputQueue.enq(executedInstruction);
-        end
-    endrule
+    interface Get getExecutedInstruction;
+        method ActionValue#(ExecutedInstruction) get;
+            let instruction = outputQueue.first;
+            outputQueue.deq;
 
-    interface FIFO getExecutedInstructionQueue = outputQueue;
+            return instruction;
+        endmethod
+    endinterface
 endmodule

@@ -16,19 +16,20 @@ import PipelineController::*;
 
 import Assert::*;
 import FIFO::*;
+import GetPut::*;
 import SpecialFIFOs::*;
 
 export MemoryAccessUnit(..), mkMemoryAccessUnit;
 
 interface MemoryAccessUnit;
-    interface FIFO#(ExecutedInstruction) getMemoryAccessedInstructionQueue;
+    interface Put#(ExecutedInstruction) putExecutedInstruction;
+    interface Get#(ExecutedInstruction) getExecutedInstruction;
 endinterface
 
 module mkMemoryAccessUnit#(
     Reg#(Word64) cycleCounter,
     Integer stageNumber,
     PipelineController pipelineController,
-    FIFO#(ExecutedInstruction) inputQueue,
 `ifdef MONITOR_TOHOST_ADDRESS
     TileLinkLiteWordServer dataMemory,
     Word toHostAddress
@@ -41,49 +42,6 @@ module mkMemoryAccessUnit#(
     Reg#(Bool) waitingForStoreResponse <- mkReg(False);
 
     Reg#(ExecutedInstruction) instructionWaitingForMemoryOperation <- mkRegU;
-
-    (* fire_when_enabled *)
-    rule memoryAccess(waitingForLoadToComplete == False && waitingForStoreResponse == False);
-        let executedInstruction = inputQueue.first;
-        let fetchIndex = executedInstruction.fetchIndex;
-        let stageEpoch = pipelineController.stageEpoch(stageNumber, 1);
-        if (!pipelineController.isCurrentEpoch(stageNumber, 1, executedInstruction.pipelineEpoch)) begin
-            $display("%0d,%0d,%0d,%0d,memory access,stale instruction (%0d != %0d)...propagating bubble", fetchIndex, cycleCounter, executedInstruction.pipelineEpoch, inputQueue.first().programCounter, stageNumber, inputQueue.first().pipelineEpoch, stageEpoch);
-            inputQueue.deq;
-            outputQueue.enq(executedInstruction);
-        end else begin
-            if(executedInstruction.loadRequest matches tagged Valid .loadRequest) begin
-                $display("%0d,%0d,%0d,%0x,%0d,memory access,LOAD", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
-                begin
-                    // NOTE: Alignment checks were already performed during the execution stage.
-                    dataMemory.request.put(loadRequest.tlRequest);
-
-                    $display("%0d,%0d,%0d,%0x,%0d,memory access,Loading from $%08x with size: %d", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, loadRequest.tlRequest.a_address, loadRequest.tlRequest.a_size);
-                    instructionWaitingForMemoryOperation <= executedInstruction;
-                    waitingForLoadToComplete <= True;
-                end
-            end else if (executedInstruction.storeRequest matches tagged Valid .storeRequest) begin
-                $display("%0d,%0d,%0d,%0x,%0d,memory access,Storing to $0x", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, storeRequest.tlRequest.a_address);
-`ifdef MONITOR_TOHOST_ADDRESS
-                if (storeRequest.tlRequest.a_address == toHostAddress) begin
-                    let test_num = (storeRequest.tlRequest.a_data >> 1);
-                    if (test_num == 0) $display ("    PASS");
-                    else               $display ("    FAIL <test_%0d>", test_num);
-
-                    $finish();
-                end
-`endif
-                dataMemory.request.put(storeRequest.tlRequest);
-                waitingForStoreResponse <= True;
-            end else begin
-                // Not a LOAD/STORE
-                $display("%0d,%0d,%0d,%0x,%0d,memory access,NO-OP", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
-
-                inputQueue.deq;
-                outputQueue.enq(executedInstruction);
-            end
-        end
-    endrule
 
     rule handleStoreResponse(waitingForStoreResponse == True && waitingForLoadToComplete == False);
         let memoryResponse <- dataMemory.response.get;
@@ -106,7 +64,6 @@ module mkMemoryAccessUnit#(
             $fatal();
         end
 
-        inputQueue.deq;
         outputQueue.enq(executedInstruction);
     endrule
 
@@ -171,9 +128,74 @@ module mkMemoryAccessUnit#(
             value: value
         };
 
-        inputQueue.deq;
         outputQueue.enq(executedInstruction);
     endrule
 
-    interface FIFO getMemoryAccessedInstructionQueue = outputQueue;
+    interface Put putExecutedInstruction;
+        method Action put(ExecutedInstruction executedInstruction) if(waitingForLoadToComplete == False && waitingForStoreResponse == False);
+            let fetchIndex = executedInstruction.fetchIndex;
+            let stageEpoch = pipelineController.stageEpoch(stageNumber, 1);
+            if (!pipelineController.isCurrentEpoch(stageNumber, 1, executedInstruction.pipelineEpoch)) begin
+                $display("%0d,%0d,%0d,%0d,memory access,stale instruction (%0d != %0d)...propagating bubble", 
+                    fetchIndex, 
+                    cycleCounter, 
+                    executedInstruction.pipelineEpoch, 
+                    executedInstruction.programCounter, 
+                    stageNumber, 
+                    executedInstruction.pipelineEpoch, 
+                    stageEpoch);
+                outputQueue.enq(executedInstruction);
+            end else begin
+                if(executedInstruction.loadRequest matches tagged Valid .loadRequest) begin
+                    $display("%0d,%0d,%0d,%0x,%0d,memory access,LOAD", 
+                        fetchIndex, 
+                        cycleCounter, 
+                        stageEpoch, 
+                        executedInstruction.programCounter, 
+                        stageNumber);
+                    begin
+                        // NOTE: Alignment checks were already performed during the execution stage.
+                        dataMemory.request.put(loadRequest.tlRequest);
+
+                        $display("%0d,%0d,%0d,%0x,%0d,memory access,Loading from $%08x with size: %d", 
+                            fetchIndex, 
+                            cycleCounter, 
+                            stageEpoch, 
+                            executedInstruction.programCounter, 
+                            stageNumber, 
+                            loadRequest.tlRequest.a_address, 
+                            loadRequest.tlRequest.a_size);
+                        instructionWaitingForMemoryOperation <= executedInstruction;
+                        waitingForLoadToComplete <= True;
+                    end
+                end else if (executedInstruction.storeRequest matches tagged Valid .storeRequest) begin
+                    $display("%0d,%0d,%0d,%0x,%0d,memory access,Storing to $0x", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, storeRequest.tlRequest.a_address);
+`ifdef MONITOR_TOHOST_ADDRESS
+                    if (storeRequest.tlRequest.a_address == toHostAddress) begin
+                        let test_num = (storeRequest.tlRequest.a_data >> 1);
+                        if (test_num == 0) $display ("    PASS");
+                        else               $display ("    FAIL <test_%0d>", test_num);
+
+                        $finish();
+                    end
+`endif
+                    dataMemory.request.put(storeRequest.tlRequest);
+                    waitingForStoreResponse <= True;
+                end else begin
+                    // Not a LOAD/STORE
+                    $display("%0d,%0d,%0d,%0x,%0d,memory access,NO-OP", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
+                    outputQueue.enq(executedInstruction);
+                end
+            end
+        endmethod
+    endinterface
+
+    interface Get getExecutedInstruction;
+        method ActionValue#(ExecutedInstruction) get;
+            let instruction = outputQueue.first;
+            outputQueue.deq;
+
+            return instruction;
+        endmethod
+    endinterface
 endmodule

@@ -12,6 +12,7 @@ import RegisterFile::*;
 import Scoreboard::*;
 import WritebackUnit::*;
 
+import Connectable::*;
 import FIFO::*;
 import FIFOF::*;
 import SpecialFIFOs::*;
@@ -119,10 +120,11 @@ module mkPG100Core#(
         cycleCounter,
         2,  // stage number
         pipelineController,
-        fetchUnit.getEncodedInstructionQueue,
         scoreboard,
         registerFile
     );
+
+    mkConnection(fetchUnit.getEncodedInstruction, decodeUnit.putEncodedInstruction);
 
     //
     // Stage 3 - Instruction execution
@@ -131,11 +133,12 @@ module mkPG100Core#(
         cycleCounter,
         3,  // stage number
         pipelineController,
-        decodeUnit.getDecodedInstructionQueue,
         programCounterRedirect,
         exceptionController,
         halt
     );
+
+    mkConnection(decodeUnit.getDecodedInstruction, executionUnit.putDecodedInstruction);
 
     //
     // Stage 4 - Memory access
@@ -144,7 +147,6 @@ module mkPG100Core#(
         cycleCounter,
         4,
         pipelineController,
-        executionUnit.getExecutedInstructionQueue,
 `ifdef MONITOR_TOHOST_ADDRESS
         dataMemory,
         toHostAddress
@@ -153,6 +155,8 @@ module mkPG100Core#(
 `endif
     );
 
+    mkConnection(executionUnit.getExecutedInstruction, memoryAccessUnit.putExecutedInstruction);
+
     // 
     // Stage 5 - Register Writeback
     //
@@ -160,12 +164,13 @@ module mkPG100Core#(
         cycleCounter,
         5,
         pipelineController,
-        memoryAccessUnit.getMemoryAccessedInstructionQueue,
         programCounterRedirect,
         scoreboard,
         registerFile,
         exceptionController
     );
+
+    mkConnection(memoryAccessUnit.getExecutedInstruction, writebackUnit.putExecutedInstruction);
 
     //
     // State handlers
@@ -176,6 +181,7 @@ module mkPG100Core#(
     // HALTING,        // -> HALTED
     // HALTED,         // -> RESUMING
     // RESUMING        // -> RUNNING
+    //
     FIFO#(CoreState) stateTransitionQueue <- mkFIFO;
 
     rule handleStartingState(coreState == STARTING);
