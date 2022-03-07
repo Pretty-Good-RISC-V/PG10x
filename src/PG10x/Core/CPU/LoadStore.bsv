@@ -1,6 +1,6 @@
 import PGTypes::*;
 import Exception::*;
-import MemoryInterfaces::*;
+import TileLink::*;
 
 //
 // LoadRequest
@@ -9,7 +9,7 @@ import MemoryInterfaces::*;
 // from memory.
 //
 typedef struct {
-    TileLinkLiteWordRequest tlRequest;
+    TileLinkLiteWordRequest#(XLEN) tlRequest;
 
     RegisterIndex rd;
     Bool signExtend;
@@ -127,7 +127,7 @@ endfunction
 // to memory.
 //
 typedef struct {
-    TileLinkLiteWordRequest tlRequest;
+    TileLinkLiteWordRequest#(XLEN) tlRequest;
 } StoreRequest deriving(Bits, Eq, FShow);
 
 function Result#(StoreRequest, Exception) getStoreRequest(

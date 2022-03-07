@@ -1,0 +1,4 @@
+add_library(PG10xCSR INTERFACE)
+add_library(PG10xCSR::PG10xCSR ALIAS PG10xCSR)
+
+target_include_directories(PG10xCSR INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}")

@@ -1,7 +1,6 @@
 import PGTypes::*;
-import TileLink::*;
-import MemoryInterfaces::*;
 import ProgramMemoryTile::*;
+import TileLink::*;
 
 import ClientServer::*;
 import FIFO::*;
@@ -9,14 +8,13 @@ import GetPut::*;
 
 export MemorySystem(..), 
        mkMemorySystem, 
-       MemoryInterfaces::*,
        TileLink::*,
        ClientServer::*,
        GetPut::*;
 
 interface MemorySystem;
-    interface TileLinkLiteWordServer instructionMemoryServer;
-    interface TileLinkLiteWordServer dataMemoryServer;
+    interface TileLinkLiteWordServer#(XLEN) instructionMemoryServer;
+    interface TileLinkLiteWordServer#(XLEN) dataMemoryServer;
 endinterface
 
 module mkMemorySystem#(
@@ -27,14 +25,14 @@ module mkMemorySystem#(
 
     interface TileLinkLiteWordServer instructionMemoryServer;
         interface Get response;
-            method ActionValue#(TileLinkLiteWordResponse) get;
+            method ActionValue#(TileLinkLiteWordResponse#(XLEN)) get;
                 let response <- memoryServer.portA.response.get;
                 return response;
             endmethod
         endinterface
 
         interface Put request;
-            method Action put(TileLinkLiteWordRequest request);
+            method Action put(TileLinkLiteWordRequest#(XLEN) request);
                 if (memoryServer.isValidAddress(request.a_address)) begin
                     request.a_address = request.a_address;
                 end else begin
@@ -47,14 +45,14 @@ module mkMemorySystem#(
 
     interface TileLinkLiteWordServer dataMemoryServer;
         interface Get response;
-            method ActionValue#(TileLinkLiteWordResponse) get;
+            method ActionValue#(TileLinkLiteWordResponse#(XLEN)) get;
                 let response <- memoryServer.portB.response.get;
                 return response;
             endmethod
         endinterface
 
         interface Put request;
-            method Action put(TileLinkLiteWordRequest request);
+            method Action put(TileLinkLiteWordRequest#(XLEN) request);
                 if (memoryServer.isValidAddress(request.a_address)) begin
                     request.a_address = request.a_address;
                 end else begin

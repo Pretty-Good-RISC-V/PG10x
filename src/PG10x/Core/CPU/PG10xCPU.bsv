@@ -5,11 +5,11 @@ import ExceptionController::*;
 import ExecutionUnit::*;
 import FetchUnit::*;
 import MemoryAccessUnit::*;
-import MemoryInterfaces::*;
 import PipelineController::*;
 import ProgramCounterRedirect::*;
 import RegisterFile::*;
 import Scoreboard::*;
+import TileLink::*;
 import WritebackUnit::*;
 
 import Connectable::*;
@@ -37,8 +37,8 @@ interface PG100Core;
     method Action start;
     method CoreState state;
 
-    interface TileLinkLiteWordClient instructionMemoryClient;
-    interface TileLinkLiteWordClient dataMemoryClient;
+    interface TileLinkLiteWordClient#(XLEN) instructionMemoryClient;
+    interface TileLinkLiteWordClient#(XLEN) dataMemoryClient;
 endinterface
 
 //

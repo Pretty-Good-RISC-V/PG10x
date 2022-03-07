@@ -8,9 +8,9 @@
 
 import BranchPredictor::*;
 import EncodedInstruction::*;
-import MemoryInterfaces::*;
 import PipelineController::*;
 import ProgramCounterRedirect::*;
+import TileLink::*;
 
 import ClientServer::*;
 import FIFO::*;
@@ -28,7 +28,7 @@ typedef struct {
 interface FetchUnit;
     interface Get#(EncodedInstruction) getEncodedInstruction;
 
-    interface TileLinkLiteWordClient instructionMemoryClient;
+    interface TileLinkLiteWordClient#(XLEN) instructionMemoryClient;
 endinterface
 
 module mkFetchUnit#(
@@ -45,8 +45,8 @@ module mkFetchUnit#(
 
     FIFO#(FetchInfo) fetchInfoQueue <- mkPipelineFIFO; // holds the fetch info for the current instruction request
 
-    FIFO#(TileLinkLiteWordRequest) instructionMemoryRequests <- mkFIFO;
-    FIFO#(TileLinkLiteWordResponse) instructionMemoryResponses <- mkFIFO;
+    FIFO#(TileLinkLiteWordRequest#(XLEN)) instructionMemoryRequests <- mkFIFO;
+    FIFO#(TileLinkLiteWordResponse#(XLEN)) instructionMemoryResponses <- mkFIFO;
 
 `ifdef DISABLE_BRANCH_PREDICTOR
     BranchPredictor branchPredictor <- mkNullBranchPredictor;

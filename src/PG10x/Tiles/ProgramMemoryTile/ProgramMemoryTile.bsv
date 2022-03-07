@@ -1,5 +1,4 @@
 import PGTypes::*;
-import MemoryInterfaces::*;
 import TileLink::*;
 
 import ClientServer::*;
@@ -7,8 +6,8 @@ import FIFO::*;
 import GetPut::*;
 
 interface ProgramMemoryTile;
-    interface TileLinkLiteWordServer portA;
-    interface TileLinkLiteWordServer portB;
+    interface TileLinkLiteWordServer#(XLEN) portA;
+    interface TileLinkLiteWordServer#(XLEN) portB;
 
     method Bool isValidAddress(Word address);
 endinterface
@@ -33,13 +32,13 @@ import "BDPI" function void program_memory_write_u64(ContextHandle ctx, Word add
 module mkProgramMemoryTile(ProgramMemoryTile);
     Word32 programMemoryContext = program_memory_open();
 
-    FIFO#(TileLinkLiteWordResponse) responses[2];
+    FIFO#(TileLinkLiteWordResponse#(XLEN)) responses[2];
     responses[0] <- mkFIFO;
     responses[1] <- mkFIFO;
 
-    function Action handleRequestToPort(TileLinkLiteWordRequest request, Integer portNumber);
+    function Action handleRequestToPort(TileLinkLiteWordRequest#(XLEN) request, Integer portNumber);
         action
-        TileLinkLiteWordResponse response = TileLinkLiteWordResponse{
+        TileLinkLiteWordResponse#(XLEN) response = TileLinkLiteWordResponse{
             d_opcode: d_ACCESS_ACK,
             d_param: 0,
             d_size: request.a_size,
@@ -96,7 +95,7 @@ module mkProgramMemoryTile(ProgramMemoryTile);
 
     interface TileLinkLiteWordServer portA;
         interface Get response;
-            method ActionValue#(TileLinkLiteWordResponse) get;
+            method ActionValue#(TileLinkLiteWordResponse#(XLEN)) get;
                 let response = responses[0].first();
                 responses[0].deq;
 
@@ -105,7 +104,7 @@ module mkProgramMemoryTile(ProgramMemoryTile);
         endinterface
 
         interface Put request;
-            method Action put(TileLinkLiteWordRequest request);
+            method Action put(TileLinkLiteWordRequest#(XLEN) request);
                 handleRequestToPort(request, 0);
             endmethod
         endinterface
@@ -113,7 +112,7 @@ module mkProgramMemoryTile(ProgramMemoryTile);
 
     interface TileLinkLiteWordServer portB;
         interface Get response;
-            method ActionValue#(TileLinkLiteWordResponse) get;
+            method ActionValue#(TileLinkLiteWordResponse#(XLEN)) get;
                 let response = responses[1].first();
                 responses[1].deq;
 
@@ -122,7 +121,7 @@ module mkProgramMemoryTile(ProgramMemoryTile);
         endinterface
 
         interface Put request;
-            method Action put(TileLinkLiteWordRequest request);
+            method Action put(TileLinkLiteWordRequest#(XLEN) request);
                 handleRequestToPort(request, 1);
             endmethod
         endinterface

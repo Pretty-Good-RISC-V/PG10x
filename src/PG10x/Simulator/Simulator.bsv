@@ -4,7 +4,7 @@ import MemorySystem::*;
 
 import Connectable::*;
 import RegFile::*;
-import PG10xCore::*;
+import PG10xCPU::*;
 import MemorySystem::*;
 
 (* synthesize *)

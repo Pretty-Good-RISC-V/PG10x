@@ -11,10 +11,11 @@ import PGTypes::*;
 import EncodedInstruction::*;
 import ExecutedInstruction::*;
 import LoadStore::*;
-import MemoryInterfaces::*;
 import PipelineController::*;
+import TileLink::*;
 
 import Assert::*;
+import ClientServer::*;
 import FIFO::*;
 import GetPut::*;
 import SpecialFIFOs::*;
@@ -25,7 +26,7 @@ interface MemoryAccessUnit;
     interface Put#(ExecutedInstruction) putExecutedInstruction;
     interface Get#(ExecutedInstruction) getExecutedInstruction;
 
-    interface TileLinkLiteWordClient dataMemoryClient;
+    interface TileLinkLiteWordClient#(XLEN) dataMemoryClient;
 endinterface
 
 module mkMemoryAccessUnit#(
@@ -43,8 +44,8 @@ module mkMemoryAccessUnit#(
     Reg#(Bool) waitingForStoreResponse <- mkReg(False);
 
     Reg#(ExecutedInstruction) instructionWaitingForMemoryOperation <- mkRegU;
-    FIFO#(TileLinkLiteWordRequest) dataMemoryRequests <- mkFIFO;
-    FIFO#(TileLinkLiteWordResponse) dataMemoryResponses <- mkFIFO;
+    FIFO#(TileLinkLiteWordRequest#(XLEN)) dataMemoryRequests <- mkFIFO;
+    FIFO#(TileLinkLiteWordResponse#(XLEN)) dataMemoryResponses <- mkFIFO;
 
     rule handleStoreResponse(waitingForStoreResponse == True && waitingForLoadToComplete == False);
         let memoryResponse = dataMemoryResponses.first;
