@@ -27,6 +27,8 @@ typedef struct {
 
 interface FetchUnit;
     interface Get#(EncodedInstruction) getEncodedInstruction;
+
+    interface TileLinkLiteWordClient instructionMemoryClient;
 endinterface
 
 module mkFetchUnit#(
@@ -34,7 +36,6 @@ module mkFetchUnit#(
     Integer stageNumber,
     ProgramCounter initialProgramCounter,
     ProgramCounterRedirect programCounterRedirect,
-    TileLinkLiteWordServer instructionMemory,
     Reg#(Bool) fetchEnabled
 )(FetchUnit);
     Reg#(Word) fetchCounter <- mkReg(0);
@@ -43,6 +44,9 @@ module mkFetchUnit#(
     Reg#(PipelineEpoch) currentEpoch <- mkReg(0);
 
     FIFO#(FetchInfo) fetchInfoQueue <- mkPipelineFIFO; // holds the fetch info for the current instruction request
+
+    FIFO#(TileLinkLiteWordRequest) instructionMemoryRequests <- mkFIFO;
+    FIFO#(TileLinkLiteWordResponse) instructionMemoryResponses <- mkFIFO;
 
 `ifdef DISABLE_BRANCH_PREDICTOR
     BranchPredictor branchPredictor <- mkNullBranchPredictor;
@@ -69,7 +73,7 @@ module mkFetchUnit#(
 
         $display("%0d,%0d,%0d,%0x,%0d,fetch send,fetch address: $%08x", fetchCounter, cycleCounter, fetchEpoch, fetchProgramCounter, stageNumber, fetchProgramCounter);
 
-        instructionMemory.request.put(TileLinkLiteWordRequest {
+        instructionMemoryRequests.enq(TileLinkLiteWordRequest {
             a_opcode: a_GET,
             a_param: 0,
             a_size: 2, // Log2(sizeof(Word32))
@@ -91,7 +95,8 @@ module mkFetchUnit#(
 
     (* fire_when_enabled *)
     rule handleFetchResponse;
-        let fetchResponse <- instructionMemory.response.get;
+        let fetchResponse = instructionMemoryResponses.first;
+        instructionMemoryResponses.deq;
 
         let fetchInfo = fetchInfoQueue.first;
         fetchInfoQueue.deq;
@@ -125,4 +130,7 @@ module mkFetchUnit#(
     endrule
 
     interface Get getEncodedInstruction = toGet(outputQueue);
+
+    interface TileLinkLiteWordClient instructionMemoryClient = toGPClient(instructionMemoryRequests, instructionMemoryResponses);
+
 endmodule

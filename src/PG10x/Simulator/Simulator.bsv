@@ -2,6 +2,7 @@ import PGTypes::*;
 import ProgramMemoryTile::*;
 import MemorySystem::*;
 
+import Connectable::*;
 import RegFile::*;
 import PG10xCore::*;
 import MemorySystem::*;
@@ -17,8 +18,6 @@ module mkSimulator(Empty);
     // Core
     PG100Core core <- mkPG100Core(
         'h8000_0000, 
-        memorySystem.instructionMemory, 
-        memorySystem.dataMemory,
 `ifdef MONITOR_TOHOST_ADDRESS
         'h8000_1000,
 `endif
@@ -29,6 +28,10 @@ module mkSimulator(Empty);
         False
 `endif
     );
+
+    mkConnection(memorySystem.instructionMemoryServer, core.instructionMemoryClient);
+    mkConnection(memorySystem.dataMemoryServer, core.dataMemoryClient);
+
     Reg#(Bool) initialized <- mkReg(False);
 
     (* fire_when_enabled *)

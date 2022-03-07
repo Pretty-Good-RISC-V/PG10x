@@ -15,8 +15,8 @@ export MemorySystem(..),
        GetPut::*;
 
 interface MemorySystem;
-    interface TileLinkLiteWordServer instructionMemory;
-    interface TileLinkLiteWordServer dataMemory;
+    interface TileLinkLiteWordServer instructionMemoryServer;
+    interface TileLinkLiteWordServer dataMemoryServer;
 endinterface
 
 module mkMemorySystem#(
@@ -25,7 +25,7 @@ module mkMemorySystem#(
 )(MemorySystem);
     Word baseAddress = fromInteger(memoryBaseAddress);
 
-    interface TileLinkLiteWordServer instructionMemory;
+    interface TileLinkLiteWordServer instructionMemoryServer;
         interface Get response;
             method ActionValue#(TileLinkLiteWordResponse) get;
                 let response <- memoryServer.portA.response.get;
@@ -45,7 +45,7 @@ module mkMemorySystem#(
         endinterface
     endinterface
 
-    interface TileLinkLiteWordServer dataMemory;
+    interface TileLinkLiteWordServer dataMemoryServer;
         interface Get response;
             method ActionValue#(TileLinkLiteWordResponse) get;
                 let response <- memoryServer.portB.response.get;

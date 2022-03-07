@@ -24,17 +24,18 @@ export MemoryAccessUnit(..), mkMemoryAccessUnit;
 interface MemoryAccessUnit;
     interface Put#(ExecutedInstruction) putExecutedInstruction;
     interface Get#(ExecutedInstruction) getExecutedInstruction;
+
+    interface TileLinkLiteWordClient dataMemoryClient;
 endinterface
 
 module mkMemoryAccessUnit#(
     Reg#(Word64) cycleCounter,
     Integer stageNumber,
-    PipelineController pipelineController,
 `ifdef MONITOR_TOHOST_ADDRESS
-    TileLinkLiteWordServer dataMemory,
+    PipelineController pipelineController,
     Word toHostAddress
 `else
-    TileLinkLiteWordServer dataMemory
+    PipelineController pipelineController
 `endif
 )(MemoryAccessUnit);
     FIFO#(ExecutedInstruction) outputQueue <- mkPipelineFIFO;
@@ -42,9 +43,12 @@ module mkMemoryAccessUnit#(
     Reg#(Bool) waitingForStoreResponse <- mkReg(False);
 
     Reg#(ExecutedInstruction) instructionWaitingForMemoryOperation <- mkRegU;
+    FIFO#(TileLinkLiteWordRequest) dataMemoryRequests <- mkFIFO;
+    FIFO#(TileLinkLiteWordResponse) dataMemoryResponses <- mkFIFO;
 
     rule handleStoreResponse(waitingForStoreResponse == True && waitingForLoadToComplete == False);
-        let memoryResponse <- dataMemory.response.get;
+        let memoryResponse = dataMemoryResponses.first;
+        dataMemoryResponses.deq;
         let executedInstruction = instructionWaitingForMemoryOperation;
 
         waitingForStoreResponse <= False;
@@ -68,7 +72,8 @@ module mkMemoryAccessUnit#(
     endrule
 
     rule handleLoadResponse(waitingForLoadToComplete == True && waitingForStoreResponse == False);
-        let memoryResponse <- dataMemory.response.get;
+        let memoryResponse = dataMemoryResponses.first;
+        dataMemoryResponses.deq;
         let executedInstruction = instructionWaitingForMemoryOperation;
 
         $display("[%0d:****:memory] Load completed", cycleCounter, executedInstruction.programCounter);
@@ -155,7 +160,7 @@ module mkMemoryAccessUnit#(
                         stageNumber);
                     begin
                         // NOTE: Alignment checks were already performed during the execution stage.
-                        dataMemory.request.put(loadRequest.tlRequest);
+                        dataMemoryRequests.enq(loadRequest.tlRequest);
 
                         $display("%0d,%0d,%0d,%0x,%0d,memory access,Loading from $%08x with size: %d", 
                             fetchIndex, 
@@ -179,7 +184,7 @@ module mkMemoryAccessUnit#(
                         $finish();
                     end
 `endif
-                    dataMemory.request.put(storeRequest.tlRequest);
+                    dataMemoryRequests.enq(storeRequest.tlRequest);
                     waitingForStoreResponse <= True;
                 end else begin
                     // Not a LOAD/STORE
@@ -191,4 +196,5 @@ module mkMemoryAccessUnit#(
     endinterface
 
     interface Get getExecutedInstruction = toGet(outputQueue);
+    interface TileLinkLiteWordClient dataMemoryClient = toGPClient(dataMemoryRequests, dataMemoryResponses);
 endmodule

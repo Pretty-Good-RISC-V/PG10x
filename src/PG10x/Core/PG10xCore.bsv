@@ -36,6 +36,9 @@ typedef enum {
 interface PG100Core;
     method Action start;
     method CoreState state;
+
+    interface TileLinkLiteWordClient instructionMemoryClient;
+    interface TileLinkLiteWordClient dataMemoryClient;
 endinterface
 
 //
@@ -53,8 +56,6 @@ endinterface
 //
 module mkPG100Core#(
         ProgramCounter initialProgramCounter,
-        TileLinkLiteWordServer instructionMemory,
-        TileLinkLiteWordServer dataMemory,
 `ifdef MONITOR_TOHOST_ADDRESS
         Word toHostAddress,
 `endif
@@ -109,7 +110,6 @@ module mkPG100Core#(
         1,  // stage number
         initialProgramCounter,
         programCounterRedirect,
-        instructionMemory,
         fetchEnabled
     );
 
@@ -146,12 +146,11 @@ module mkPG100Core#(
     MemoryAccessUnit memoryAccessUnit <- mkMemoryAccessUnit(
         cycleCounter,
         4,
-        pipelineController,
 `ifdef MONITOR_TOHOST_ADDRESS
-        dataMemory,
+        pipelineController,
         toHostAddress
 `else
-        dataMemory
+        pipelineController
 `endif
     );
 
@@ -233,6 +232,9 @@ module mkPG100Core#(
         cycleCounter <= cycleCounter + 1;
         exceptionController.csrFile.increment_cycle_counter;
     endrule
+
+    interface TileLinkLiteWordClient instructionMemoryClient = fetchUnit.instructionMemoryClient;
+    interface TileLinkLiteWordClient dataMemoryClient = memoryAccessUnit.dataMemoryClient;
 
     method Action start;
         if (coreState == RESET) begin
