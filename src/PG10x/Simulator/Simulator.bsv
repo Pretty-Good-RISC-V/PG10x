@@ -4,7 +4,7 @@ import MemorySystem::*;
 
 import Connectable::*;
 import RegFile::*;
-import PG10xCPU::*;
+import HART::*;
 import MemorySystem::*;
 
 (* synthesize *)
@@ -15,8 +15,8 @@ module mkSimulator(Empty);
     let memoryBaseAddress = 'h80000000;
     MemorySystem memorySystem <- mkMemorySystem(memory, memoryBaseAddress);
 
-    // Core
-    PG100Core core <- mkPG100Core(
+    // HART
+    HART hart <- mkHART(
         'h8000_0000, 
 `ifdef MONITOR_TOHOST_ADDRESS
         'h8000_1000,
@@ -29,13 +29,13 @@ module mkSimulator(Empty);
 `endif
     );
 
-    mkConnection(memorySystem.instructionMemoryServer, core.instructionMemoryClient);
-    mkConnection(memorySystem.dataMemoryServer, core.dataMemoryClient);
+    mkConnection(memorySystem.instructionMemoryServer, hart.instructionMemoryClient);
+    mkConnection(memorySystem.dataMemoryServer, hart.dataMemoryClient);
 
     Reg#(Bool) initialized <- mkReg(False);
 
     (* fire_when_enabled *)
-    rule initialization(initialized == False && core.state == RESET);
+    rule initialization(initialized == False && hart.state == RESET);
         initialized <= True;
 
         $display("----------------");
@@ -47,6 +47,6 @@ module mkSimulator(Empty);
 `endif
         $display("----------------");
 
-        core.start;
+        hart.start;
     endrule
 endmodule

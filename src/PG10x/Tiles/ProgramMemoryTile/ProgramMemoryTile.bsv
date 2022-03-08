@@ -94,14 +94,7 @@ module mkProgramMemoryTile(ProgramMemoryTile);
     endfunction
 
     interface TileLinkLiteWordServer portA;
-        interface Get response;
-            method ActionValue#(TileLinkLiteWordResponse#(XLEN)) get;
-                let response = responses[0].first();
-                responses[0].deq;
-
-                return response;
-            endmethod
-        endinterface
+        interface Get response = toGet(responses[0]);
 
         interface Put request;
             method Action put(TileLinkLiteWordRequest#(XLEN) request);
@@ -111,14 +104,7 @@ module mkProgramMemoryTile(ProgramMemoryTile);
     endinterface
 
     interface TileLinkLiteWordServer portB;
-        interface Get response;
-            method ActionValue#(TileLinkLiteWordResponse#(XLEN)) get;
-                let response = responses[1].first();
-                responses[1].deq;
-
-                return response;
-            endmethod
-        endinterface
+        interface Get response = toGet(responses[1]);
 
         interface Put request;
             method Action put(TileLinkLiteWordRequest#(XLEN) request);

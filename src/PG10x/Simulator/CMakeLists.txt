@@ -7,7 +7,7 @@ add_executable(Simulator Simulator.bsv)
 set_target_properties(Simulator PROPERTIES LINKER_LANGUAGE BSV)
 
 target_link_libraries(Simulator 
-    PG10xCPU::PG10xCPU
+    PG10xCore::PG10xCore
     RVCommon::RVCommon
     PGTiles::PGTiles
 )

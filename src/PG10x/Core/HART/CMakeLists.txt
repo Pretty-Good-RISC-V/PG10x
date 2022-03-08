@@ -1,20 +1,20 @@
 add_subdirectory(CSR)
 add_subdirectory(InstructionLogger)
 
-add_library(PG10xCPU INTERFACE)
-add_library(PG10xCPU::PG10xCPU ALIAS PG10xCPU)
+add_library(HART INTERFACE)
+add_library(HART::HART ALIAS HART)
 
-target_include_directories(PG10xCPU INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}")
-target_link_libraries(PG10xCPU INTERFACE
-    PG10xCSR::PG10xCSR
+target_include_directories(HART INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(HART INTERFACE
+    CSR::CSR
     TileLink::TileLink
 )
 
 if (ENABLE_INSTRUCTION_LOGGING)
-    target_link_libraries(PG10xCPU INTERFACE
+    target_link_libraries(HART INTERFACE
         InstructionLogger::InstructionLogger
     )
-    target_compile_definitions(PG10xCPU INTERFACE
+    target_compile_definitions(HART INTERFACE
         ENABLE_INSTRUCTION_LOGGING
     )
 endif()
@@ -31,7 +31,7 @@ foreach(TEST_FILE ${TEST_FILES})
     )
     target_link_libraries(${TEST_TARGET}
         RVCommon::RVCommon
-        PG10xCSR::PG10xCSR
+        CSR::CSR
         TileLink::TileLink
     )
     add_test(

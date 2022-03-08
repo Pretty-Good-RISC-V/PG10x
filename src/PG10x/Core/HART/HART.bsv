@@ -19,10 +19,10 @@ import SpecialFIFOs::*;
 
 // ================================================================
 // Exports
-export CoreState(..), PG100Core (..), mkPG100Core;
+export HARTState(..), HART (..), mkHART;
 
 //
-// CoreState - roughy follows the RISC-V debug spec for hart states.
+// HARTState - roughy follows the RISC-V debug spec for hart states.
 //
 typedef enum {
     RESET,          // -> STARTING
@@ -31,11 +31,11 @@ typedef enum {
     HALTING,        // -> HALTED
     HALTED,         // -> RESUMING
     RESUMING        // -> RUNNING
-} CoreState deriving(Bits, Eq, FShow);
+} HARTState deriving(Bits, Eq, FShow);
 
-interface PG100Core;
+interface HART;
     method Action start;
-    method CoreState state;
+    method HARTState state;
 
     interface TileLinkLiteWordClient#(XLEN) instructionMemoryClient;
     interface TileLinkLiteWordClient#(XLEN) dataMemoryClient;
@@ -54,17 +54,17 @@ endinterface
 // 5. Write Back
 //      - In this stage, computed/fetched values are written back to the register file present in the instruction.
 //
-module mkPG100Core#(
-        ProgramCounter initialProgramCounter,
+module mkHART#(
+    ProgramCounter initialProgramCounter,
 `ifdef MONITOR_TOHOST_ADDRESS
-        Word toHostAddress,
+    Word toHostAddress,
 `endif
-        Bool disablePipelining
-)(PG100Core);
+    Bool disablePipelining
+)(HART);
     //
-    // CoreState
+    // HARTState
     //
-    Reg#(CoreState) coreState <- mkReg(RESET);
+    Reg#(HARTState) hartState <- mkReg(RESET);
 
     //
     // Cycle counter
@@ -181,14 +181,14 @@ module mkPG100Core#(
     // HALTED,         // -> RESUMING
     // RESUMING        // -> RUNNING
     //
-    FIFO#(CoreState) stateTransitionQueue <- mkFIFO;
+    FIFO#(HARTState) stateTransitionQueue <- mkFIFO;
 
-    rule handleStartingState(coreState == STARTING);
+    rule handleStartingState(hartState == STARTING);
         stateTransitionQueue.enq(RUNNING);
     endrule
 
     Reg#(Bool) firstRun <- mkReg(True);
-    rule handleRunningState(coreState == RUNNING);
+    rule handleRunningState(hartState == RUNNING);
         if (firstRun) begin
             $display("FetchIndex,Cycle,Pipeline Epoch,Program Counter,Stage Number,Stage Name,Info");
 
@@ -206,16 +206,16 @@ module mkPG100Core#(
         end
     endrule
 
-    rule handleHaltingState(coreState == HALTING);
+    rule handleHaltingState(hartState == HALTING);
         stateTransitionQueue.enq(HALTED);
     endrule
 
-    rule handleHaltedState(coreState == HALTED);
+    rule handleHaltedState(hartState == HALTED);
         $display("CPU HALTED. Cycles: %0d - Instructions retired: %0d", exceptionController.csrFile.cycle_counter, exceptionController.csrFile.instructions_retired_counter);
         $finish();
     endrule
 
-    rule handleResumingState(coreState == RESUMING);
+    rule handleResumingState(hartState == RESUMING);
         stateTransitionQueue.enq(RUNNING);
     endrule
 
@@ -224,7 +224,7 @@ module mkPG100Core#(
         let newState = stateTransitionQueue.first;
         stateTransitionQueue.deq;
 
-        coreState <= newState;
+        hartState <= newState;
     endrule
 
     (* fire_when_enabled, no_implicit_conditions *)
@@ -237,12 +237,12 @@ module mkPG100Core#(
     interface TileLinkLiteWordClient dataMemoryClient = memoryAccessUnit.dataMemoryClient;
 
     method Action start;
-        if (coreState == RESET) begin
+        if (hartState == RESET) begin
             stateTransitionQueue.enq(STARTING);
         end
     endmethod
 
-    method CoreState state;
-        return coreState;
+    method HARTState state;
+        return hartState;
     endmethod
 endmodule

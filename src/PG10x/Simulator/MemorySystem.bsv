@@ -64,3 +64,23 @@ module mkMemorySystem#(
         endinterface
     endinterface
 endmodule
+
+module mkSystemMemory#(
+    ProgramMemoryTile memoryServer,
+    Integer memoryBaseAddress
+)(TileLinkLiteWordServer#(XLEN));
+    Word baseAddress = fromInteger(memoryBaseAddress);
+
+    interface Get response = memoryServer.portA.response;
+
+    interface Put request;
+        method Action put(TileLinkLiteWordRequest#(XLEN) request);
+            if (memoryServer.isValidAddress(request.a_address)) begin
+                request.a_address = request.a_address;
+            end else begin
+                request.a_corrupt = True;
+            end
+            memoryServer.portA.request.put(request);                
+        endmethod
+    endinterface
+endmodule
