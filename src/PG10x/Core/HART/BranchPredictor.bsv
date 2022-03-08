@@ -15,6 +15,7 @@ module mkNullBranchPredictor(BranchPredictor);
     endmethod
 endmodule
 
+(* synthesize *)
 module mkBackwardBranchTakenPredictor(BranchPredictor);
     method ProgramCounter predictNextProgramCounter(ProgramCounter currentProgramCounter, Word32 instruction);
         let opcode = instruction[6:0];

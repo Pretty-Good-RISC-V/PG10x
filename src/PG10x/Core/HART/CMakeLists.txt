@@ -1,4 +1,4 @@
-add_subdirectory(CSR)
+add_subdirectory(CSRFile)
 add_subdirectory(InstructionLogger)
 
 add_library(HART INTERFACE)
@@ -6,7 +6,7 @@ add_library(HART::HART ALIAS HART)
 
 target_include_directories(HART INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(HART INTERFACE
-    CSR::CSR
+    CSRFile::CSRFile
     TileLink::TileLink
 )
 
@@ -31,7 +31,7 @@ foreach(TEST_FILE ${TEST_FILES})
     )
     target_link_libraries(${TEST_TARGET}
         RVCommon::RVCommon
-        CSR::CSR
+        CSRFile::CSRFile
         TileLink::TileLink
     )
     add_test(
