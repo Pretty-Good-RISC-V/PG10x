@@ -1,13 +1,14 @@
 import PGTypes::*;
 
+import Debug::*;
 import DecodeUnit::*;
 import ExceptionController::*;
 import ExecutionUnit::*;
 import FetchUnit::*;
+import GPRFile::*;
 import MemoryAccessUnit::*;
 import PipelineController::*;
 import ProgramCounterRedirect::*;
-import RegisterFile::*;
 import Scoreboard::*;
 import TileLink::*;
 import WritebackUnit::*;
@@ -39,6 +40,8 @@ interface HART;
 
     interface TileLinkLiteWordClient#(XLEN) instructionMemoryClient;
     interface TileLinkLiteWordClient#(XLEN) dataMemoryClient;
+
+    interface Debug debug;
 endinterface
 
 //
@@ -77,9 +80,9 @@ module mkHART#(
     Reg#(Bool) halt <- mkReg(False);
 
     //
-    // Register file
+    // GPR File
     //
-    RegisterFile registerFile <- mkRegisterFile;
+    GPRFile gprFile <- mkGPRFile;
 
     //
     // Scoreboard
@@ -121,7 +124,7 @@ module mkHART#(
         2,  // stage number
         pipelineController,
         scoreboard,
-        registerFile
+        gprFile
     );
 
     mkConnection(fetchUnit.getEncodedInstruction, decodeUnit.putEncodedInstruction);
@@ -165,7 +168,7 @@ module mkHART#(
         pipelineController,
         programCounterRedirect,
         scoreboard,
-        registerFile,
+        gprFile,
         exceptionController
     );
 
@@ -245,4 +248,29 @@ module mkHART#(
     method HARTState state;
         return hartState;
     endmethod
+
+    interface Debug debug;
+        method Word readGPR(RVGPRIndex idx);
+            return 0;
+        endmethod
+
+        method Action writeGPR(RVGPRIndex idx, Word newValue);
+        endmethod
+
+        method Maybe#(Word) readCSR(RVCSRIndex idx);
+            return tagged Invalid;
+        endmethod
+
+        method Action writeCSR(RVCSRIndex idx, Word newValue);
+        endmethod
+
+        method Action halt();
+        endmethod
+
+        method Action resume();
+        endmethod
+
+        method Action step();
+        endmethod
+    endinterface
 endmodule

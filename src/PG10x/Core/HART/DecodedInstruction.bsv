@@ -97,13 +97,13 @@ typedef struct {
     RVCSRIndex csrIndex;
 
     // rd - The *destination* register (if any) corresponding to this instruction.
-    Maybe#(RegisterIndex) rd;
+    Maybe#(RVGPRIndex) rd;
 
     // rs1 - The first *source* register (if any) corresponding to this instruction.
-    Maybe#(RegisterIndex) rs1;
+    Maybe#(RVGPRIndex) rs1;
 
     // rs2 - The second *source* register (if any) corresponding to this instruction.
-    Maybe#(RegisterIndex) rs2;
+    Maybe#(RVGPRIndex) rs2;
 
     // immediate - The immediate value (if any) corresponding to this instruction.
     Maybe#(Word) immediate;

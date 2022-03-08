@@ -6,25 +6,25 @@
 import PGTypes::*;
 import Vector::*;
 
-interface RegisterFile;
-    method Word read1(RegisterIndex index);
-    method Word read2(RegisterIndex index);
-    method Action write(RegisterIndex index, Word value);
+interface GPRFile;
+    method Word read1(RVGPRIndex index);
+    method Word read2(RVGPRIndex index);
+    method Action write(RVGPRIndex index, Word value);
 endinterface
 
 (* synthesize *)
-module mkRegisterFile(RegisterFile);
+module mkGPRFile(GPRFile);
     Vector#(32, Array#(Reg#(Word))) registers <- replicateM(mkCReg(2, 0));
 
-    method Word read1(RegisterIndex index);
+    method Word read1(RVGPRIndex index);
         return registers[index][1];
     endmethod
 
-    method Word read2(RegisterIndex index);
+    method Word read2(RVGPRIndex index);
         return registers[index][1];
     endmethod
 
-    method Action write(RegisterIndex index, Word value);
+    method Action write(RVGPRIndex index, Word value);
         if (index != 0) begin
             registers[index][0] <= value;
         end

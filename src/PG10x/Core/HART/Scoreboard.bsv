@@ -10,30 +10,30 @@ import PGTypes::*;
 import Vector::*;
 
 interface Scoreboard#(numeric type size);
-    method Action insert(Maybe#(RegisterIndex) dst);
-    method Bool search(Maybe#(RegisterIndex) s1, Maybe#(RegisterIndex) s2);
+    method Action insert(Maybe#(RVGPRIndex) dst);
+    method Bool search(Maybe#(RVGPRIndex) s1, Maybe#(RVGPRIndex) s2);
     method Action remove;
     method Bit#(TAdd#(TLog#(size),1)) size;
 endinterface
 
 module mkScoreboard(Scoreboard#(size));
-    Vector#(size, Array#(Reg#(Maybe#(RegisterIndex)))) entries <- replicateM(mkCReg(2, Invalid));
+    Vector#(size, Array#(Reg#(Maybe#(RVGPRIndex)))) entries <- replicateM(mkCReg(2, Invalid));
     Reg#(Bit#(TAdd#(TLog#(size),1))) iidx <- mkReg(0);
     Reg#(Bit#(TAdd#(TLog#(size),1))) ridx <- mkReg(0);
     Reg#(Bit#(TAdd#(TLog#(size),1))) count[3] <- mkCReg(3, 0);
     
-    function Bool dataHazard(Maybe#(RegisterIndex) src1, Maybe#(RegisterIndex) src2, Maybe#(RegisterIndex) dst);
+    function Bool dataHazard(Maybe#(RVGPRIndex) src1, Maybe#(RVGPRIndex) src2, Maybe#(RVGPRIndex) dst);
         return (isValid(dst) && ((isValid(src1) && unJust(dst)==unJust(src1)) ||
             (isValid(src2) && unJust(dst)==unJust(src2))));
     endfunction
 
-    method Action insert(Maybe#(RegisterIndex) r) if (count[1] != fromInteger(valueOf(size)));
+    method Action insert(Maybe#(RVGPRIndex) r) if (count[1] != fromInteger(valueOf(size)));
         entries[iidx][1]._write(r);
         iidx <= iidx == fromInteger(valueOf(size)) - 1 ? 0 : iidx + 1;
         count[1] <= count[1] + 1;
     endmethod
 
-    method Bool search(Maybe#(RegisterIndex) s1, Maybe#(RegisterIndex) s2);
+    method Bool search(Maybe#(RVGPRIndex) s1, Maybe#(RVGPRIndex) s2);
         Bit#(size) r = 0;
         for (Integer i = 0; i < valueOf(size); i = i + 1) begin
             r[i] = pack(dataHazard(s1, s2, entries[i][1]._read()));

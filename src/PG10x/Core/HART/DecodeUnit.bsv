@@ -8,8 +8,8 @@ import PGTypes::*;
 
 import EncodedInstruction::*;
 import DecodedInstruction::*;
+import GPRFile::*;
 import PipelineController::*;
-import RegisterFile::*;
 import Scoreboard::*;
 
 import FIFO::*;
@@ -29,7 +29,7 @@ module mkDecodeUnit#(
     Integer stageNumber,
     PipelineController pipelineController,
     Scoreboard#(4) scoreboard,
-    RegisterFile registerFile
+    GPRFile gprFile
 )(DecodeUnit);
     function Bool isValidLoadInstruction(Bit#(3) func3);
 `ifdef RV32
@@ -335,11 +335,11 @@ module mkDecodeUnit#(
 
             // Read the source operand registers since the scoreboard indicates it's available.
             if (isValid(decodedInstruction.rs1)) begin
-                decodedInstruction.rs1Value = registerFile.read1(unJust(decodedInstruction.rs1));
+                decodedInstruction.rs1Value = gprFile.read1(unJust(decodedInstruction.rs1));
             end
 
             if (isValid(decodedInstruction.rs2)) begin
-                decodedInstruction.rs2Value = registerFile.read2(unJust(decodedInstruction.rs2));
+                decodedInstruction.rs2Value = gprFile.read2(unJust(decodedInstruction.rs2));
             end
 
             scoreboard.insert(decodedInstruction.rd);
@@ -386,10 +386,10 @@ module mkDecodeUnit#(
                 end else begin
                     // Read the source operand registers since the scoreboard indicates it's available.
                     if (isValid(decodedInstruction.rs1))
-                        decodedInstruction.rs1Value = registerFile.read1(unJust(decodedInstruction.rs1));
+                        decodedInstruction.rs1Value = gprFile.read1(unJust(decodedInstruction.rs1));
 
                     if (isValid(decodedInstruction.rs2))
-                        decodedInstruction.rs2Value = registerFile.read2(unJust(decodedInstruction.rs2));
+                        decodedInstruction.rs2Value = gprFile.read2(unJust(decodedInstruction.rs2));
 
                     scoreboard.insert(decodedInstruction.rd);
 

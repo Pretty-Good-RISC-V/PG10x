@@ -10,7 +10,7 @@ import PipelineController::*;
 // Structure containing data to be written back to CPU registers
 //
 typedef struct {
-    RegisterIndex rd;
+    RVGPRIndex rd;
     Word value;
 } WriteBack deriving(Bits, Eq, FShow);
 

@@ -9,12 +9,12 @@ import CSRFile::*;
 import Exception::*;
 import ExceptionController::*;
 import ExecutedInstruction::*;
+import GPRFile::*;
 `ifdef ENABLE_INSTRUCTION_LOGGING
 import InstructionLogger::*;
 `endif
 import PipelineController::*;
 import ProgramCounterRedirect::*;
-import RegisterFile::*;
 import Scoreboard::*;
 
 import DReg::*;
@@ -35,7 +35,7 @@ module mkWritebackUnit#(
     PipelineController pipelineController,
     ProgramCounterRedirect programCounterRedirect,
     Scoreboard#(4) scoreboard, 
-    RegisterFile registerFile,
+    GPRFile gprFile,
     ExceptionController exceptionController
 )(WritebackUnit);
     Reg#(Bool) instructionRetired <- mkDReg(False);
@@ -59,7 +59,7 @@ module mkWritebackUnit#(
             end else begin
                 if (executedInstruction.writeBack matches tagged Valid .wb) begin
                     $display("%0d,%0d,%0d,%0x,%0d,writeback,writing result ($%08x) to register x%0d", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, wb.value, wb.rd);
-                    registerFile.write(wb.rd, wb.value);
+                    gprFile.write(wb.rd, wb.value);
                 end else begin
                     $display("%0d,%0d,%0d,%0x,%0d,writeback,NO-OP", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
                 end

@@ -11,7 +11,7 @@ import TileLink::*;
 typedef struct {
     TileLinkLiteWordRequest#(XLEN) tlRequest;
 
-    RegisterIndex rd;
+    RVGPRIndex rd;
     Bool signExtend;
 } LoadRequest deriving(Bits, Eq, FShow);
 
@@ -24,7 +24,7 @@ endfunction
 
 function Result#(LoadRequest, Exception) getLoadRequest(
     RVLoadOperator loadOperator,
-    RegisterIndex rd,
+    RVGPRIndex rd,
     Word effectiveAddress);
 
     Result#(LoadRequest, Exception) result = 
