@@ -15,7 +15,7 @@ interface ExceptionController;
 endinterface
 
 module mkExceptionController(ExceptionController);
-    CSRFile csrFileInner <- mkCSRFile;
+    CSRFile innerCsrFile <- mkCSRFile;
 
     function Integer findHighestSetBit(Word a);
         Integer highestBit = -1;
@@ -28,7 +28,7 @@ module mkExceptionController(ExceptionController);
 
     method ActionValue#(ProgramCounter) beginException(ProgramCounter exceptionProgramCounter, Exception exception);
         Word cause = 0;
-        let curPriv = csrFileInner.getCurrentPrivilegeLevel;
+        let curPriv = innerCsrFile.getCurrentPrivilegeLevel;
 
         case(exception.cause) matches
             tagged ExceptionCause .c: begin
@@ -54,10 +54,10 @@ module mkExceptionController(ExceptionController);
         // xPIE
         // xPP
 
-        csrFileInner.writeWithOffset1(csr_CAUSE, cause);
-        csrFileInner.writeWithOffset1(csr_EPC, exceptionProgramCounter);
-        csrFileInner.writeWithOffset1(csr_TVAL, exception.tval);
-        Word vectorTableBase = unJust(csrFileInner.readWithOffset1(csr_TVEC));
+        innerCsrFile.writeWithOffset1(csr_CAUSE, cause);
+        innerCsrFile.writeWithOffset1(csr_EPC, exceptionProgramCounter);
+        innerCsrFile.writeWithOffset1(csr_TVAL, exception.tval);
+        Word vectorTableBase = unJust(innerCsrFile.readWithOffset1(csr_TVEC));
         let exceptionHandler = vectorTableBase;
 
         // Check and handle a vectored trap handler table
@@ -71,14 +71,14 @@ module mkExceptionController(ExceptionController);
         return exceptionHandler;
     endmethod
 
-    interface CSRFile csrFile = csrFileInner;
+    interface CSRFile csrFile = innerCsrFile;
 
     method ActionValue#(Maybe#(Bit#(TSub#(XLEN, 1)))) getHighestPriorityInterrupt(Bool clear, Integer portNumber);
         Maybe#(Bit#(TSub#(XLEN, 1))) result = tagged Invalid;
 
-        if (csrFileInner.machineModeInterruptsEnabled) begin
-            let mie = fromMaybe(0, csrFileInner.read1(csr_MIE));
-            let mip = fromMaybe(0, csrFileInner.read1(csr_MIP));
+        if (innerCsrFile.machineModeInterruptsEnabled) begin
+            let mie = fromMaybe(0, innerCsrFile.read1(csr_MIE));
+            let mip = fromMaybe(0, innerCsrFile.read1(csr_MIP));
 
             let actionableInterrupts = mip & mie;
             if (actionableInterrupts != 0) begin
@@ -89,7 +89,7 @@ module mkExceptionController(ExceptionController);
 
                     if (clear) begin
                         let newMIP = mip & ~(1 << highestBit);
-                        let writeResult <- csrFileInner.write1(csr_MIP, newMIP);
+                        let writeResult <- innerCsrFile.write1(csr_MIP, newMIP);
                         dynamicAssert(writeResult == True, "MIP Write failed!");
                     end
                 end
