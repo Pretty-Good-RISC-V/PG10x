@@ -8,6 +8,7 @@
 //
 import PGTypes::*;
 
+import BypassUnit::*;
 import EncodedInstruction::*;
 import ExecutedInstruction::*;
 import LoadStore::*;
@@ -27,6 +28,8 @@ interface MemoryAccessUnit;
     interface Get#(ExecutedInstruction) getExecutedInstruction;
 
     interface TileLinkLiteWordClient#(XLEN) dataMemoryClient;
+
+    interface Get#(Maybe#(GPRBypassValue)) getGPRBypassValue;
 endinterface
 
 module mkMemoryAccessUnit#(
@@ -46,6 +49,8 @@ module mkMemoryAccessUnit#(
     Reg#(ExecutedInstruction) instructionWaitingForMemoryOperation <- mkRegU;
     FIFO#(TileLinkLiteWordRequest#(XLEN)) dataMemoryRequests <- mkFIFO;
     FIFO#(TileLinkLiteWordResponse#(XLEN)) dataMemoryResponses <- mkFIFO;
+
+    RWire#(Maybe#(GPRBypassValue)) gprBypassValue <- mkRWire();
 
     rule handleStoreResponse(waitingForStoreResponse == True && waitingForLoadToComplete == False);
         let memoryResponse = dataMemoryResponses.first;
@@ -134,6 +139,11 @@ module mkMemoryAccessUnit#(
             value: value
         };
 
+        gprBypassValue.wset(tagged Valid GPRBypassValue{
+            rd: loadRequest.rd,
+            value: tagged Valid value
+        });
+
         outputQueue.enq(executedInstruction);
     endrule
 
@@ -160,6 +170,14 @@ module mkMemoryAccessUnit#(
                         executedInstruction.programCounter, 
                         stageNumber);
                     begin
+
+                        // Set the bypass value but mark the value as invalid since
+                        // the other side of the bypass has to wait for the load to complete.
+                        gprBypassValue.wset(tagged Valid GPRBypassValue{
+                            rd: loadRequest.rd,
+                            value: tagged Invalid
+                        });
+
                         // NOTE: Alignment checks were already performed during the execution stage.
                         dataMemoryRequests.enq(loadRequest.tlRequest);
 
@@ -198,4 +216,5 @@ module mkMemoryAccessUnit#(
 
     interface Get getExecutedInstruction = toGet(outputQueue);
     interface TileLinkLiteWordClient dataMemoryClient = toGPClient(dataMemoryRequests, dataMemoryResponses);
+    interface Get getGPRBypassValue = toGet(gprBypassValue);
 endmodule

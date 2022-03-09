@@ -15,7 +15,6 @@ import InstructionLogger::*;
 `endif
 import PipelineController::*;
 import ProgramCounterRedirect::*;
-import Scoreboard::*;
 
 import DReg::*;
 import FIFO::*;
@@ -34,7 +33,6 @@ module mkWritebackUnit#(
     Integer stageNumber,
     PipelineController pipelineController,
     ProgramCounterRedirect programCounterRedirect,
-    Scoreboard#(4) scoreboard, 
     GPRFile gprFile,
     ExceptionController exceptionController
 )(WritebackUnit);
@@ -49,11 +47,6 @@ module mkWritebackUnit#(
             let fetchIndex = executedInstruction.fetchIndex;
             let stageEpoch = pipelineController.stageEpoch(stageNumber, 0);
 
-            // Remove the scoreboard entry - this needs to be done regardless of the
-            // epoch because the decode stage has already run which has added an entry to
-            // the scoreboard.
-            scoreboard.remove;
-
             if (!pipelineController.isCurrentEpoch(stageNumber, 0, executedInstruction.pipelineEpoch)) begin
                 $display("%0d,%0d,%0d,%0d,%0d,writeback,stale instruction...popping bubble", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
             end else begin
@@ -66,11 +59,10 @@ module mkWritebackUnit#(
 
 `ifdef ENABLE_INSTRUCTION_LOGGING
                 Bool logIt = True;
-                if (isValid(executedInstruction.exception)) begin
-                    if (unJust(executedInstruction.exception).cause matches tagged InterruptCause .*) begin
+                if (executedInstruction.exception matches tagged Valid .exception &&&
+                    exception.cause matches tagged InterruptCause .*) begin
                         // If the instruction was interrupted, don't log it.
                         logIt = False;
-                    end
                 end
 
                 if (logIt)

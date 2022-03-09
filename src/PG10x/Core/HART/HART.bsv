@@ -9,7 +9,6 @@ import GPRFile::*;
 import MemoryAccessUnit::*;
 import PipelineController::*;
 import ProgramCounterRedirect::*;
-import Scoreboard::*;
 import TileLink::*;
 import WritebackUnit::*;
 
@@ -85,11 +84,6 @@ module mkHART#(
     GPRFile gprFile <- mkGPRFile;
 
     //
-    // Scoreboard
-    //
-    Scoreboard#(4) scoreboard <- mkScoreboard;
-
-    //
     // Exception controller (and CSRFile)
     //
     ExceptionController exceptionController <- mkExceptionController;
@@ -123,7 +117,6 @@ module mkHART#(
         cycleCounter,
         2,  // stage number
         pipelineController,
-        scoreboard,
         gprFile
     );
 
@@ -167,12 +160,17 @@ module mkHART#(
         5,
         pipelineController,
         programCounterRedirect,
-        scoreboard,
         gprFile,
         exceptionController
     );
 
     mkConnection(memoryAccessUnit.getExecutedInstruction, writebackUnit.putExecutedInstruction);
+
+    //
+    // GPR Bypasses
+    //
+    mkConnection(executionUnit.getGPRBypassValue, decodeUnit.putGPRBypassValue1);
+    mkConnection(memoryAccessUnit.getGPRBypassValue, decodeUnit.putGPRBypassValue2);
 
     //
     // State handlers

@@ -7,6 +7,7 @@
 `include "PGLib.bsh"
 
 import ALU::*;
+import BypassUnit::*;
 import DecodedInstruction::*;
 import Exception::*;
 import ExceptionController::*;
@@ -25,6 +26,8 @@ export ExecutionUnit(..), mkExecutionUnit;
 interface ExecutionUnit;
     interface Put#(DecodedInstruction) putDecodedInstruction;
     interface Get#(ExecutedInstruction) getExecutedInstruction;
+
+    interface Get#(Maybe#(GPRBypassValue)) getGPRBypassValue;
 endinterface
 
 module mkExecutionUnit#(
@@ -36,6 +39,7 @@ module mkExecutionUnit#(
     Reg#(Bool) halt
 )(ExecutionUnit);
     FIFO#(ExecutedInstruction) outputQueue <- mkPipelineFIFO;
+    RWire#(Maybe#(GPRBypassValue)) gprBypassValue <- mkRWire();
 
     ALU alu <- mkALU;
 
@@ -72,8 +76,7 @@ module mkExecutionUnit#(
         if (decodedInstruction.csrOperator[1:0] != 0) begin
             dynamicAssert(isValid(decodedInstruction.rd), "RD is invalid");
 
-            let operand = (isValid(decodedInstruction.immediate) ? 
-                unJust(decodedInstruction.immediate) : decodedInstruction.rs1Value);
+            let operand = fromMaybe(decodedInstruction.rs1Value, decodedInstruction.immediate);
             let csrIndex = decodedInstruction.csrIndex;
             let csrWriteEnabled = (isValid(decodedInstruction.immediate) || unJust(decodedInstruction.rs1) != 0);
             let rd = unJust(decodedInstruction.rd);
@@ -81,9 +84,7 @@ module mkExecutionUnit#(
             let immediateIsZero = (isValid(decodedInstruction.immediate) ? unJust(decodedInstruction.immediate) == 0 : False);
 
             let readStatus = exceptionController.csrFile.read(csrIndex, 1);
-            if (isValid(readStatus)) begin
-                let currentValue = unJust(readStatus);
-
+            if (readStatus matches tagged Valid .currentValue) begin
                 executedInstruction.writeBack = tagged Valid WriteBack {
                     rd: rd,
                     value: currentValue
@@ -222,8 +223,8 @@ module mkExecutionUnit#(
                                 nextProgramCounter = tagged Valid (decodedInstruction.programCounter + 4);
                             end
 
-                            if (isValid(nextProgramCounter) && unJust(nextProgramCounter) != decodedInstruction.predictedNextProgramCounter) begin
-                                executedInstruction.changedProgramCounter = tagged Valid unJust(nextProgramCounter);
+                            if (nextProgramCounter matches tagged Valid .npc &&& npc != decodedInstruction.predictedNextProgramCounter) begin
+                                executedInstruction.changedProgramCounter = tagged Valid npc;
                             end
                         end
                     end
@@ -406,17 +407,14 @@ module mkExecutionUnit#(
 
                 // If the program counter was changed, see if it matches a predicted branch/jump.
                 // If not, redirect the program counter to the mispredicted target address.
-                if (isValid(executedInstruction.changedProgramCounter)) begin
-                    let targetAddress = unJust(executedInstruction.changedProgramCounter);
-                    if (decodedInstruction.predictedNextProgramCounter != targetAddress) begin
-                        // Bump the current instruction epoch
-                        pipelineController.flush(1);
+                if (executedInstruction.changedProgramCounter matches tagged Valid .targetAddress &&& targetAddress != decodedInstruction.predictedNextProgramCounter) begin
+                    // Bump the current instruction epoch
+                    pipelineController.flush(1);
 
-                        executedInstruction.pipelineEpoch = ~executedInstruction.pipelineEpoch;
+                    executedInstruction.pipelineEpoch = ~executedInstruction.pipelineEpoch;
 
-                        $display("%0d,%0d,%0d,%0x,%0d,execute,branch/jump to: $%08x", fetchIndex, cycleCounter, currentEpoch, decodedInstruction.programCounter, stageNumber, targetAddress);
-                        programCounterRedirect.branch(targetAddress);
-                    end
+                    $display("%0d,%0d,%0d,%0x,%0d,execute,branch/jump to: $%08x", fetchIndex, cycleCounter, currentEpoch, decodedInstruction.programCounter, stageNumber, targetAddress);
+                    programCounterRedirect.branch(targetAddress);
                 end
 
                 if (executedInstruction.exception matches tagged Valid .exception) begin
@@ -426,6 +424,10 @@ module mkExecutionUnit#(
                 // If writeback data exists, that needs to be written into the previous pipeline 
                 // stages using operand forwarding.
                 if (executedInstruction.writeBack matches tagged Valid .wb) begin
+                    gprBypassValue.wset(tagged Valid GPRBypassValue {
+                        rd: wb.rd,
+                        value: tagged Valid wb.value
+                    });
                     $display("%0d,%0d,%0d,%0x,%0d,execute,complete (WB: x%0d = %08x)", fetchIndex, cycleCounter, currentEpoch, decodedInstruction.programCounter, stageNumber, wb.rd, wb.value);
                 end else begin
                     $display("%0d,%0d,%0d,%0x,%0d,execute,complete", fetchIndex, cycleCounter, currentEpoch, decodedInstruction.programCounter, stageNumber);
@@ -437,4 +439,6 @@ module mkExecutionUnit#(
     endinterface
 
     interface Get getExecutedInstruction = toGet(outputQueue);
+
+    interface Get getGPRBypassValue = toGet(gprBypassValue);
 endmodule

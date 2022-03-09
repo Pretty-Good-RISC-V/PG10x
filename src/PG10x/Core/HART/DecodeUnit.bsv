@@ -6,11 +6,11 @@
 //
 import PGTypes::*;
 
+import BypassUnit::*;
 import EncodedInstruction::*;
 import DecodedInstruction::*;
 import GPRFile::*;
 import PipelineController::*;
-import Scoreboard::*;
 
 import FIFO::*;
 import FIFOF::*;
@@ -22,15 +22,22 @@ export DecodeUnit(..), mkDecodeUnit;
 interface DecodeUnit;
     interface Put#(EncodedInstruction) putEncodedInstruction;
     interface Get#(DecodedInstruction) getDecodedInstruction;
+
+    interface Put#(Maybe#(GPRBypassValue)) putGPRBypassValue1;
+    interface Put#(Maybe#(GPRBypassValue)) putGPRBypassValue2;
 endinterface
 
 module mkDecodeUnit#(
     Reg#(Word64) cycleCounter,
     Integer stageNumber,
     PipelineController pipelineController,
-    Scoreboard#(4) scoreboard,
     GPRFile gprFile
 )(DecodeUnit);
+    // Reg#(Maybe#(GPRBypassValue)) gprBypassValue1[2] <- mkCReg(2, tagged Invalid);
+    // Reg#(Maybe#(GPRBypassValue)) gprBypassValue2[2] <- mkCReg(2, tagged Invalid);
+    GPRBypassUnit gprBypassUnit1 <- mkGPRBypassUnit(gprFile);
+    GPRBypassUnit gprBypassUnit2 <- mkGPRBypassUnit(gprFile);
+
     function Bool isValidLoadInstruction(Bit#(3) func3);
 `ifdef RV32
         return ((func3 == load_UNSUPPORTED_011 ||
@@ -327,32 +334,21 @@ module mkDecodeUnit#(
         let programCounter = decodedInstruction.programCounter;
         let stageEpoch = pipelineController.stageEpoch(stageNumber, 2);
 
-        let stallWaitingForOperands = scoreboard.search(decodedInstruction.rs1, decodedInstruction.rs2);
-        if (stallWaitingForOperands) begin
+        //
+        // Check bypasses
+        //
+        let bypassTpl1 <- gprBypassUnit1.processBypass(decodedInstruction);
+        let stallWaitingForOperands1 = tpl_1(bypassTpl1);
+        decodedInstruction = tpl_2(bypassTpl1);
+
+        let bypassTpl2 <- gprBypassUnit2.processBypass(decodedInstruction);
+        let stallWaitingForOperands2 = tpl_1(bypassTpl2);
+        decodedInstruction = tpl_2(bypassTpl2);
+
+        if (stallWaitingForOperands1 || stallWaitingForOperands2) begin
             $display("%0d,%0d,%0d,%0x,%0d,decode,stall waiting for operands", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber);
         end else begin
             decodedInstructionWaitingForOperands.deq;
-
-            // Read the source operand registers since the scoreboard indicates it's available.
-            if (isValid(decodedInstruction.rs1)) begin
-                decodedInstruction.rs1Value = gprFile.read1(unJust(decodedInstruction.rs1));
-            end
-
-            if (isValid(decodedInstruction.rs2)) begin
-                decodedInstruction.rs2Value = gprFile.read2(unJust(decodedInstruction.rs2));
-            end
-
-            scoreboard.insert(decodedInstruction.rd);
-
-            $display("%0d,%0d,%0d,%0x,%0d,decode,inserting into scoreboard (new count = %0d): ", 
-                fetchIndex, 
-                cycleCounter, 
-                stageEpoch, 
-                programCounter, 
-                stageNumber, 
-                scoreboard.size,
-                (isValid(decodedInstruction.rd) ? 
-                    $format("x%0d", unJust(decodedInstruction.rd)) : $format("INVALID")));
 
             // Send the decode result to the output queue.
             outputQueue.enq(decodedInstruction);
@@ -377,32 +373,21 @@ module mkDecodeUnit#(
                 decodedInstruction.pipelineEpoch = stageEpoch;
                 decodedInstruction.predictedNextProgramCounter = encodedInstruction.predictedNextProgramCounter;
 
-                $display("%0d,%0d,%0d,%0x,%0d,decode,scoreboard size: %0d", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber, scoreboard.size);
+                //
+                // Check bypasses
+                //
+                let bypassTpl1 <- gprBypassUnit1.processBypass(decodedInstruction);
+                let stallWaitingForOperands1 = tpl_1(bypassTpl1);
+                decodedInstruction = tpl_2(bypassTpl1);
 
-                let stallWaitingForOperands = scoreboard.search(decodedInstruction.rs1, decodedInstruction.rs2);
-                if (stallWaitingForOperands) begin
+                let bypassTpl2 <- gprBypassUnit2.processBypass(decodedInstruction);
+                let stallWaitingForOperands2 = tpl_1(bypassTpl2);
+                decodedInstruction = tpl_2(bypassTpl2);
+
+                if (stallWaitingForOperands1 || stallWaitingForOperands2) begin
                     $display("%0d,%0d,%0d,%0x,%0d,decode,stall waiting for operands", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber);
                     decodedInstructionWaitingForOperands.enq(decodedInstruction);
                 end else begin
-                    // Read the source operand registers since the scoreboard indicates it's available.
-                    if (isValid(decodedInstruction.rs1))
-                        decodedInstruction.rs1Value = gprFile.read1(unJust(decodedInstruction.rs1));
-
-                    if (isValid(decodedInstruction.rs2))
-                        decodedInstruction.rs2Value = gprFile.read2(unJust(decodedInstruction.rs2));
-
-                    scoreboard.insert(decodedInstruction.rd);
-
-                    $display("%0d,%0d,%0d,%0x,%0d,decode,inserting into scoreboard (new count = %0d): ", 
-                        fetchIndex, 
-                        cycleCounter, 
-                        stageEpoch, 
-                        programCounter, 
-                        stageNumber, 
-                        scoreboard.size,
-                        (isValid(decodedInstruction.rd) ? 
-                            $format("x%0d", unJust(decodedInstruction.rd)) : $format("INVALID")));
-
                     // Send the decode result to the output queue.
                     outputQueue.enq(decodedInstruction);
 
@@ -413,4 +398,6 @@ module mkDecodeUnit#(
     endinterface
 
     interface Get getDecodedInstruction = toGet(outputQueue);
+    interface Put putGPRBypassValue1 = gprBypassUnit1.putGPRBypassValue;
+    interface Put putGPRBypassValue2 = gprBypassUnit2.putGPRBypassValue;
 endmodule
