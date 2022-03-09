@@ -10,11 +10,17 @@ import Assert::*;
 
 interface CSRFile;
     // Generic read/write support
-    method Maybe#(Word) read(RVCSRIndex index, Integer portNumber);
-    method Maybe#(Word) readWithOffset(RVCSRIndexOffset offset, Integer portNumber);
+    method Maybe#(Word) read1(RVCSRIndex index);
+    method Maybe#(Word) read2(RVCSRIndex index);
 
-    method ActionValue#(Bool) write(RVCSRIndex index, Word value, Integer portNumber);
-    method ActionValue#(Bool) writeWithOffset(RVCSRIndexOffset offset, Word value, Integer portNumber);
+    method Maybe#(Word) readWithOffset1(RVCSRIndexOffset offset);
+    method Maybe#(Word) readWithOffset2(RVCSRIndexOffset offset);
+ 
+    method ActionValue#(Bool) write1(RVCSRIndex index, Word value);
+    method ActionValue#(Bool) write2(RVCSRIndex index, Word value);
+
+    method ActionValue#(Bool) writeWithOffset1(RVCSRIndexOffset offset, Word value);
+    method ActionValue#(Bool) writeWithOffset2(RVCSRIndexOffset offset, Word value);
 
     method Bool machineModeInterruptsEnabled;
 
@@ -184,22 +190,34 @@ module mkCSRFile(CSRFile);
         endactionvalue
     endfunction
 
-    method Maybe#(Word) read(RVCSRIndex index, Integer portNumber);
+    method Maybe#(Word) read1(RVCSRIndex index);
         if (currentPrivilegeLevel < index[9:8]) begin
             return tagged Invalid;
         end else begin
-            return readInternal(index, portNumber);
+            return readInternal(index, 0);
         end
     endmethod
 
-    method Maybe#(Word) readWithOffset(RVCSRIndexOffset offset, Integer portNumber);
-        return readInternal(getIndex(offset), portNumber);
+    method Maybe#(Word) read2(RVCSRIndex index);
+        if (currentPrivilegeLevel < index[9:8]) begin
+            return tagged Invalid;
+        end else begin
+            return readInternal(index, 1);
+        end
     endmethod
 
-    method ActionValue#(Bool) write(RVCSRIndex index, Word value, Integer portNumber);
+    method Maybe#(Word) readWithOffset1(RVCSRIndexOffset offset);
+        return readInternal(getIndex(offset), 0);
+    endmethod
+
+    method Maybe#(Word) readWithOffset2(RVCSRIndexOffset offset);
+        return readInternal(getIndex(offset), 1);
+    endmethod
+
+    method ActionValue#(Bool) write1(RVCSRIndex index, Word value);
         let result = False;
         if (currentPrivilegeLevel >= index[9:8] && index[11:10] != 'b11) begin
-            result <- writeInternal(index, value, portNumber);
+            result <- writeInternal(index, value, 0);
         end else begin
             $display("CSR: Attempt to write to $%0x failed due to access check", index);
         end
@@ -207,8 +225,24 @@ module mkCSRFile(CSRFile);
         return result;
     endmethod
 
-    method ActionValue#(Bool) writeWithOffset(RVCSRIndexOffset offset, Word value, Integer portNumber);
-        let result <- writeInternal(getIndex(offset), value, portNumber);
+    method ActionValue#(Bool) write2(RVCSRIndex index, Word value);
+        let result = False;
+        if (currentPrivilegeLevel >= index[9:8] && index[11:10] != 'b11) begin
+            result <- writeInternal(index, value, 1);
+        end else begin
+            $display("CSR: Attempt to write to $%0x failed due to access check", index);
+        end
+
+        return result;
+    endmethod
+
+    method ActionValue#(Bool) writeWithOffset1(RVCSRIndexOffset offset, Word value);
+        let result <- writeInternal(getIndex(offset), value, 0);
+        return result;
+    endmethod
+
+    method ActionValue#(Bool) writeWithOffset2(RVCSRIndexOffset offset, Word value);
+        let result <- writeInternal(getIndex(offset), value, 1);
         return result;
     endmethod
 

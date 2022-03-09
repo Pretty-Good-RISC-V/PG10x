@@ -83,7 +83,7 @@ module mkExecutionUnit#(
 
             let immediateIsZero = (isValid(decodedInstruction.immediate) ? unJust(decodedInstruction.immediate) == 0 : False);
 
-            let readStatus = exceptionController.csrFile.read(csrIndex, 1);
+            let readStatus = exceptionController.csrFile.read2(csrIndex);
             if (readStatus matches tagged Valid .currentValue) begin
                 executedInstruction.writeBack = tagged Valid WriteBack {
                     rd: rd,
@@ -111,7 +111,7 @@ module mkExecutionUnit#(
                 endcase
 
                 if (writeValue matches tagged Valid .v) begin
-                    let writeSucceeded <- exceptionController.csrFile.write(csrIndex, v, 1);
+                    let writeSucceeded <- exceptionController.csrFile.write2(csrIndex, v);
                     if (writeSucceeded == False) begin
                         $display("CSR($%0x): Write failed", csrIndex);
                         executedInstruction.exception = tagged Valid createIllegalInstructionException(decodedInstruction.rawInstruction);
@@ -358,7 +358,7 @@ module mkExecutionUnit#(
                             end
                             sys_MRET: begin
                                 $display("%0d,%0d,%0d,%0x,%0d,execute,MRET instruction", decodedInstruction.fetchIndex, exceptionController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber);
-                                let readStatus = exceptionController.csrFile.read(csr_MEPC,1);
+                                let readStatus = exceptionController.csrFile.read2(csr_MEPC);
                                 if (readStatus matches tagged Valid .mepc) begin
                                     executedInstruction.changedProgramCounter = tagged Valid mepc;
                                     executedInstruction.exception = tagged Invalid;
