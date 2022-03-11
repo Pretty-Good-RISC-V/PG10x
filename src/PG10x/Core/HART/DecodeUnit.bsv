@@ -33,8 +33,6 @@ module mkDecodeUnit#(
     PipelineController pipelineController,
     GPRFile gprFile
 )(DecodeUnit);
-    // Reg#(Maybe#(GPRBypassValue)) gprBypassValue1[2] <- mkCReg(2, tagged Invalid);
-    // Reg#(Maybe#(GPRBypassValue)) gprBypassValue2[2] <- mkCReg(2, tagged Invalid);
     GPRBypassUnit gprBypassUnit1 <- mkGPRBypassUnit(gprFile);
     GPRBypassUnit gprBypassUnit2 <- mkGPRBypassUnit(gprFile);
 

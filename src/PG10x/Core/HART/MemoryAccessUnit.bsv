@@ -212,9 +212,5 @@ module mkMemoryAccessUnit#(
     interface Get getExecutedInstruction = toGet(outputQueue);
     interface TileLinkLiteWordClient dataMemoryClient = toGPClient(dataMemoryRequests, dataMemoryResponses);
     interface Get getGPRBypassValue = toGet(gprBypassValue);
-    interface Put putToHostAddress;
-        method Action put(Maybe#(Word) value);
-            toHostAddress <= value;
-        endmethod
-    endinterface
+    interface Put putToHostAddress = toPut(asReg(toHostAddress));
 endmodule

@@ -136,12 +136,6 @@ module mkFetchUnit#(
     endrule
 
     interface Get getEncodedInstruction = toGet(outputQueue);
-
     interface TileLinkLiteWordClient instructionMemoryClient = toGPClient(instructionMemoryRequests, instructionMemoryResponses);
-
-    interface Put putFetchEnabled;
-        method Action put(Bool value);
-            fetchEnabled <= value;
-        endmethod
-    endinterface
+    interface Put putFetchEnabled = toPut(asReg(fetchEnabled));
 endmodule

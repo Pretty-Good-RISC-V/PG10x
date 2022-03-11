@@ -441,12 +441,6 @@ module mkExecutionUnit#(
     endinterface
 
     interface Get getExecutedInstruction = toGet(outputQueue);
-
     interface Get getGPRBypassValue = toGet(gprBypassValue);
-
-    interface Put putHalt;
-        method Action put(Bool value);
-            halt <= value;
-        endmethod
-    endinterface
+    interface Put putHalt = toPut(asReg(halt));
 endmodule
