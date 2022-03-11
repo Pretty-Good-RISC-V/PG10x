@@ -79,5 +79,5 @@ module mkGPRBypassUnit#(
         return tuple2(stallWaitingForOperands, decodedInstruction);
     endmethod
 
-    interface Put putGPRBypassValue = toPut(asReg(gprBypassValue[0]));
+    interface Put putGPRBypassValue = toPut(asIfc(gprBypassValue[0]));
 endmodule

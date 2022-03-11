@@ -307,8 +307,8 @@ module mkHART(HART);
         return hartState;
     endmethod
 
-    interface Put putInitialProgramCounter = toPut(asReg(programCounter));
-    interface Put putPipeliningDisabled = toPut(asReg(forcePipeliningDisabled));
+    interface Put putInitialProgramCounter = toPut(asIfc(programCounter));
+    interface Put putPipeliningDisabled = toPut(asIfc(forcePipeliningDisabled));
     interface Put putToHostAddress = memoryAccessUnit.putToHostAddress;
 
     interface Debug debug;
