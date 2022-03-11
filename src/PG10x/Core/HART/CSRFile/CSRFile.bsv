@@ -51,14 +51,14 @@ module mkCSRFile(CSRFile);
     ReadOnly#(Word) mtimeh      <- mkReadOnly(truncateLSB(timeCounter));
     ReadOnly#(Word) minstreth   <- mkReadOnly(truncateLSB(instructionsRetiredCounter));
 `endif
-    Reg#(Word)      mcause[2]   <- mkCReg(2, 0);
-    Reg#(Word)      mtvec[2]    <- mkCReg(2, 'hC0DEC0DE);
-    Reg#(Word)      mepc[2]     <- mkCReg(2, 0);    // Machine Exception Program Counter
+    Reg#(Word)      mcause      <- mkReg(0);
+    Reg#(Word)      mtvec       <- mkReg('hC0DEC0DE);
+    Reg#(Word)      mepc        <- mkReg(0);    // Machine Exception Program Counter
     Reg#(Word)      mscratch    <- mkReg(0);
     Reg#(Word)      mip         <- mkReg(0);
     Reg#(Word)      mie         <- mkReg(0);
 
-    Reg#(Word)      mtval[2]    <- mkCReg(2, 0);
+    Reg#(Word)      mtval       <- mkReg(0);
 
     Reg#(Bit#(2))   currentPrivilegeLevel     <- mkReg(priv_MACHINE);
 
@@ -95,10 +95,10 @@ module mkCSRFile(CSRFile);
                 csr_MHARTID:    tagged Valid machineInformation.mhartid;
                 csr_MISA:       tagged Valid machineTraps.setup.machineISA.read;
 
-                csr_MCAUSE:     tagged Valid mcause[portNumber];
-                csr_MTVEC:      tagged Valid mtvec[portNumber];
-                csr_MEPC:       tagged Valid mepc[portNumber];
-                csr_MTVAL:      tagged Valid mtval[portNumber];
+                csr_MCAUSE:     tagged Valid mcause;
+                csr_MTVEC:      tagged Valid mtvec;
+                csr_MEPC:       tagged Valid mepc;
+                csr_MTVAL:      tagged Valid mtval;
 
                 csr_MSTATUS:    tagged Valid machineStatus.read;
                 csr_MCYCLE, csr_CYCLE:     
@@ -129,7 +129,7 @@ module mkCSRFile(CSRFile);
         end else begin
             case(index)
                 csr_MCAUSE: begin
-                    mcause[portNumber] <= value;
+                    mcause <= value;
                     result = True;
                 end
 
@@ -139,7 +139,7 @@ module mkCSRFile(CSRFile);
                 end
 
                 csr_MEPC: begin
-                    mepc[portNumber] <= value;
+                    mepc <= value;
                     result = True;
                 end
 
@@ -159,13 +159,13 @@ module mkCSRFile(CSRFile);
                 end
 
                 csr_MTVAL: begin
-                    mtval[portNumber] <= value;
+                    mtval <= value;
                     result = True;
                 end
 
                 csr_MTVEC: begin
                     $display("Setting MTVEC to $%0x", value);
-                    mtvec[portNumber] <= value;
+                    mtvec <= value;
                     result = True;
                 end
 
