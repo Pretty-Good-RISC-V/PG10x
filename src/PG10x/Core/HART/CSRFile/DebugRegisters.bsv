@@ -11,8 +11,8 @@ DebugModeCause dcause_RESETHALT     = 3'h05;
 DebugModeCause dcause_HALTGROUP     = 3'h06;
 
 interface DebugControlAndStatus;
-    method Action write(Word value);
-    method ActionValue#(Word) read;
+    method Action write(Word32 value);
+    method ActionValue#(Word32) read;
 
     interface Put#(Bool) putSingleStepEnabled;
     interface Get#(Bool) getSingleStepEnabled;
@@ -27,7 +27,7 @@ module mkDebugControlAndStatus(DebugControlAndStatus);
     Reg#(Bool) step <- mkReg(False);                    // Single step enabled
     Reg#(RVPrivilegeLevel) prv <- mkReg(priv_MACHINE);  // Privilege Level upon entering debug mode
 
-    method Action write(Word value);
+    method Action write(Word32 value);
         stepie <= unpack(value[11]);
         stopcount <= unpack(value[10]);
         stoptime <= unpack(value[9]);
@@ -37,7 +37,7 @@ module mkDebugControlAndStatus(DebugControlAndStatus);
         prv <= unpack(value[1:0]);
     endmethod
 
-    method ActionValue#(Word) read;
+    method ActionValue#(Word32) read;
         return {
             4'h04,          // Debug support exists and matches debug spec.
             10'h0,          // RESERVED
