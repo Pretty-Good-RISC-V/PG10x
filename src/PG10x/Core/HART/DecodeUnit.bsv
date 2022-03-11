@@ -324,7 +324,6 @@ module mkDecodeUnit#(
 
     FIFOF#(DecodedInstruction) decodedInstructionWaitingForOperands <- mkFIFOF;
 
-    (* fire_when_enabled *)
     rule waitForOperands;
         let decodedInstruction = decodedInstructionWaitingForOperands.first;
 
