@@ -24,6 +24,8 @@ import SpecialFIFOs::*;
 export MemoryAccessUnit(..), mkMemoryAccessUnit;
 
 interface MemoryAccessUnit;
+    interface Put#(Word64) putCycleCounter;
+
     interface Put#(ExecutedInstruction) putExecutedInstruction;
     interface Get#(ExecutedInstruction) getExecutedInstruction;
 
@@ -34,10 +36,10 @@ interface MemoryAccessUnit;
 endinterface
 
 module mkMemoryAccessUnit#(
-    ReadOnly#(Word64) cycleCounter,
     Integer stageNumber,
     PipelineController pipelineController
 )(MemoryAccessUnit);
+    Wire#(Word64) cycleCounter <- mkBypassWire;
     FIFO#(ExecutedInstruction) outputQueue <- mkPipelineFIFO;
     Reg#(Bool) waitingForLoadToComplete <- mkReg(False);
     Reg#(Bool) waitingForStoreResponse <- mkReg(False);
@@ -209,6 +211,7 @@ module mkMemoryAccessUnit#(
         endmethod
     endinterface
 
+    interface Put putCycleCounter = toPut(asIfc(cycleCounter));
     interface Get getExecutedInstruction = toGet(outputQueue);
     interface TileLinkLiteWordClient dataMemoryClient = toGPClient(dataMemoryRequests, dataMemoryResponses);
     interface Get getGPRBypassValue = toGet(gprBypassValue);

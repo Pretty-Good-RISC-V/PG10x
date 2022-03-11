@@ -24,18 +24,19 @@ import SpecialFIFOs::*;
 export WritebackUnit(..), mkWritebackUnit;
 
 interface WritebackUnit;
+    interface Put#(Word64) putCycleCounter;
     interface Put#(ExecutedInstruction) putExecutedInstruction;
     method Bool wasInstructionRetired;
 endinterface
 
 module mkWritebackUnit#(
-    ReadOnly#(Word64) cycleCounter,
     Integer stageNumber,
     PipelineController pipelineController,
     ProgramCounterRedirect programCounterRedirect,
     GPRFile gprFile,
     ExceptionController exceptionController
 )(WritebackUnit);
+    Wire#(Word64) cycleCounter <- mkBypassWire;
     Reg#(Bool) instructionRetired <- mkDReg(False);
 
 `ifdef ENABLE_INSTRUCTION_LOGGING
@@ -92,4 +93,6 @@ module mkWritebackUnit#(
     method Bool wasInstructionRetired;
         return instructionRetired;
     endmethod
+
+    interface Put putCycleCounter = toPut(asIfc(cycleCounter));
 endmodule

@@ -113,37 +113,37 @@ module mkHART(HART);
     //
     Reg#(Bool) fetchEnabled <- mkReg(False);
     FetchUnit fetchUnit <- mkFetchUnit(
-        regToReadOnly(cycleCounter),
         1,  // stage number
         programCounter,
         programCounterRedirect
     );
 
+    mkConnection(toGet(cycleCounter), fetchUnit.putCycleCounter);
     mkConnection(toGet(fetchEnabled), fetchUnit.putFetchEnabled);
 
     //
     // Stage 2 - Instruction Decode
     //
     DecodeUnit decodeUnit <- mkDecodeUnit(
-        regToReadOnly(cycleCounter),
         2,  // stage number
         pipelineController,
         gprFile
     );
 
+    mkConnection(toGet(cycleCounter), decodeUnit.putCycleCounter);
     mkConnection(fetchUnit.getEncodedInstruction, decodeUnit.putEncodedInstruction);
 
     //
     // Stage 3 - Instruction execution
     //
     ExecutionUnit executionUnit <- mkExecutionUnit(
-        regToReadOnly(cycleCounter),
         3,  // stage number
         pipelineController,
         programCounterRedirect,
         exceptionController
     );
 
+    mkConnection(toGet(cycleCounter), executionUnit.putCycleCounter);
     mkConnection(decodeUnit.getDecodedInstruction, executionUnit.putDecodedInstruction);
     mkConnection(executionUnit.getGPRBypassValue, decodeUnit.putGPRBypassValue1);
     mkConnection(toGet(halt), executionUnit.putHalt);
@@ -152,11 +152,11 @@ module mkHART(HART);
     // Stage 4 - Memory access
     //
     MemoryAccessUnit memoryAccessUnit <- mkMemoryAccessUnit(
-        regToReadOnly(cycleCounter),
         4,
         pipelineController
     );
 
+    mkConnection(toGet(cycleCounter), memoryAccessUnit.putCycleCounter);
     mkConnection(executionUnit.getExecutedInstruction, memoryAccessUnit.putExecutedInstruction);
     mkConnection(memoryAccessUnit.getGPRBypassValue, decodeUnit.putGPRBypassValue2);
 
@@ -164,7 +164,6 @@ module mkHART(HART);
     // Stage 5 - Register Writeback
     //
     WritebackUnit writebackUnit <- mkWritebackUnit(
-        regToReadOnly(cycleCounter),
         5,
         pipelineController,
         programCounterRedirect,
@@ -172,6 +171,7 @@ module mkHART(HART);
         exceptionController
     );
 
+    mkConnection(toGet(cycleCounter), writebackUnit.putCycleCounter);
     mkConnection(memoryAccessUnit.getExecutedInstruction, writebackUnit.putExecutedInstruction);
 
     //
@@ -294,9 +294,6 @@ module mkHART(HART);
         exceptionController.csrFile.increment_cycle_counter;
     endrule
 
-    interface TileLinkLiteWordClient instructionMemoryClient = fetchUnit.instructionMemoryClient;
-    interface TileLinkLiteWordClient dataMemoryClient = memoryAccessUnit.dataMemoryClient;
-
     method Action start;
         if (hartState == RESET) begin
             stateTransitionQueue.enq(STARTING);
@@ -306,6 +303,9 @@ module mkHART(HART);
     method HARTState state;
         return hartState;
     endmethod
+
+    interface TileLinkLiteWordClient instructionMemoryClient = fetchUnit.instructionMemoryClient;
+    interface TileLinkLiteWordClient dataMemoryClient = memoryAccessUnit.dataMemoryClient;
 
     interface Put putInitialProgramCounter = toPut(asIfc(programCounter));
     interface Put putPipeliningDisabled = toPut(asIfc(forcePipeliningDisabled));

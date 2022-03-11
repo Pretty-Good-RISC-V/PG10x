@@ -24,6 +24,8 @@ import SpecialFIFOs::*;
 export ExecutionUnit(..), mkExecutionUnit;
 
 interface ExecutionUnit;
+    interface Put#(Word64) putCycleCounter;
+
     interface Put#(DecodedInstruction) putDecodedInstruction;
     interface Get#(ExecutedInstruction) getExecutedInstruction;
 
@@ -33,12 +35,12 @@ interface ExecutionUnit;
 endinterface
 
 module mkExecutionUnit#(
-    ReadOnly#(Word64) cycleCounter,
     Integer stageNumber,
     PipelineController pipelineController,
     ProgramCounterRedirect programCounterRedirect,
     ExceptionController exceptionController
 )(ExecutionUnit);
+    Wire#(Word64) cycleCounter <- mkBypassWire;
     FIFO#(ExecutedInstruction) outputQueue <- mkPipelineFIFO;
     RWire#(Maybe#(GPRBypassValue)) gprBypassValue <- mkRWire();
     Reg#(Bool) halt <- mkReg(False);
@@ -440,6 +442,7 @@ module mkExecutionUnit#(
         endmethod
     endinterface
 
+    interface Put putCycleCounter = toPut(asIfc(cycleCounter));
     interface Get getExecutedInstruction = toGet(outputQueue);
     interface Get getGPRBypassValue = toGet(gprBypassValue);
     interface Put putHalt = toPut(asIfc(halt));

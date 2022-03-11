@@ -20,6 +20,8 @@ import SpecialFIFOs::*;
 export DecodeUnit(..), mkDecodeUnit;
 
 interface DecodeUnit;
+    interface Put#(Word64) putCycleCounter;
+
     interface Put#(EncodedInstruction) putEncodedInstruction;
     interface Get#(DecodedInstruction) getDecodedInstruction;
 
@@ -28,11 +30,11 @@ interface DecodeUnit;
 endinterface
 
 module mkDecodeUnit#(
-    ReadOnly#(Word64) cycleCounter,
     Integer stageNumber,
     PipelineController pipelineController,
     GPRFile gprFile
 )(DecodeUnit);
+    Wire#(Word64) cycleCounter <- mkBypassWire;
     GPRBypassUnit gprBypassUnit1 <- mkGPRBypassUnit(gprFile);
     GPRBypassUnit gprBypassUnit2 <- mkGPRBypassUnit(gprFile);
 
@@ -394,6 +396,7 @@ module mkDecodeUnit#(
         endmethod
     endinterface
 
+    interface Put putCycleCounter = toPut(asIfc(cycleCounter));
     interface Get getDecodedInstruction = toGet(outputQueue);
     interface Put putGPRBypassValue1 = gprBypassUnit1.putGPRBypassValue;
     interface Put putGPRBypassValue2 = gprBypassUnit2.putGPRBypassValue;

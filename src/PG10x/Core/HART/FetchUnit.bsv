@@ -26,6 +26,7 @@ typedef struct {
 } FetchInfo deriving(Bits, Eq, FShow);
 
 interface FetchUnit;
+    interface Put#(Word64) putCycleCounter;
     interface Get#(EncodedInstruction) getEncodedInstruction;
 
     interface TileLinkLiteWordClient#(XLEN) instructionMemoryClient;
@@ -34,11 +35,12 @@ interface FetchUnit;
 endinterface
 
 module mkFetchUnit#(
-    ReadOnly#(Word64) cycleCounter,
     Integer stageNumber,
     Reg#(ProgramCounter) programCounter,
     ProgramCounterRedirect programCounterRedirect
 )(FetchUnit);
+    Wire#(Word64) cycleCounter <- mkBypassWire();
+
     Reg#(Bool) fetchEnabled <- mkReg(False);
     Reg#(Word) fetchCounter <- mkReg(0);
     Reg#(PipelineEpoch) currentEpoch <- mkReg(0);
@@ -135,6 +137,7 @@ module mkFetchUnit#(
         waitingForMemoryResponse <= False;
     endrule
 
+    interface Put putCycleCounter = toPut(asIfc(cycleCounter));
     interface Get getEncodedInstruction = toGet(outputQueue);
     interface TileLinkLiteWordClient instructionMemoryClient = toGPClient(instructionMemoryRequests, instructionMemoryResponses);
     interface Put putFetchEnabled = toPut(asIfc(fetchEnabled));
