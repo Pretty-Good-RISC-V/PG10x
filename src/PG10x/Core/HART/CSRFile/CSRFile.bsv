@@ -1,10 +1,11 @@
 import PGTypes::*;
 
+import DebugRegisters::*;
 import Exception::*;
 import MachineInformation::*;
 import MachineStatus::*;
 import MachineTraps::*;
-import RegUtil::*;
+import ReadOnly::*;
 
 import Assert::*;
 
@@ -43,12 +44,12 @@ module mkCSRFile(CSRFile);
     Reg#(Word64)    instructionsRetiredCounter  <- mkReg(0);
 
     Reg#(Word)      mcycle      <- mkReg(0);
-    Reg#(Word)      mtimer      = readOnlyReg(truncate(timeCounter));
-    Reg#(Word)      minstret    = readOnlyReg(truncate(instructionsRetiredCounter));
+    ReadOnly#(Word) mtimer      <- mkReadOnly(truncate(timeCounter));
+    ReadOnly#(Word) minstret    <- mkReadOnly(truncate(instructionsRetiredCounter));
 `ifdef RV32
-    Reg#(Word)      mcycleh     = readOnlyReg(truncateLSB(cycleCounter));
-    Reg#(Word)      mtimeh      = readOnlyReg(truncateLSB(timeCounter));
-    Reg#(Word)      minstreth   = readOnlyReg(truncateLSB(instructionsRetiredCounter));
+    ReadOnly#(Word) mcycleh     <- mkReadOnly(truncateLSB(cycleCounter));
+    ReadOnly#(Word) mtimeh      <- mkReadOnly(truncateLSB(timeCounter));
+    ReadOnly#(Word) minstreth   <- mkReadOnly(truncateLSB(instructionsRetiredCounter));
 `endif
     Reg#(Word)      mcause[2]   <- mkCReg(2, 0);
     Reg#(Word)      mtvec[2]    <- mkCReg(2, 'hC0DEC0DE);

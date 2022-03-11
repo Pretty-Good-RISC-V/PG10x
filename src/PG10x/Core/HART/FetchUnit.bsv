@@ -29,24 +29,27 @@ interface FetchUnit;
     interface Get#(EncodedInstruction) getEncodedInstruction;
 
     interface TileLinkLiteWordClient#(XLEN) instructionMemoryClient;
+
+    interface Put#(Bool) putFetchEnabled;
 endinterface
 
 module mkFetchUnit#(
-    Reg#(Word64) cycleCounter,
+    ReadOnly#(Word64) cycleCounter,
     Integer stageNumber,
-    ProgramCounter initialProgramCounter,
-    ProgramCounterRedirect programCounterRedirect,
-    Reg#(Bool) fetchEnabled
+    Reg#(ProgramCounter) programCounter,
+    ProgramCounterRedirect programCounterRedirect
 )(FetchUnit);
+    Reg#(Bool) fetchEnabled <- mkReg(False);
     Reg#(Word) fetchCounter <- mkReg(0);
-    Reg#(ProgramCounter) programCounter[2] <- mkCReg(2, initialProgramCounter);
-    FIFO#(EncodedInstruction) outputQueue <- mkPipelineFIFO;
     Reg#(PipelineEpoch) currentEpoch <- mkReg(0);
+    Reg#(Bool) waitingForMemoryResponse <- mkReg(False);
 
     FIFO#(FetchInfo) fetchInfoQueue <- mkPipelineFIFO; // holds the fetch info for the current instruction request
 
     FIFO#(TileLinkLiteWordRequest#(XLEN)) instructionMemoryRequests <- mkFIFO;
     FIFO#(TileLinkLiteWordResponse#(XLEN)) instructionMemoryResponses <- mkFIFO;
+
+    FIFO#(EncodedInstruction) outputQueue <- mkPipelineFIFO;
 
 `ifdef DISABLE_BRANCH_PREDICTOR
     BranchPredictor branchPredictor <- mkNullBranchPredictor;
@@ -55,15 +58,15 @@ module mkFetchUnit#(
 `endif
 
     (* fire_when_enabled *)
-    rule sendFetchRequest(fetchEnabled == True);
+    rule sendFetchRequest(fetchEnabled == True && !waitingForMemoryResponse);
         // Get the current program counter from the 'fetchProgramCounter' register, if the 
         // program counter redirect has a value, move that into the program counter and
         // increment the epoch.
-        let fetchProgramCounter = programCounter[1];
+        let fetchProgramCounter = programCounter;
         let fetchEpoch = currentEpoch;
         let redirectedProgramCounter <- programCounterRedirect.getRedirectedProgramCounter;
-        if (isValid(redirectedProgramCounter)) begin
-            fetchProgramCounter = fromMaybe(?, redirectedProgramCounter);
+        if (redirectedProgramCounter matches tagged Valid .rpc) begin 
+            fetchProgramCounter = rpc;
 
             fetchEpoch = fetchEpoch + 1;
             currentEpoch <= fetchEpoch;
@@ -90,11 +93,12 @@ module mkFetchUnit#(
             index: fetchCounter
         });
 
+        waitingForMemoryResponse <= True;
         fetchCounter <= fetchCounter + 1;
     endrule
 
     (* fire_when_enabled *)
-    rule handleFetchResponse;
+    rule handleFetchResponse(waitingForMemoryResponse);
         let fetchResponse = instructionMemoryResponses.first;
         instructionMemoryResponses.deq;
 
@@ -116,7 +120,7 @@ module mkFetchUnit#(
             // Predict what the next program counter will be
             let predictedNextProgramCounter = branchPredictor.predictNextProgramCounter(fetchInfo.address, fetchResponse.d_data[31:0]);
             $display("%0d,%0d,%0d,%0x,%0d,fetch receive,predicted next instruction=$%x", fetchInfo.index, cycleCounter, fetchInfo.epoch, fetchInfo.address, stageNumber, predictedNextProgramCounter);
-            programCounter[0] <= predictedNextProgramCounter;
+            programCounter <= predictedNextProgramCounter;
 
             // Tell the decode stage what the program counter for the insruction it'll receive.
             outputQueue.enq(EncodedInstruction {
@@ -127,10 +131,17 @@ module mkFetchUnit#(
                 rawInstruction: fetchResponse.d_data[31:0]
             });
         end
+
+        waitingForMemoryResponse <= False;
     endrule
 
     interface Get getEncodedInstruction = toGet(outputQueue);
 
     interface TileLinkLiteWordClient instructionMemoryClient = toGPClient(instructionMemoryRequests, instructionMemoryResponses);
 
+    interface Put putFetchEnabled;
+        method Action put(Bool value);
+            fetchEnabled <= value;
+        endmethod
+    endinterface
 endmodule

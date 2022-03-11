@@ -29,7 +29,7 @@ interface WritebackUnit;
 endinterface
 
 module mkWritebackUnit#(
-    Reg#(Word64) cycleCounter,
+    ReadOnly#(Word64) cycleCounter,
     Integer stageNumber,
     PipelineController pipelineController,
     ProgramCounterRedirect programCounterRedirect,

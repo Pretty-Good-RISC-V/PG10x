@@ -28,18 +28,20 @@ interface ExecutionUnit;
     interface Get#(ExecutedInstruction) getExecutedInstruction;
 
     interface Get#(Maybe#(GPRBypassValue)) getGPRBypassValue;
+
+    interface Put#(Bool) putHalt;
 endinterface
 
 module mkExecutionUnit#(
-    Reg#(Word64) cycleCounter,
+    ReadOnly#(Word64) cycleCounter,
     Integer stageNumber,
     PipelineController pipelineController,
     ProgramCounterRedirect programCounterRedirect,
-    ExceptionController exceptionController,
-    Reg#(Bool) halt
+    ExceptionController exceptionController
 )(ExecutionUnit);
     FIFO#(ExecutedInstruction) outputQueue <- mkPipelineFIFO;
     RWire#(Maybe#(GPRBypassValue)) gprBypassValue <- mkRWire();
+    Reg#(Bool) halt <- mkReg(False);
 
     ALU alu <- mkALU;
 
@@ -441,4 +443,10 @@ module mkExecutionUnit#(
     interface Get getExecutedInstruction = toGet(outputQueue);
 
     interface Get getGPRBypassValue = toGet(gprBypassValue);
+
+    interface Put putHalt;
+        method Action put(Bool value);
+            halt <= value;
+        endmethod
+    endinterface
 endmodule

@@ -3,6 +3,7 @@ import InstructionCache::*;
 
 interface PG10xCore;
     interface TileLinkLiteWordClient#(XLEN) systemBusClient;
+    interface Debug debug;
 endinterface
 
 module mkPG10xCore#(
@@ -32,4 +33,5 @@ module mkPG10xCore#(
     mkConnection(icache.cpuInterface, core.instructionMemoryClient);
 
     interface TileLinkLiteWordClient systemBusClient = toGPClient(systemBusRequests, systemBusResponses);
+    interface Debug debug = hart.debug;
 endmodule

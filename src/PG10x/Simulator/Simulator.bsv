@@ -1,6 +1,8 @@
 import PGTypes::*;
-import ProgramMemoryTile::*;
+import DebugModule::*;
 import MemorySystem::*;
+import ProgramMemoryTile::*;
+import ReadOnly::*;
 
 import Connectable::*;
 import RegFile::*;
@@ -15,22 +17,22 @@ module mkSimulator(Empty);
     let memoryBaseAddress = 'h80000000;
     MemorySystem memorySystem <- mkMemorySystem(memory, memoryBaseAddress);
 
-    // HART
-    HART hart <- mkHART(
-        'h8000_0000, 
-`ifdef MONITOR_TOHOST_ADDRESS
-        'h8000_1000,
-`endif
+    ReadOnly#(Maybe#(Word)) toHostAddress <- mkReadOnly(tagged Valid 'h8000_1000);
+    ReadOnly#(Word) initialProgramCounter <- mkReadOnly('h8000_0000);
 
 `ifdef DISABLE_PIPELINING
-        True
+    ReadOnly#(Bool) enablePipelining <- mkReadOnly(False);
 `else
-        False
+    ReadOnly#(Bool) enablePipelining <- mkReadOnly(True);
 `endif
-    );
+
+    // HART
+    HART hart <- mkHART();
 
     mkConnection(memorySystem.instructionMemoryServer, hart.instructionMemoryClient);
     mkConnection(memorySystem.dataMemoryServer, hart.dataMemoryClient);
+
+    mkConnection(toGet(toHostAddress), hart.putToHostAddress);
 
     Reg#(Bool) initialized <- mkReg(False);
 
@@ -46,6 +48,8 @@ module mkSimulator(Empty);
         $display("RG-100 Simulator");
 `endif
         $display("----------------");
+
+        Bool breakOnStart <- $test$plusargs("debug");
 
         hart.start;
     endrule

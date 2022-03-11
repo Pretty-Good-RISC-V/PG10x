@@ -30,21 +30,18 @@ interface MemoryAccessUnit;
     interface TileLinkLiteWordClient#(XLEN) dataMemoryClient;
 
     interface Get#(Maybe#(GPRBypassValue)) getGPRBypassValue;
+    interface Put#(Maybe#(Word)) putToHostAddress;
 endinterface
 
 module mkMemoryAccessUnit#(
-    Reg#(Word64) cycleCounter,
+    ReadOnly#(Word64) cycleCounter,
     Integer stageNumber,
-`ifdef MONITOR_TOHOST_ADDRESS
-    PipelineController pipelineController,
-    Word toHostAddress
-`else
     PipelineController pipelineController
-`endif
 )(MemoryAccessUnit);
     FIFO#(ExecutedInstruction) outputQueue <- mkPipelineFIFO;
     Reg#(Bool) waitingForLoadToComplete <- mkReg(False);
     Reg#(Bool) waitingForStoreResponse <- mkReg(False);
+    Reg#(Maybe#(Word)) toHostAddress <- mkReg(tagged Invalid);
 
     Reg#(ExecutedInstruction) instructionWaitingForMemoryOperation <- mkRegU;
     FIFO#(TileLinkLiteWordRequest#(XLEN)) dataMemoryRequests <- mkFIFO;
@@ -194,15 +191,13 @@ module mkMemoryAccessUnit#(
                     end
                 end else if (executedInstruction.storeRequest matches tagged Valid .storeRequest) begin
                     $display("%0d,%0d,%0d,%0x,%0d,memory access,Storing to $0x", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, storeRequest.tlRequest.a_address);
-`ifdef MONITOR_TOHOST_ADDRESS
-                    if (storeRequest.tlRequest.a_address == toHostAddress) begin
+                    if (toHostAddress matches tagged Valid .tha &&& tha == storeRequest.tlRequest.a_address) begin
                         let test_num = (storeRequest.tlRequest.a_data >> 1);
                         if (test_num == 0) $display ("    PASS");
                         else               $display ("    FAIL <test_%0d>", test_num);
 
                         $finish();
                     end
-`endif
                     dataMemoryRequests.enq(storeRequest.tlRequest);
                     waitingForStoreResponse <= True;
                 end else begin
@@ -217,4 +212,9 @@ module mkMemoryAccessUnit#(
     interface Get getExecutedInstruction = toGet(outputQueue);
     interface TileLinkLiteWordClient dataMemoryClient = toGPClient(dataMemoryRequests, dataMemoryResponses);
     interface Get getGPRBypassValue = toGet(gprBypassValue);
+    interface Put putToHostAddress;
+        method Action put(Maybe#(Word) value);
+            toHostAddress <= value;
+        endmethod
+    endinterface
 endmodule

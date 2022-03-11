@@ -28,7 +28,7 @@ interface DecodeUnit;
 endinterface
 
 module mkDecodeUnit#(
-    Reg#(Word64) cycleCounter,
+    ReadOnly#(Word64) cycleCounter,
     Integer stageNumber,
     PipelineController pipelineController,
     GPRFile gprFile

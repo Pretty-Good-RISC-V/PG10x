@@ -15,6 +15,7 @@ import WritebackUnit::*;
 import Connectable::*;
 import FIFO::*;
 import FIFOF::*;
+import GetPut::*;
 import SpecialFIFOs::*;
 
 // ================================================================
@@ -25,12 +26,14 @@ export HARTState(..), HART (..), mkHART;
 // HARTState - roughy follows the RISC-V debug spec for hart states.
 //
 typedef enum {
-    RESET,          // -> STARTING
-    STARTING,       // -> RUNNING
-    RUNNING,        // -> HALTING
+    RESET,          // -> STARTING, -> HALTING
+    STARTING,       // -> RUNNING,
+    RUNNING,        // -> HALTING, -> QUITTING
     HALTING,        // -> HALTED
-    HALTED,         // -> RESUMING
-    RESUMING        // -> RUNNING
+    HALTED,         // -> RESUMING, -> STEPPING, -> QUITTING
+    RESUMING,       // -> RUNNING
+    STEPPING,       // -> HALTED
+    QUITTING
 } HARTState deriving(Bits, Eq, FShow);
 
 interface HART;
@@ -39,6 +42,10 @@ interface HART;
 
     interface TileLinkLiteWordClient#(XLEN) instructionMemoryClient;
     interface TileLinkLiteWordClient#(XLEN) dataMemoryClient;
+
+    interface Put#(ProgramCounter) putInitialProgramCounter;
+    interface Put#(Bool) putPipeliningDisabled;
+    interface Put#(Maybe#(Word)) putToHostAddress;
 
     interface Debug debug;
 endinterface
@@ -56,13 +63,11 @@ endinterface
 // 5. Write Back
 //      - In this stage, computed/fetched values are written back to the register file present in the instruction.
 //
-module mkHART#(
-    ProgramCounter initialProgramCounter,
-`ifdef MONITOR_TOHOST_ADDRESS
-    Word toHostAddress,
-`endif
-    Bool disablePipelining
-)(HART);
+module mkHART(HART);
+    Reg#(Bool) forcePipeliningDisabled <- mkReg(False); // External pipeline control
+    Reg#(Bool) pipeliningDisabled <- mkReg(False);      // Internal pipeline enable/disable
+    Reg#(Maybe#(Word)) toHostAddress <- mkReg(tagged Invalid);
+
     //
     // HARTState
     //
@@ -99,22 +104,28 @@ module mkHART#(
     ProgramCounterRedirect programCounterRedirect <- mkProgramCounterRedirect;
 
     //
+    // Program Counter
+    //
+    Reg#(ProgramCounter) programCounter <- mkReg('h8000_0000);
+
+    //
     // Stage 1 - Instruction fetch
     //
     Reg#(Bool) fetchEnabled <- mkReg(False);
     FetchUnit fetchUnit <- mkFetchUnit(
-        cycleCounter,
+        regToReadOnly(cycleCounter),
         1,  // stage number
-        initialProgramCounter,
-        programCounterRedirect,
-        fetchEnabled
+        programCounter,
+        programCounterRedirect
     );
+
+    mkConnection(toGet(fetchEnabled), fetchUnit.putFetchEnabled);
 
     //
     // Stage 2 - Instruction Decode
     //
     DecodeUnit decodeUnit <- mkDecodeUnit(
-        cycleCounter,
+        regToReadOnly(cycleCounter),
         2,  // stage number
         pipelineController,
         gprFile
@@ -126,37 +137,34 @@ module mkHART#(
     // Stage 3 - Instruction execution
     //
     ExecutionUnit executionUnit <- mkExecutionUnit(
-        cycleCounter,
+        regToReadOnly(cycleCounter),
         3,  // stage number
         pipelineController,
         programCounterRedirect,
-        exceptionController,
-        halt
+        exceptionController
     );
 
     mkConnection(decodeUnit.getDecodedInstruction, executionUnit.putDecodedInstruction);
+    mkConnection(executionUnit.getGPRBypassValue, decodeUnit.putGPRBypassValue1);
+    mkConnection(toGet(halt), executionUnit.putHalt);
 
     //
     // Stage 4 - Memory access
     //
     MemoryAccessUnit memoryAccessUnit <- mkMemoryAccessUnit(
-        cycleCounter,
+        regToReadOnly(cycleCounter),
         4,
-`ifdef MONITOR_TOHOST_ADDRESS
-        pipelineController,
-        toHostAddress
-`else
         pipelineController
-`endif
     );
 
     mkConnection(executionUnit.getExecutedInstruction, memoryAccessUnit.putExecutedInstruction);
+    mkConnection(memoryAccessUnit.getGPRBypassValue, decodeUnit.putGPRBypassValue2);
 
     // 
     // Stage 5 - Register Writeback
     //
     WritebackUnit writebackUnit <- mkWritebackUnit(
-        cycleCounter,
+        regToReadOnly(cycleCounter),
         5,
         pipelineController,
         programCounterRedirect,
@@ -167,27 +175,47 @@ module mkHART#(
     mkConnection(memoryAccessUnit.getExecutedInstruction, writebackUnit.putExecutedInstruction);
 
     //
-    // GPR Bypasses
-    //
-    mkConnection(executionUnit.getGPRBypassValue, decodeUnit.putGPRBypassValue1);
-    mkConnection(memoryAccessUnit.getGPRBypassValue, decodeUnit.putGPRBypassValue2);
-
-    //
     // State handlers
     //
-    // RESET,          // -> STARTING
-    // STARTING,       // -> RUNNING
-    // RUNNING,        // -> HALTING
-    // HALTING,        // -> HALTED
-    // HALTED,         // -> RESUMING
-    // RESUMING        // -> RUNNING
-    //
     FIFO#(HARTState) stateTransitionQueue <- mkFIFO;
+    Reg#(Bit#(8)) haltDelay <- mkRegU();
+    function Action changeState(HARTState newState);
+        action
+        // Ensure transition is valid
+        let transitionAllowed = False;
+        case (newState)
+            STARTING: if (hartState == RESET) transitionAllowed = True;
+            RUNNING:  if (hartState == STARTING || hartState == RESUMING) transitionAllowed = True;
+            HALTING:  begin
+                if (hartState == RUNNING || hartState == RESET) begin
+                    transitionAllowed = True;
+                    haltDelay <= 10;
+                end
+            end
+            HALTED:   if (hartState == HALTING || hartState == STEPPING) transitionAllowed = True;
+            RESUMING: if (hartState == HALTED) transitionAllowed = True;
+            STEPPING: if (hartState == HALTED) transitionAllowed = True;
+        endcase
 
+        if (transitionAllowed) begin
+            stateTransitionQueue.enq(newState);
+        end else begin
+            $display("Invalid state transition requested: ", fshow(hartState), " -> ", fshow(newState));
+            $fatal();
+        end
+        endaction
+    endfunction
+
+    //
+    // STARTING
+    //
     rule handleStartingState(hartState == STARTING);
-        stateTransitionQueue.enq(RUNNING);
+        changeState(RUNNING);
     endrule
 
+    //
+    // RUNNING
+    //
     Reg#(Bool) firstRun <- mkReg(True);
     rule handleRunningState(hartState == RUNNING);
         if (firstRun) begin
@@ -197,7 +225,7 @@ module mkHART#(
             firstRun <= False;
         end
 
-        if (disablePipelining && !firstRun) begin
+        if ((forcePipeliningDisabled || pipeliningDisabled) && !firstRun) begin
             let wasRetired = writebackUnit.wasInstructionRetired;
             if (wasRetired) begin
                 fetchEnabled <= True;
@@ -207,17 +235,49 @@ module mkHART#(
         end
     endrule
 
+    //
+    // HALTING
+    //
     rule handleHaltingState(hartState == HALTING);
-        stateTransitionQueue.enq(HALTED);
+        fetchEnabled <= False;
+        pipeliningDisabled <= True;
+
+        // Wait for the pipeline to flush
+        if (haltDelay > 0) begin
+            haltDelay <= haltDelay - 1;
+        end else begin
+            changeState(HALTED);
+        end
     endrule
 
-    rule handleHaltedState(hartState == HALTED);
+    //
+    // HALTED
+    //
+    // rule handleHaltedState(hartState == HALTED);
+    // endrule
+
+    //
+    // RESUMING
+    //
+    rule handleResumingState(hartState == RESUMING);
+        fetchEnabled <= True;
+        pipeliningDisabled <= False;
+        changeState(RUNNING);
+    endrule
+
+    //
+    // STEPPING
+    //
+    rule handleSteppingState(hartState == STEPPING);
+        fetchEnabled <= True;   // For a single cycle
+        changeState(HALTING);
+    endrule
+    //
+    // QUITTING
+    //
+    rule handleQuittingState(hartState == QUITTING);
         $display("CPU HALTED. Cycles: %0d - Instructions retired: %0d", exceptionController.csrFile.cycle_counter, exceptionController.csrFile.instructions_retired_counter);
         $finish();
-    endrule
-
-    rule handleResumingState(hartState == RESUMING);
-        stateTransitionQueue.enq(RUNNING);
     endrule
 
     (* fire_when_enabled *)
@@ -247,6 +307,20 @@ module mkHART#(
         return hartState;
     endmethod
 
+    interface Put putInitialProgramCounter;
+        method Action put(ProgramCounter value);
+            programCounter <= value;
+        endmethod
+    endinterface
+
+    interface Put putPipeliningDisabled;
+        method Action put(Bool value);
+            forcePipeliningDisabled <= value;
+        endmethod
+    endinterface
+
+    interface Put putToHostAddress = memoryAccessUnit.putToHostAddress;
+
     interface Debug debug;
         method Word readGPR(RVGPRIndex idx);
             return 0;
@@ -263,12 +337,15 @@ module mkHART#(
         endmethod
 
         method Action halt();
+            changeState(HALTING);
         endmethod
 
         method Action resume();
+            changeState(RESUMING);
         endmethod
 
         method Action step();
+            changeState(STEPPING);
         endmethod
     endinterface
 endmodule

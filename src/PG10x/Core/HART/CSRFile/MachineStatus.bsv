@@ -1,5 +1,5 @@
 import PGTypes::*;
-import RegUtil::*;
+import ReadOnly::*;
 
 export MachineStatus(..), mkMachineStatusRegister;
 
@@ -33,29 +33,29 @@ interface MachineStatus;
 endinterface
 
 module mkMachineStatusRegister(MachineStatus);
-    Reg#(Bit#(1)) sie           <- mkReadOnlyReg(0);            // Supervisor Interrupt Enable
-    Reg#(Bit#(1)) mie           <- mkReg(0);                    // Machine Interrupt Enable
-    Reg#(Bit#(1)) spie          <- mkReadOnlyReg(0);            // Supervisor Mode Interupts Enabled During Trap
-    Reg#(Bit#(1)) ube           <- mkReadOnlyReg(0);            // User Mode Data Accesses are Big Endian
-    Reg#(Bit#(1)) mpie          <- mkReg(0);                    // Machine Mode Interrupts Enabled During Trap
-    Reg#(Bit#(1)) spp           <- mkReadOnlyReg(0);            // Supervisor Previous Privilege Mode
-    Reg#(FSVSState) vs          <- mkReadOnlyReg(fsvs_OFF);     // Vector Extension State
-    Reg#(RVPrivilegeLevel) mpp  <- mkReadOnlyReg(priv_MACHINE); // Machine Previous Privilege Level
-    Reg#(FSVSState) fs          <- mkReadOnlyReg(fsvs_OFF);     // Floating Point Status
-    Reg#(XSState) xs            <- mkReadOnlyReg(xs_ALL_OFF);   // User Mode Extension Status
-    Reg#(Bit#(1)) mprv          <- mkReadOnlyReg(0);            // Modify Privilege Mode For Loads/Stores
-    Reg#(Bit#(1)) sum           <- mkReadOnlyReg(0);            // Permit Supervisor User Memory Access
-    Reg#(Bit#(1)) mxr           <- mkReadOnlyReg(0);            // Make Executable Pages Readable
-    Reg#(Bit#(1)) tvm           <- mkReadOnlyReg(0);            // Trap Virtual Memory Management Accesses
-    Reg#(Bit#(1)) tw            <- mkReadOnlyReg(0);            // Timeout-Wait
-    Reg#(Bit#(1)) tsr           <- mkReadOnlyReg(0);            // Trap SRET Instruction
+    ReadOnly#(Bit#(1)) sie          <- mkReadOnly(0);            // Supervisor Interrupt Enable
+    Reg#(Bit#(1)) mie               <- mkReg(0);                 // Machine Interrupt Enable
+    ReadOnly#(Bit#(1)) spie         <- mkReadOnly(0);            // Supervisor Mode Interupts Enabled During Trap
+    ReadOnly#(Bit#(1)) ube          <- mkReadOnly(0);            // User Mode Data Accesses are Big Endian
+    Reg#(Bit#(1)) mpie              <- mkReg(0);                 // Machine Mode Interrupts Enabled During Trap
+    ReadOnly#(Bit#(1)) spp          <- mkReadOnly(0);            // Supervisor Previous Privilege Mode
+    ReadOnly#(FSVSState) vs         <- mkReadOnly(fsvs_OFF);     // Vector Extension State
+    ReadOnly#(RVPrivilegeLevel) mpp <- mkReadOnly(priv_MACHINE); // Machine Previous Privilege Level
+    ReadOnly#(FSVSState) fs         <- mkReadOnly(fsvs_OFF);     // Floating Point Status
+    ReadOnly#(XSState) xs           <- mkReadOnly(xs_ALL_OFF);   // User Mode Extension Status
+    ReadOnly#(Bit#(1)) mprv         <- mkReadOnly(0);            // Modify Privilege Mode For Loads/Stores
+    ReadOnly#(Bit#(1)) sum          <- mkReadOnly(0);            // Permit Supervisor User Memory Access
+    ReadOnly#(Bit#(1)) mxr          <- mkReadOnly(0);            // Make Executable Pages Readable
+    ReadOnly#(Bit#(1)) tvm          <- mkReadOnly(0);            // Trap Virtual Memory Management Accesses
+    ReadOnly#(Bit#(1)) tw           <- mkReadOnly(0);            // Timeout-Wait
+    ReadOnly#(Bit#(1)) tsr          <- mkReadOnly(0);            // Trap SRET Instruction
 
 `ifdef RV64
-    Reg#(XLENEncoding) uxl      <- mkReadOnlyReg(xlen_64);      // User Mode XLEN value
-    Reg#(XLENEncoding) sxl      <- mkReadOnlyReg(xlen_64);      // Supervisor Mode XLEN value
+    ReadOnly#(XLENEncoding) uxl     <- mkReadOnly(xlen_64);      // User Mode XLEN value
+    ReadOnly#(XLENEncoding) sxl     <- mkReadOnly(xlen_64);      // Supervisor Mode XLEN value
 `endif
-    Reg#(Bit#(1)) sbe           <- mkReadOnlyReg(0);            // Supervisor Mode Data Accesses are Big Endian
-    Reg#(Bit#(1)) mbe           <- mkReadOnlyReg(0);            // Machine Mode Data Accesses are Big Endian
+    ReadOnly#(Bit#(1)) sbe          <- mkReadOnly(0);            // Supervisor Mode Data Accesses are Big Endian
+    ReadOnly#(Bit#(1)) mbe          <- mkReadOnly(0);            // Machine Mode Data Accesses are Big Endian
 
     method Bool machineModeInterruptsEnabled;
         return unpack(mie);
