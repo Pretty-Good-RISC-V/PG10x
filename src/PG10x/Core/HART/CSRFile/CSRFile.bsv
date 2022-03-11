@@ -8,8 +8,12 @@ import MachineTraps::*;
 import ReadOnly::*;
 
 import Assert::*;
+import GetPut::*;
 
 interface CSRFile;
+    interface Get#(RVPrivilegeLevel) getCurrentPrivilegeLevel;
+    interface Get#(Bool) getMachineModeInterruptsEnabled;
+
     // Generic read/write support
     method Maybe#(Word) read1(RVCSRIndex index);
     method Maybe#(Word) read2(RVCSRIndex index);
@@ -23,10 +27,6 @@ interface CSRFile;
     method ActionValue#(Bool) writeWithOffset1(RVCSRIndexOffset offset, Word value);
     method ActionValue#(Bool) writeWithOffset2(RVCSRIndexOffset offset, Word value);
 
-    method Bool machineModeInterruptsEnabled;
-
-    method RVPrivilegeLevel getCurrentPrivilegeLevel;
-
     // Special purpose
     method Word64 cycle_counter;
     method Action increment_cycle_counter;
@@ -35,9 +35,9 @@ interface CSRFile;
 endinterface
 
 module mkCSRFile(CSRFile);
-    MachineInformation machineInformation <- mkMachineInformationRegisters(0, 0, 0, 0, 0);
-    MachineStatus   machineStatus <- mkMachineStatusRegister;
-    MachineTraps    machineTraps <- mkMachineTrapRegisters;
+    MachineInformation  machineInformation  <- mkMachineInformationRegisters(0, 0, 0, 0, 0);
+    MachineStatus       machineStatus       <- mkMachineStatusRegister;
+    MachineTraps        machineTraps        <- mkMachineTrapRegisters;
 
     Reg#(Word64)    cycleCounter                <- mkReg(0);
     Reg#(Word64)    timeCounter                 <- mkReg(0);
@@ -57,7 +57,6 @@ module mkCSRFile(CSRFile);
     Reg#(Word)      mscratch    <- mkReg(0);
     Reg#(Word)      mip         <- mkReg(0);
     Reg#(Word)      mie         <- mkReg(0);
-
     Reg#(Word)      mtval       <- mkReg(0);
 
     Reg#(Bit#(2))   currentPrivilegeLevel     <- mkReg(priv_MACHINE);
@@ -247,14 +246,6 @@ module mkCSRFile(CSRFile);
         return result;
     endmethod
 
-    method Bool machineModeInterruptsEnabled;
-        return machineStatus.machineModeInterruptsEnabled;
-    endmethod
-
-    method RVPrivilegeLevel getCurrentPrivilegeLevel;
-        return currentPrivilegeLevel;
-    endmethod
-
     method Word64 cycle_counter;
         return cycleCounter;
     endmethod
@@ -270,4 +261,7 @@ module mkCSRFile(CSRFile);
     method Action increment_instructions_retired_counter;
         instructionsRetiredCounter <= instructionsRetiredCounter + 1;
     endmethod
+
+    interface Get getCurrentPrivilegeLevel = toGet(currentPrivilegeLevel);
+    interface Get getMachineModeInterruptsEnabled = machineStatus.getMIE;
 endmodule

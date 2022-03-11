@@ -1,6 +1,8 @@
 import PGTypes::*;
 import ReadOnly::*;
 
+import GetPut::*;
+
 export MachineStatus(..), mkMachineStatusRegister;
 
 typedef Bit#(2) XLENEncoding;
@@ -21,8 +23,6 @@ XSState xs_NONE_DIRTY_SOME_CLEAN = 2'b10;
 XSState xs_SOME_DIRTY            = 2'b11;
 
 interface MachineStatus;
-    method Bool machineModeInterruptsEnabled;
-
     method Word read;
     method Action write(Word newValue);
 
@@ -30,11 +30,13 @@ interface MachineStatus;
     method Word readh;
     method Action writeh(Word newValue);
 `endif
+
+    interface Get#(Bool) getMIE;
 endinterface
 
 module mkMachineStatusRegister(MachineStatus);
     ReadOnly#(Bit#(1)) sie          <- mkReadOnly(0);            // Supervisor Interrupt Enable
-    Reg#(Bit#(1)) mie               <- mkReg(0);                 // Machine Interrupt Enable
+    Reg#(Bool) mie                  <- mkReg(False);             // Machine Interrupt Enable
     ReadOnly#(Bit#(1)) spie         <- mkReadOnly(0);            // Supervisor Mode Interupts Enabled During Trap
     ReadOnly#(Bit#(1)) ube          <- mkReadOnly(0);            // User Mode Data Accesses are Big Endian
     Reg#(Bit#(1)) mpie              <- mkReg(0);                 // Machine Mode Interrupts Enabled During Trap
@@ -56,10 +58,6 @@ module mkMachineStatusRegister(MachineStatus);
 `endif
     ReadOnly#(Bit#(1)) sbe          <- mkReadOnly(0);            // Supervisor Mode Data Accesses are Big Endian
     ReadOnly#(Bit#(1)) mbe          <- mkReadOnly(0);            // Machine Mode Data Accesses are Big Endian
-
-    method Bool machineModeInterruptsEnabled;
-        return unpack(mie);
-    endmethod
 
 `ifdef RV64
     method Word read;
@@ -87,7 +85,7 @@ module mkMachineStatusRegister(MachineStatus);
             ube,
             spie,
             1'b0,
-            mie,
+            pack(mie),
             1'b0,
             sie,
             1'b0
@@ -115,7 +113,7 @@ module mkMachineStatusRegister(MachineStatus);
             ube,
             spie,
             1'b0,
-            mie,
+            pack(mie),
             1'b0,
             sie,
             1'b0
@@ -133,7 +131,7 @@ module mkMachineStatusRegister(MachineStatus);
 `endif
 
     method Action write(Word newValue);
-        mie <= newValue[3];
+        mie <= unpack(newValue[3]);
         mpie <= newValue[7];
     endmethod
 
@@ -142,4 +140,5 @@ module mkMachineStatusRegister(MachineStatus);
     endmethod
 `endif
 
+    interface Get getMIE = toGet(mie);
 endmodule

@@ -4,6 +4,7 @@ import CSRFile::*;
 import Exception::*;
 
 import Assert::*;
+import GetPut::*;
 
 export ExceptionController(..), mkExceptionController, CSRFile::*;
 
@@ -28,7 +29,7 @@ module mkExceptionController(ExceptionController);
 
     method ActionValue#(ProgramCounter) beginException(ProgramCounter exceptionProgramCounter, Exception exception);
         Word cause = 0;
-        let curPriv = innerCsrFile.getCurrentPrivilegeLevel;
+        let curPriv <- innerCsrFile.getCurrentPrivilegeLevel.get;
 
         case(exception.cause) matches
             tagged ExceptionCause .c: begin
@@ -76,7 +77,8 @@ module mkExceptionController(ExceptionController);
     method ActionValue#(Maybe#(Bit#(TSub#(XLEN, 1)))) getHighestPriorityInterrupt(Bool clear, Integer portNumber);
         Maybe#(Bit#(TSub#(XLEN, 1))) result = tagged Invalid;
 
-        if (innerCsrFile.machineModeInterruptsEnabled) begin
+        let machineModeInterrptsEnabled <- innerCsrFile.getMachineModeInterruptsEnabled.get;
+        if (machineModeInterrptsEnabled) begin
             let mie = fromMaybe(0, innerCsrFile.read1(csr_MIE));
             let mip = fromMaybe(0, innerCsrFile.read1(csr_MIP));
 
