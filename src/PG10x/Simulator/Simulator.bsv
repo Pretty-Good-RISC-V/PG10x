@@ -18,7 +18,6 @@ module mkSimulator(Empty);
     MemorySystem memorySystem <- mkMemorySystem(memory, memoryBaseAddress);
 
     ReadOnly#(Maybe#(Word)) toHostAddress <- mkReadOnly(tagged Valid 'h8000_1000);
-    ReadOnly#(Word) initialProgramCounter <- mkReadOnly('h8000_0000);
 
 `ifdef DISABLE_PIPELINING
     ReadOnly#(Bool) enablePipelining <- mkReadOnly(False);
@@ -27,7 +26,8 @@ module mkSimulator(Empty);
 `endif
 
     // HART
-    HART hart <- mkHART();
+    ProgramCounter initialProgramCounter = 'h8000_0000;
+    HART hart <- mkHART(initialProgramCounter);
 
     mkConnection(memorySystem.instructionMemoryServer, hart.instructionMemoryClient);
     mkConnection(memorySystem.dataMemoryServer, hart.dataMemoryClient);

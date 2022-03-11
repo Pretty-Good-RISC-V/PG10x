@@ -63,7 +63,9 @@ endinterface
 // 5. Write Back
 //      - In this stage, computed/fetched values are written back to the register file present in the instruction.
 //
-module mkHART(HART);
+module mkHART#(
+    ProgramCounter initialProgramCounter
+)(HART);
     Reg#(Bool) forcePipeliningDisabled <- mkReg(False); // External pipeline control
     Reg#(Bool) pipeliningDisabled <- mkReg(False);      // Internal pipeline enable/disable
     Reg#(Maybe#(Word)) toHostAddress <- mkReg(tagged Invalid);
@@ -106,7 +108,7 @@ module mkHART(HART);
     //
     // Program Counter
     //
-    Reg#(ProgramCounter) programCounter <- mkReg('h8000_0000);
+    Reg#(ProgramCounter) programCounter <- mkReg(initialProgramCounter);
 
     //
     // Stage 1 - Instruction fetch
