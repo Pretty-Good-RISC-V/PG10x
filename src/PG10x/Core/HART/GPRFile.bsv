@@ -4,7 +4,7 @@
 // This module contains a standard RISC-V general purpose register file with dual read ports.
 //
 import PGTypes::*;
-import Vector::*;
+import RegFile::*;
 
 interface GPRFile;
     method Word read1(RVGPRIndex index);
@@ -14,19 +14,19 @@ endinterface
 
 (* synthesize *)
 module mkGPRFile(GPRFile);
-    Vector#(32, Array#(Reg#(Word))) registers <- replicateM(mkCReg(2, 0));
+    RegFile#(RVGPRIndex, Word) regfile <- mkRegFileFull;
 
     method Word read1(RVGPRIndex index);
-        return registers[index][1];
+        return (index == 0 ? 0 : regfile.sub(index));
     endmethod
 
     method Word read2(RVGPRIndex index);
-        return registers[index][1];
+        return (index == 0 ? 0 : regfile.sub(index));
     endmethod
 
     method Action write(RVGPRIndex index, Word value);
         if (index != 0) begin
-            registers[index][0] <= value;
+            regfile.upd(index, value);
         end
     endmethod
 endmodule
