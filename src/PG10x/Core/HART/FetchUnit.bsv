@@ -28,9 +28,7 @@ typedef struct {
 interface FetchUnit;
     interface Put#(Word64) putCycleCounter;
     interface Get#(EncodedInstruction) getEncodedInstruction;
-
     interface TileLinkLiteWordClient#(XLEN) instructionMemoryClient;
-
     interface Put#(Bool) putFetchEnabled;
 endinterface
 
