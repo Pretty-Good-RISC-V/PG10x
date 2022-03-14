@@ -6,7 +6,7 @@ import ReadOnly::*;
 
 import Connectable::*;
 import RegFile::*;
-import HART::*;
+import PG10xCore::*;
 import MemorySystem::*;
 
 (* synthesize *)
@@ -27,30 +27,27 @@ module mkSimulator(Empty);
 
     // HART
     ProgramCounter initialProgramCounter = 'h8000_0000;
-    HART hart <- mkHART(initialProgramCounter);
+    PG10xCore core <- mkPG10xCore(initialProgramCounter);
 
-    mkConnection(memorySystem.instructionMemoryServer, hart.instructionMemoryClient);
-    mkConnection(memorySystem.dataMemoryServer, hart.dataMemoryClient);
-
-    mkConnection(toGet(toHostAddress), hart.putToHostAddress);
+    mkConnection(memorySystem.instructionMemoryServer, core.instructionMemoryClient);
+    mkConnection(memorySystem.dataMemoryServer, core.dataMemoryClient);
+    mkConnection(toGet(toHostAddress), core.putToHostAddress);
 
     Reg#(Bool) initialized <- mkReg(False);
 
     (* fire_when_enabled *)
-    rule initialization(initialized == False && hart.state == RESET);
+    rule initialization(initialized == False && core.getState == RESET);
         initialized <= True;
 
         $display("----------------");
 `ifdef DISABLE_PIPELINING
-        $display("RG-100 Simulator");
+        $display("PG-10x Simulator");
         $display("*Pipelining OFF*");
 `else
-        $display("RG-100 Simulator");
+        $display("PG-10x Simulator");
 `endif
         $display("----------------");
 
-        Bool breakOnStart <- $test$plusargs("debug");
-
-        hart.start;
+        core.start;
     endrule
 endmodule

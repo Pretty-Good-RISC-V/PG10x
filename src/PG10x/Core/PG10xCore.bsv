@@ -1,37 +1,52 @@
+import PGTypes::*;
+import Debug::*;
 import HART::*;
 import InstructionCache::*;
+import ReadOnly::*;
+import TileLink::*;
+
+import Connectable::*;
+import GetPut::*;
+
+export PG10xCore(..), mkPG10xCore, HART::*;
 
 interface PG10xCore;
-    interface TileLinkLiteWordClient#(XLEN) systemBusClient;
+    method Action start;
+    method HARTState getState;
+
+    interface TileLinkLiteWordClient#(XLEN) instructionMemoryClient;
+    interface TileLinkLiteWordClient#(XLEN) dataMemoryClient;
+
+    interface Put#(Bool) putPipeliningDisabled;
+    interface Put#(Maybe#(Word)) putToHostAddress;
+
     interface Debug debug;
 endinterface
 
 module mkPG10xCore#(
-    ProgramCounter initialProgramCounter,
-`ifdef MONITOR_TOHOST_ADDRESS
-    Word toHostAddress,
-`endif
-    Bool disablePipelining
+        ProgramCounter initialProgramCounter
 )(PG10xCore);
-    HART hart = mkHART(
-        initialProgramCounter,
-`ifdef MONITOR_TOHOST_ADDRESS
-        toHostAddress,
-`endif
-        disablePipelining        
-    );
-
-    InstructionCache_Configure icacheConfig = defaultValue;
-    InstructionCache icache <- mkDirectMappedInstructionCache(icacheConfig);
-
-    // 
-    // System Bus Requests/Responses
     //
-    FIFO#(TileLinkLiteWordRequests) systemBusRequests <- mkFIFO;
-    FIFO#(TileLinkLiteWordResponses) systemBusResponses <- mkFIFO;
+    // HART
+    //
+    ReadOnly#(Maybe#(Word)) toHostAddress <- mkReadOnly(tagged Valid 'h8000_1000);
 
-    mkConnection(icache.cpuInterface, core.instructionMemoryClient);
+`ifdef DISABLE_PIPELINING
+    ReadOnly#(Bool) enablePipelining <- mkReadOnly(False);
+`else
+    ReadOnly#(Bool) enablePipelining <- mkReadOnly(True);
+`endif
 
-    interface TileLinkLiteWordClient systemBusClient = toGPClient(systemBusRequests, systemBusResponses);
+    HART hart <- mkHART(initialProgramCounter);
+
+    method Action start;
+        hart.start;
+    endmethod
+
+    method HARTState getState = hart.getState;
+    interface TileLinkLiteWordClient instructionMemoryClient = hart.instructionMemoryClient;
+    interface TileLinkLiteWordClient dataMemoryClient = hart.dataMemoryClient;
+    interface Put putPipeliningDisabled = hart.putPipeliningDisabled;
+    interface Put putToHostAddress = hart.putToHostAddress;
     interface Debug debug = hart.debug;
 endmodule

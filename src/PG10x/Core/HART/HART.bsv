@@ -38,12 +38,11 @@ typedef enum {
 
 interface HART;
     method Action start;
-    method HARTState state;
+    method HARTState getState;
 
     interface TileLinkLiteWordClient#(XLEN) instructionMemoryClient;
     interface TileLinkLiteWordClient#(XLEN) dataMemoryClient;
 
-    interface Put#(ProgramCounter) putInitialProgramCounter;
     interface Put#(Bool) putPipeliningDisabled;
     interface Put#(Maybe#(Word)) putToHostAddress;
 
@@ -302,14 +301,12 @@ module mkHART#(
         end
     endmethod
 
-    method HARTState state;
+    method HARTState getState;
         return hartState;
     endmethod
 
     interface TileLinkLiteWordClient instructionMemoryClient = fetchUnit.instructionMemoryClient;
     interface TileLinkLiteWordClient dataMemoryClient = memoryAccessUnit.dataMemoryClient;
-
-    interface Put putInitialProgramCounter = toPut(asIfc(programCounter));
     interface Put putPipeliningDisabled = toPut(asIfc(forcePipeliningDisabled));
     interface Put putToHostAddress = memoryAccessUnit.putToHostAddress;
 
