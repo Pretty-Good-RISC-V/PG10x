@@ -4,63 +4,101 @@ import TileLink::*;
 import Assert::*;
 import BRAM::*;
 import FIFO::*;
+import RegFile::*;
 
-typedef Bit#(2) LineStatus;
-LineStatus status_INVALID = 2'b00;  // Line is unused.
-LineStatus status_CLEAN   = 2'b01;  // Line unchanged with respect to main memory.
-LineStatus status_DIRTY   = 2'b10;  // Line needs to be written back to main memory.
+`include "CacheTypes.bsvi"
+
+typedef 64 CACHE_LINE_BYTE_COUNT;
+typedef 64 CACHE_LINE_COUNT;
+
+typedef TLog#(CACHE_LINE_COUNT) INDEX_BIT_COUNT;
+typedef TLog#(CACHE_LINE_BYTE_COUNT) OFFSET_BIT_COUNT;
+typedef TSub#(XLEN, TAdd#(INDEX_BIT_COUNT, OFFSET_BIT_COUNT)) TAG_BIT_COUNT;
+
+typedef TSub#(XLEN, 1) TAG_HIGH_BIT;
+typedef TSub#(TAG_HIGH_BIT, TAG_BIT_COUNT) TAG_LOW_BIT;
+
+typedef TSub#(TAG_LOW_BIT, 1) INDEX_HIGH_BIT;
+typedef TSub#(INDEX_HIGH_BIT, INDEX_BIT_COUNT) INDEX_LOW_BIT;
+
+typedef TSub#(INDEX_LOW_BIT, 1) OFFSET_HIGH_BIT;
+typedef 0 OFFSET_LOW_BIT;
 
 typedef struct {
     LineStatus status;
-    Bit#(TMul#(dataBytes, 8)) data;
-    Bit#(tagBits) tag;
-} CacheLine#(type dataBytes, type tagBits) deriving(Bits, Eq, FShow);
+    Bit#(TAG_BIT_COUNT) tag;
+} CacheLineInfo deriving(Bits, Eq);
 
-typedef BRAM2Port#(Word, Bit#(TLog#(cacheLineCount))) TagBRAM2Port#(numeric type cacheLineCount);
-typedef BRAM2PortBE#(Word, Bit#(TMul#(dataByteCount, 8)), TDiv#(dataByteCount, 8)) TagBRAM2PortBE#(numeric type cacheLineCount, numeric type dataByteCount);
+// Instruction memory requests to memory are 16bit wide.
+//typedef TileLinkChannelARequest#(6, 1, XLEN, 2) TileLinkLiteWordRequest#(numeric type word_bit_size);
+//typedef TileLinkChannelDResponse#(6, 1, 1, TDiv#(word_bit_size, 8)) TileLinkLiteWordResponse#(numeric type word_bit_size);
 
 interface InstructionCache;
+    method Action reset;
     interface TileLinkLiteWordServer#(XLEN) cpuInterface;
-    interface TileLinkLiteWordClient#(XLEN) systemBusInterface;
+//    interface TileLinkLiteWordClient#(XLEN) systemBusInterface;
 endinterface
-
-`ifndef ICACHE_LINE_COUNT
-`define ICACHE_LINE_COUNT 1024
-`endif
-
-`ifndef ICACHE_LINE_SIZE
-`define ICACHE_LINE_SIZE 64
-`endif
 
 module mkDirectMappedInstructionCache(InstructionCache);
     //
-    // Tag BRAM configuration
+    // CacheInfo register file
     //
-    BRAM_Configure tagBRAMCfg = defaultValue;
-    tagBRAMCfg.memorySize = cacheLineCount;
-    tagBRAMCfg.loadFormat = None;
-
-    TagBRAM2Port#(cacheLineCount) tagMemory <- mkBRAM2Server(tagBRAMCfg);
+    RegFile#(Bit#(INDEX_BIT_COUNT), CacheLineInfo) cacheLineInfoFile <- mkRegFileFull;
 
     //
-    // Data BRAM configuration
+    // Data Memory
     //
     BRAM_Configure dataBRAMCfg = defaultValue;
-    dataBRAMCfg.memorySize = cacheLineCount;
+    dataBRAMCfg.memorySize = 2**valueOf(INDEX_BIT_COUNT);
     dataBRAMCfg.loadFormat = None;
+    BRAM2Port#(UInt#(INDEX_BIT_COUNT), Bit#(TMul#(8, TExp#(OFFSET_BIT_COUNT)))) dataMemory <- mkBRAM2Server(dataBRAMCfg);
 
-    TagBRAM2PortBE#(1024, 64) dataMemory <- mkBRAM2ServerBE(dataBRAMCfg);
-
+    //
+    // Responses
+    //
     FIFO#(TileLinkLiteWordResponse#(XLEN)) responses <- mkFIFO;
 
     function Action handleRequest(TileLinkLiteWordRequest#(XLEN) request);
         action
-            dynamicAssert(request.a_size == 2, "Instruction Cache Request must be 4 bytes"); 
+            dynamicAssert(request.a_opcode == a_GET, "Instruction cache request only supports GET opcode");
+            dynamicAssert(request.a_size == 2, "Instruction cache request must be 4 bytes"); 
 
-            // Locate the cache line
+            // Locate the relevant cache info from the incoming address.
+            let tag = request.a_address[valueOf(TAG_HIGH_BIT):valueOf(TAG_LOW_BIT)];
+            let index = request.a_address[valueOf(INDEX_HIGH_BIT):valueOf(INDEX_LOW_BIT)];
+            let offset = request.a_address[valueOf(OFFSET_HIGH_BIT):valueOf(OFFSET_LOW_BIT)];
 
+            // Check the tag of the cache line
+            let cacheLineInfo = cacheLineInfoFile.sub(index);
+
+            // See if a cache hit, otherwise, pull the data from memory
+            if (cacheLineInfo.status == status_CLEAN && cacheLineInfo.tag == tag) begin
+                // Send BRAM request to data to retrieve line
+                dataMemory.portA.request.put(BRAMRequest {
+                    write: False,
+                    responseOnWrite: ?,
+                    address: unpack(index),
+                    datain: ?
+                });
+            end else begin
+                // Send external memory request to retrieve data for cache
+
+            end
         endaction
     endfunction
+
+    rule handleBRamResponse;
+        let bramResponse = dataMemory.portA.response.get;
+    endrule
+
+    method Action reset;
+        for (Integer i = 0; i < 2**valueOf(INDEX_BIT_COUNT); i = i + 1) begin
+            cacheLineInfoFile.upd(fromInteger(i), CacheLineInfo {
+                status: status_INVALID,
+                tag: ?
+            });
+        end
+    endmethod
 
     interface TileLinkLiteWordServer cpuInterface;
         interface Get response = toGet(responses);
