@@ -24,7 +24,7 @@ interface PG10xCore;
 endinterface
 
 module mkPG10xCore#(
-        ProgramCounter initialProgramCounter
+    ProgramCounter initialProgramCounter
 )(PG10xCore);
     //
     // HART
