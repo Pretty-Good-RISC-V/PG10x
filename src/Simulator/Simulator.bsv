@@ -5,8 +5,8 @@ import ProgramMemoryTile::*;
 import ReadOnly::*;
 
 import Connectable::*;
+import Core::*;
 import RegFile::*;
-import PG10xCore::*;
 import MemorySystem::*;
 
 (* synthesize *)
@@ -27,7 +27,7 @@ module mkSimulator(Empty);
 
     // HART
     ProgramCounter initialProgramCounter = 'h8000_0000;
-    PG10xCore core <- mkPG10xCore(initialProgramCounter);
+    Core core <- mkCore(initialProgramCounter);
 
     mkConnection(memorySystem.instructionMemoryServer, core.instructionMemoryClient);
     mkConnection(memorySystem.dataMemoryServer, core.dataMemoryClient);

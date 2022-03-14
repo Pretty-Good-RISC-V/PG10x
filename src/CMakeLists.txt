@@ -1,4 +1,6 @@
 find_package(TileLink)
 find_package(RVCommon)
 
-add_subdirectory(PG10x)
+add_subdirectory(SoC)
+add_subdirectory(Simulator)
+add_subdirectory(Tiles)

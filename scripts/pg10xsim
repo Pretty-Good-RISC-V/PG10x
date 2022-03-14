@@ -76,9 +76,9 @@ if [ "$SPIKE" != "" ] && [ "$LOGFILENAME_BASE" != "" ]; then
 fi
 
 if [ "$CHECK" == "" ]; then
-    ./build/$MODEL/src/PG10x/Simulator/Simulator $MAX_CYCLES
+    ./build/$MODEL/src/Simulator/Simulator $MAX_CYCLES
 else
-    ./build/$MODEL/src/PG10x/Simulator/Simulator $MAX_CYCLES > /tmp/simoutput.txt
+    ./build/$MODEL/src/Simulator/Simulator $MAX_CYCLES > /tmp/simoutput.txt
 
     if [ "$LOGFILENAME_BASE" != "" ]; then
         cp /tmp/simoutput.txt ${LOGFILENAME_BASE%.*}.stdout.txt

@@ -8,9 +8,9 @@ import TileLink::*;
 import Connectable::*;
 import GetPut::*;
 
-export PG10xCore(..), mkPG10xCore, HART::*;
+export Core(..), mkCore, HART::*;
 
-interface PG10xCore;
+interface Core;
     method Action start;
     method HARTState getState;
 
@@ -23,9 +23,9 @@ interface PG10xCore;
     interface Debug debug;
 endinterface
 
-module mkPG10xCore#(
+module mkCore#(
     ProgramCounter initialProgramCounter
-)(PG10xCore);
+)(Core);
     //
     // HART
     //
@@ -38,13 +38,13 @@ module mkPG10xCore#(
 `endif
 
     HART hart <- mkHART(initialProgramCounter);
+    InstructionCache icache <- mkDirectMappedInstructionCache();
 
-    method Action start;
-        hart.start;
-    endmethod
+    mkConnection(icache.cpuMemoryServer, hart.instructionMemoryClient);
 
+    method Action start = hart.start;
     method HARTState getState = hart.getState;
-    interface TileLinkLiteWordClient instructionMemoryClient = hart.instructionMemoryClient;
+    interface TileLinkLiteWordClient instructionMemoryClient = icache.instructionMemoryClient;
     interface TileLinkLiteWordClient dataMemoryClient = hart.dataMemoryClient;
     interface Put putPipeliningDisabled = hart.putPipeliningDisabled;
     interface Put putToHostAddress = hart.putToHostAddress;
