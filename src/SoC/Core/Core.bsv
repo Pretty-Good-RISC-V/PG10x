@@ -1,7 +1,6 @@
 import PGTypes::*;
 import Debug::*;
 import HART::*;
-import InstructionCache::*;
 import ReadOnly::*;
 import TileLink::*;
 
@@ -38,13 +37,10 @@ module mkCore#(
 `endif
 
     HART hart <- mkHART(initialProgramCounter);
-    InstructionCache icache <- mkDirectMappedInstructionCache();
-
-    mkConnection(icache.cpuMemoryServer, hart.instructionMemoryClient);
 
     method Action start = hart.start;
     method HARTState getState = hart.getState;
-    interface TileLinkLiteWordClient instructionMemoryClient = icache.instructionMemoryClient;
+    interface TileLinkLiteWordClient instructionMemoryClient = hart.instructionMemoryClient;
     interface TileLinkLiteWordClient dataMemoryClient = hart.dataMemoryClient;
     interface Put putPipeliningDisabled = hart.putPipeliningDisabled;
     interface Put putToHostAddress = hart.putToHostAddress;
