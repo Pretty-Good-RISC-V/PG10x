@@ -3,22 +3,16 @@ import DebugModule::*;
 import MemorySystem::*;
 import ProgramMemoryTile::*;
 import ReadOnly::*;
-import SoC::*;
-import SoCMap::*;
+import SimSoCMap::*;
 
 import Connectable::*;
 import Core::*;
 import RegFile::*;
-import MemorySystem::*;
 
 (* synthesize *)
 module mkSimulator(Empty);
-    SoCMap socMap <- mkSoCMap;
-
+    SimSoCMap socMap <- mkSimSoCMap;
     ProgramMemoryTile memory <- mkProgramMemoryTile(socMap.ram0Id);
-
-    // Memory System
-    MemorySystem memorySystem <- mkMemorySystem(memory, socMap.ram0Base);
 
     ReadOnly#(Maybe#(Word)) toHostAddress <- mkReadOnly(tagged Valid 'h8000_1000);
 
@@ -32,7 +26,7 @@ module mkSimulator(Empty);
     ProgramCounter initialProgramCounter = socMap.ram0Base;
     Core core <- mkCore(initialProgramCounter);
 
-    mkConnection(memorySystem.instructionMemoryServer, core.systemMemoryBusClient);
+    mkConnection(memory.portA, core.systemMemoryBusClient);
     mkConnection(toGet(toHostAddress), core.putToHostAddress);
 
     Reg#(Bool) initialized <- mkReg(False);

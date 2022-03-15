@@ -1,5 +1,7 @@
 find_package(BlueCheck)
 
+add_subdirectory(ProgramMemory)
+
 #
 # Simulator
 #
@@ -8,9 +10,8 @@ set_target_properties(Simulator PROPERTIES LINKER_LANGUAGE BSV)
 
 target_link_libraries(Simulator 
     Core::Core
-    SoC::SoC
     RVCommon::RVCommon
-    PGTiles::PGTiles
+    ProgramMemory::ProgramMemory
 )
 
 target_compile_definitions(Simulator PUBLIC
