@@ -1,5 +1,3 @@
-add_subdirectory(Core)
-
 add_library(SoC INTERFACE)
 add_library(SoC::SoC ALIAS SoC)
 
