@@ -1,12 +1,12 @@
 import PGTypes::*;
 import DebugModule::*;
-import MemorySystem::*;
 import ProgramMemoryTile::*;
 import ReadOnly::*;
 import SimSoCMap::*;
 
 import Connectable::*;
 import Core::*;
+import GetPut::*;
 import RegFile::*;
 
 (* synthesize *)
