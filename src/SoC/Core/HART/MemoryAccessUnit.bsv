@@ -52,8 +52,7 @@ module mkMemoryAccessUnit#(
     RWire#(Maybe#(GPRBypassValue)) gprBypassValue <- mkRWire();
 
     rule handleStoreResponse(waitingForStoreResponse == True && waitingForLoadToComplete == False);
-        let memoryResponse = dataMemoryResponses.first;
-        dataMemoryResponses.deq;
+        let memoryResponse <- pop(dataMemoryResponses);
         let executedInstruction = instructionWaitingForMemoryOperation;
 
         waitingForStoreResponse <= False;
@@ -77,8 +76,7 @@ module mkMemoryAccessUnit#(
     endrule
 
     rule handleLoadResponse(waitingForLoadToComplete == True && waitingForStoreResponse == False);
-        let memoryResponse = dataMemoryResponses.first;
-        dataMemoryResponses.deq;
+        let memoryResponse <- pop(dataMemoryResponses);
         let executedInstruction = instructionWaitingForMemoryOperation;
 
         $display("[%0d:****:memory] Load completed", cycleCounter, executedInstruction.programCounter);

@@ -283,9 +283,7 @@ module mkHART#(
 
     (* fire_when_enabled *)
     rule handleStateTransition;
-        let newState = stateTransitionQueue.first;
-        stateTransitionQueue.deq;
-
+        let newState <- pop(stateTransitionQueue);
         hartState <= newState;
     endrule
 

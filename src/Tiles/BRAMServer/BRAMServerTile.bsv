@@ -40,8 +40,7 @@ module mkBRAMServerTileFromFile#(
 
     function Action handleBRAMRequest(BRAMServerBE#(Word32, Word32, 4) bramPort, Integer portNumber);
         action
-        let request = requests[portNumber].first;
-        requests[portNumber].deq;
+        let request <- pop(requests[portNumber]);
 
         let wordAddress = request.a_address >> 2;
         let aligned = (request.a_address & 3) == 0 ? True : False;
@@ -119,9 +118,7 @@ module mkBRAMServerTileFromFile#(
     interface TileLinkLiteWord32Server portA;
         interface Get response;
             method ActionValue#(TileLinkLiteWord32Response) get;
-                let response = responses[0].first;
-                responses[0].deq;
-
+                let response <- pop(responses[0]);
                 return response;
             endmethod
         endinterface
@@ -136,9 +133,7 @@ module mkBRAMServerTileFromFile#(
     interface TileLinkLiteWord32Server portB;
         interface Get response;
             method ActionValue#(TileLinkLiteWord32Response) get;
-                let response = responses[1].first;
-                responses[1].deq;
-
+                let response <- pop(responses[1]);
                 return response;
             endmethod
         endinterface

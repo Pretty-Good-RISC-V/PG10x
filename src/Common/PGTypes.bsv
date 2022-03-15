@@ -2,6 +2,8 @@ import RVCommon::*;
 import Memory::*;
 import TileLink::*;
 
+import GetPut::*;
+
 typedef Bit#(XLEN) Word;
 typedef Bit#(32) Word32;
 typedef Bit#(64) Word64;
@@ -29,6 +31,11 @@ function Bool isSuccess(Result#(success_type, error_type) result);
     end else begin
         return False;
     end
+endfunction
+
+function ActionValue#(t) pop(ifc f)
+   provisos (ToGet#(ifc, t));
+   return toGet(f).get;
 endfunction
 
 export Memory::*, RVCommon::*, PGTypes::*;

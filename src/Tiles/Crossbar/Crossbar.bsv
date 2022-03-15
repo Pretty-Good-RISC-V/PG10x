@@ -35,8 +35,7 @@ module mkCrossbar#(
 
     rule handleSystemMemoryBusRequests;
         // Get the request
-        let request = systemMemoryBusRequests.first;
-        systemMemoryBusRequests.deq;
+        let request <- pop(systemMemoryBusRequests);
 
         // Determine how to route the request
         if (request.a_address >= socMap.clintBase && request.a_address < socMap.clintEnd) begin
@@ -66,32 +65,24 @@ module mkCrossbar#(
     endrule
 
     rule handleClintResponses;
-        let response = clintResponses.first;
-        clintResponses.deq;
-
+        let response <- pop(clintResponses);
         systemMemoryBusResponses.enq(response);
     endrule
 
     rule handleUart0Responses;
-        let response = uart0Responses.first;
-        uart0Responses.deq;
-
+        let response <- pop(uart0Responses);
         systemMemoryBusResponses.enq(response);
     endrule
 
     rule handleROM0Responses;
-        let response = rom0Responses.first;
-        rom0Responses.deq;
-
+        let response <- pop(rom0Responses);
         systemMemoryBusResponses.enq(response);
     endrule
 
     (* descending_urgency = 
         "handleSystemMemoryBusRequests, handleClintResponses, handleUart0Responses, handleROM0Responses, handleRAM0Responses" *)
     rule handleRAM0Responses;
-        let response = ram0Responses.first;
-        ram0Responses.deq;
-
+        let response <- pop(ram0Responses);
         systemMemoryBusResponses.enq(response);
     endrule
 

@@ -99,11 +99,8 @@ module mkFetchUnit#(
 
     (* fire_when_enabled *)
     rule handleFetchResponse(waitingForMemoryResponse);
-        let fetchResponse = instructionMemoryResponses.first;
-        instructionMemoryResponses.deq;
-
-        let fetchInfo = fetchInfoQueue.first;
-        fetchInfoQueue.deq;
+        let fetchResponse <- pop(instructionMemoryResponses);
+        let fetchInfo <- pop(fetchInfoQueue);
 
         if (fetchResponse.d_denied) begin
             $display("%0d,%0d,%0d,%0x,%0d,fetch receive,FATAL - received access denied from memory system.", fetchInfo.index, cycleCounter, fetchInfo.epoch, fetchInfo.address, stageNumber);

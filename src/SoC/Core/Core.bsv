@@ -54,16 +54,14 @@ module mkCore#(
     FIFO#(TileLinkLiteWordResponse#(SizeOf#(TileId), SizeOf#(TileId), XLEN)) systemBusResponses <- mkFIFO;
 
     rule handleInstructionMemoryRequests;
-        let request = instructionMemoryRequests.first;
-        instructionMemoryRequests.deq;
+        let request <- pop(instructionMemoryRequests);
 
         request.a_source = 0;   // Instruction Memory
         systemBusRequests.enq(request);
     endrule
 
     rule handleDataMemoryRequests;
-        let request = dataMemoryRequests.first;
-        dataMemoryRequests.deq;
+        let request <- pop(dataMemoryRequests);
 
         request.a_source = 1;   // Data Memory
         systemBusRequests.enq(request);
@@ -71,9 +69,8 @@ module mkCore#(
 
     (* descending_urgency = "handleInstructionMemoryRequests, handleDataMemoryRequests" *)
     rule handleSystemBusResponses;
-        let response = systemBusResponses.first;
-        systemBusResponses.deq;
-
+        let response <- pop(systemBusResponses);
+        
         if (response.d_sink == 0) begin
             instructionMemoryResponses.enq(response);
         end else 
