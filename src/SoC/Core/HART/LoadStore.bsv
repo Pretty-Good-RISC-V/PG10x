@@ -9,7 +9,7 @@ import TileLink::*;
 // from memory.
 //
 typedef struct {
-    TileLinkLiteWordRequest#(XLEN) tlRequest;
+    TileLinkLiteWordRequest#(SizeOf#(TileId), XLEN) tlRequest;
 
     RVGPRIndex rd;
     Bool signExtend;
@@ -127,7 +127,7 @@ endfunction
 // to memory.
 //
 typedef struct {
-    TileLinkLiteWordRequest#(XLEN) tlRequest;
+    TileLinkLiteWordRequest#(SizeOf#(TileId), XLEN) tlRequest;
 } StoreRequest deriving(Bits, Eq, FShow);
 
 function Result#(StoreRequest, Exception) getStoreRequest(

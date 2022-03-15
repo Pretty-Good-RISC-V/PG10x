@@ -1,5 +1,6 @@
 import RVCommon::*;
 import Memory::*;
+import TileLink::*;
 
 typedef Bit#(XLEN) Word;
 typedef Bit#(32) Word32;
@@ -10,6 +11,8 @@ typedef Bit#(XLEN) UnsignedInt;
 typedef Int#(XLEN) SignedInt;
 
 typedef Word ProgramCounter;
+
+typedef Bit#(4) TileId;
 
 typedef TLog#(TDiv#(n,8)) DataSz#(numeric type n);
 

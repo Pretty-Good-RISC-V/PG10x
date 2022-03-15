@@ -4,8 +4,12 @@ import HART::*;
 import ReadOnly::*;
 import TileLink::*;
 
+import Assert::*;
+import ClientServer::*;
 import Connectable::*;
+import FIFO::*;
 import GetPut::*;
+
 
 export Core(..), mkCore, HART::*;
 
@@ -13,8 +17,7 @@ interface Core;
     method Action start;
     method HARTState getState;
 
-    interface TileLinkLiteWordClient#(XLEN) instructionMemoryClient;
-    interface TileLinkLiteWordClient#(XLEN) dataMemoryClient;
+    interface TileLinkLiteWordClient#(SizeOf#(TileId), SizeOf#(TileId), XLEN) systemMemoryBusClient;
 
     interface Put#(Bool) putPipeliningDisabled;
     interface Put#(Maybe#(Word)) putToHostAddress;
@@ -38,10 +41,52 @@ module mkCore#(
 
     HART hart <- mkHART(initialProgramCounter);
 
+    FIFO#(TileLinkLiteWordRequest#(SizeOf#(TileId), XLEN)) instructionMemoryRequests <- mkFIFO;
+    FIFO#(TileLinkLiteWordResponse#(SizeOf#(TileId), SizeOf#(TileId), XLEN)) instructionMemoryResponses <- mkFIFO;
+
+    FIFO#(TileLinkLiteWordRequest#(SizeOf#(TileId), XLEN)) dataMemoryRequests <- mkFIFO;
+    FIFO#(TileLinkLiteWordResponse#(SizeOf#(TileId), SizeOf#(TileId), XLEN)) dataMemoryResponses <- mkFIFO;
+
+    mkConnection(toGPServer(instructionMemoryRequests, instructionMemoryResponses), hart.instructionMemoryClient);
+    mkConnection(toGPServer(dataMemoryRequests, dataMemoryResponses), hart.dataMemoryClient);
+
+    FIFO#(TileLinkLiteWordRequest#(SizeOf#(TileId), XLEN)) systemBusRequests <- mkFIFO;
+    FIFO#(TileLinkLiteWordResponse#(SizeOf#(TileId), SizeOf#(TileId), XLEN)) systemBusResponses <- mkFIFO;
+
+    rule handleInstructionMemoryRequests;
+        let request = instructionMemoryRequests.first;
+        instructionMemoryRequests.deq;
+
+        request.a_source = 0;   // Instruction Memory
+        systemBusRequests.enq(request);
+    endrule
+
+    rule handleDataMemoryRequests;
+        let request = dataMemoryRequests.first;
+        dataMemoryRequests.deq;
+
+        request.a_source = 1;   // Data Memory
+        systemBusRequests.enq(request);
+    endrule
+
+    (* descending_urgency = "handleInstructionMemoryRequests, handleDataMemoryRequests" *)
+    rule handleSystemBusResponses;
+        let response = systemBusResponses.first;
+        systemBusResponses.deq;
+
+        if (response.d_sink == 0) begin
+            instructionMemoryResponses.enq(response);
+        end else 
+        if (response.d_sink == 1) begin
+            dataMemoryResponses.enq(response);
+        end else begin
+            dynamicAssert(False, "Unexpected .d_sink value");
+        end
+    endrule
+
     method Action start = hart.start;
     method HARTState getState = hart.getState;
-    interface TileLinkLiteWordClient instructionMemoryClient = hart.instructionMemoryClient;
-    interface TileLinkLiteWordClient dataMemoryClient = hart.dataMemoryClient;
+    interface TileLinkLiteWordClient systemMemoryBusClient = toGPClient(systemBusRequests, systemBusResponses);
     interface Put putPipeliningDisabled = hart.putPipeliningDisabled;
     interface Put putToHostAddress = hart.putToHostAddress;
     interface Debug debug = hart.debug;

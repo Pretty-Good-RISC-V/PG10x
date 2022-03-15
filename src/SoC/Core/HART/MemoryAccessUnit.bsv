@@ -29,7 +29,7 @@ interface MemoryAccessUnit;
     interface Put#(ExecutedInstruction) putExecutedInstruction;
     interface Get#(ExecutedInstruction) getExecutedInstruction;
 
-    interface TileLinkLiteWordClient#(XLEN) dataMemoryClient;
+    interface TileLinkLiteWordClient#(SizeOf#(TileId), SizeOf#(TileId), XLEN) dataMemoryClient;
 
     interface Get#(Maybe#(GPRBypassValue)) getGPRBypassValue;
     interface Put#(Maybe#(Word)) putToHostAddress;
@@ -46,8 +46,8 @@ module mkMemoryAccessUnit#(
     Reg#(Maybe#(Word)) toHostAddress <- mkReg(tagged Invalid);
 
     Reg#(ExecutedInstruction) instructionWaitingForMemoryOperation <- mkRegU;
-    FIFO#(TileLinkLiteWordRequest#(XLEN)) dataMemoryRequests <- mkFIFO;
-    FIFO#(TileLinkLiteWordResponse#(XLEN)) dataMemoryResponses <- mkFIFO;
+    FIFO#(TileLinkLiteWordRequest#(SizeOf#(TileId), XLEN)) dataMemoryRequests <- mkFIFO;
+    FIFO#(TileLinkLiteWordResponse#(SizeOf#(TileId), SizeOf#(TileId), XLEN)) dataMemoryResponses <- mkFIFO;
 
     RWire#(Maybe#(GPRBypassValue)) gprBypassValue <- mkRWire();
 

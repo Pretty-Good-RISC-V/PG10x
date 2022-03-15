@@ -40,8 +40,8 @@ interface HART;
     method Action start;
     method HARTState getState;
 
-    interface TileLinkLiteWordClient#(XLEN) instructionMemoryClient;
-    interface TileLinkLiteWordClient#(XLEN) dataMemoryClient;
+    interface TileLinkLiteWordClient#(SizeOf#(TileId), SizeOf#(TileId), XLEN) instructionMemoryClient;
+    interface TileLinkLiteWordClient#(SizeOf#(TileId), SizeOf#(TileId), XLEN) dataMemoryClient;
 
     interface Put#(Bool) putPipeliningDisabled;
     interface Put#(Maybe#(Word)) putToHostAddress;

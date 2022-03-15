@@ -28,7 +28,7 @@ typedef struct {
 interface FetchUnit;
     interface Put#(Word64) putCycleCounter;
     interface Get#(EncodedInstruction) getEncodedInstruction;
-    interface TileLinkLiteWordClient#(XLEN) instructionMemoryClient;
+    interface TileLinkLiteWordClient#(SizeOf#(TileId), SizeOf#(TileId), XLEN) instructionMemoryClient;
     interface Put#(Bool) putFetchEnabled;
 endinterface
 
@@ -46,8 +46,8 @@ module mkFetchUnit#(
 
     FIFO#(FetchInfo) fetchInfoQueue <- mkPipelineFIFO; // holds the fetch info for the current instruction request
 
-    FIFO#(TileLinkLiteWordRequest#(XLEN)) instructionMemoryRequests <- mkFIFO;
-    FIFO#(TileLinkLiteWordResponse#(XLEN)) instructionMemoryResponses <- mkFIFO;
+    FIFO#(TileLinkLiteWordRequest#(SizeOf#(TileId), XLEN)) instructionMemoryRequests <- mkFIFO;
+    FIFO#(TileLinkLiteWordResponse#(SizeOf#(TileId), SizeOf#(TileId), XLEN)) instructionMemoryResponses <- mkFIFO;
 
     FIFO#(EncodedInstruction) outputQueue <- mkPipelineFIFO;
 

@@ -3,6 +3,8 @@ import DebugModule::*;
 import MemorySystem::*;
 import ProgramMemoryTile::*;
 import ReadOnly::*;
+import SoC::*;
+import SoCMap::*;
 
 import Connectable::*;
 import Core::*;
@@ -11,7 +13,9 @@ import MemorySystem::*;
 
 (* synthesize *)
 module mkSimulator(Empty);
-    ProgramMemoryTile memory <- mkProgramMemoryTile;
+    SoCMap socMap <- mkSoCMap;
+
+    ProgramMemoryTile memory <- mkProgramMemoryTile(socMap.ram0Id);
 
     // Memory System
     let memoryBaseAddress = 'h80000000;
@@ -25,12 +29,11 @@ module mkSimulator(Empty);
     ReadOnly#(Bool) enablePipelining <- mkReadOnly(True);
 `endif
 
-    // HART
+    // Core
     ProgramCounter initialProgramCounter = 'h8000_0000;
     Core core <- mkCore(initialProgramCounter);
 
-    mkConnection(memorySystem.instructionMemoryServer, core.instructionMemoryClient);
-    mkConnection(memorySystem.dataMemoryServer, core.dataMemoryClient);
+    mkConnection(memorySystem.instructionMemoryServer, core.systemMemoryBusClient);
     mkConnection(toGet(toHostAddress), core.putToHostAddress);
 
     Reg#(Bool) initialized <- mkReg(False);
