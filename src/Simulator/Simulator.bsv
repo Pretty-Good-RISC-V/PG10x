@@ -18,8 +18,7 @@ module mkSimulator(Empty);
     ProgramMemoryTile memory <- mkProgramMemoryTile(socMap.ram0Id);
 
     // Memory System
-    let memoryBaseAddress = 'h80000000;
-    MemorySystem memorySystem <- mkMemorySystem(memory, memoryBaseAddress);
+    MemorySystem memorySystem <- mkMemorySystem(memory, socMap.ram0Base);
 
     ReadOnly#(Maybe#(Word)) toHostAddress <- mkReadOnly(tagged Valid 'h8000_1000);
 
@@ -30,7 +29,7 @@ module mkSimulator(Empty);
 `endif
 
     // Core
-    ProgramCounter initialProgramCounter = 'h8000_0000;
+    ProgramCounter initialProgramCounter = socMap.ram0Base;
     Core core <- mkCore(initialProgramCounter);
 
     mkConnection(memorySystem.instructionMemoryServer, core.systemMemoryBusClient);

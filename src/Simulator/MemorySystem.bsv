@@ -19,10 +19,8 @@ endinterface
 
 module mkMemorySystem#(
     ProgramMemoryTile memoryServer,
-    Integer memoryBaseAddress
+    FabricAddress memoryBaseAddress
 )(MemorySystem);
-    Word baseAddress = fromInteger(memoryBaseAddress);
-
     interface TileLinkLiteWordServer instructionMemoryServer;
         interface Get response;
             method ActionValue#(TileLinkLiteWordResponse#(SizeOf#(TileId), SizeOf#(TileId), XLEN)) get;

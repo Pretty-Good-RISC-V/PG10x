@@ -1,7 +1,5 @@
 import PGTypes::*;
 
-typedef Word FabricAddress;
-
 interface SoCMap;
     (* always_ready *) method TileId crossbarId;
 
@@ -27,7 +25,7 @@ interface SoCMap;
 endinterface
 
 module mkSoCMap(SoCMap);
-    TileId _crossbarId  = 15;
+    TileId        _crossbarId = 15;
 
     FabricAddress _clintBase = 'h0020_0000;
     FabricAddress _clintSize = 'h0000_1000;     // 4K
@@ -49,7 +47,7 @@ module mkSoCMap(SoCMap);
     FabricAddress _ram0End   = _ram0Base + _ram0Size;
     TileId        _ram0Id    = 6;
 
-    method TileId crossbarId  = _crossbarId;
+    method TileId crossbarId = _crossbarId;
 
     method FabricAddress clintBase = _clintBase;
     method FabricAddress clintSize = _clintSize;

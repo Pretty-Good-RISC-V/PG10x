@@ -13,6 +13,7 @@ typedef Int#(XLEN) SignedInt;
 typedef Word ProgramCounter;
 
 typedef Bit#(4) TileId;
+typedef Word FabricAddress;
 
 typedef TLog#(TDiv#(n,8)) DataSz#(numeric type n);
 

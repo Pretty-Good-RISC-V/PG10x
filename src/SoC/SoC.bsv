@@ -1,7 +1,9 @@
 import PGTypes::*;
 import Core::*;
 import Crossbar::*;
+import ROMTile::*;
 import SoCMap::*;
+import TileLink::*;
 
 interface SoC;
 endinterface
@@ -10,6 +12,9 @@ endinterface
 module mkSoC(SoC);
     // SoCMap
     SoCMap socMap <- mkSoCMap;
+
+    // ROM
+    ROMTile rom <- mkROMTile(socMap.rom0Id);
 
     // Crossbar
     Crossbar crossbar <- mkCrossbar(socMap.crossbarId);
