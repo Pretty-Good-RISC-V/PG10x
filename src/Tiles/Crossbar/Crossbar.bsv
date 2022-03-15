@@ -38,8 +38,6 @@ module mkCrossbar#(
         let request = systemMemoryBusRequests.first;
         systemMemoryBusRequests.deq;
 
-        $display("RAMBase: $%0x - RAMSize: $%0x - RAMEnd: $%0x", socMap.ram0Base, socMap.ram0Size, socMap.ram0End);
-
         // Determine how to route the request
         if (request.a_address >= socMap.clintBase && request.a_address < socMap.clintEnd) begin
             clintRequests.enq(request);
@@ -53,7 +51,7 @@ module mkCrossbar#(
         if (request.a_address >= socMap.ram0Base && request.a_address < socMap.ram0End) begin
             ram0Requests.enq(request);
         end else begin
-            $display("ERROR: Rejecting memory request for address: $%0x", request.a_address);
+            $display("ERROR: Crossbar rejecting memory request for address: $%0x", request.a_address);
             systemMemoryBusResponses.enq(TileLinkLiteWordResponse {
                 d_opcode: d_ACCESS_ACK,
                 d_param: 0,
@@ -67,7 +65,30 @@ module mkCrossbar#(
         end
     endrule
 
-    rule handleRAMResponses;
+    rule handleClintResponses;
+        let response = clintResponses.first;
+        clintResponses.deq;
+
+        systemMemoryBusResponses.enq(response);
+    endrule
+
+    rule handleUart0Responses;
+        let response = uart0Responses.first;
+        uart0Responses.deq;
+
+        systemMemoryBusResponses.enq(response);
+    endrule
+
+    rule handleROM0Responses;
+        let response = rom0Responses.first;
+        rom0Responses.deq;
+
+        systemMemoryBusResponses.enq(response);
+    endrule
+
+    (* descending_urgency = 
+        "handleSystemMemoryBusRequests, handleClintResponses, handleUart0Responses, handleROM0Responses, handleRAM0Responses" *)
+    rule handleRAM0Responses;
         let response = ram0Responses.first;
         ram0Responses.deq;
 
