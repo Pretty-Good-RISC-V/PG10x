@@ -10,6 +10,7 @@ set_target_properties(Simulator PROPERTIES LINKER_LANGUAGE BSV)
 
 target_link_libraries(Simulator 
     Core::Core
+    Crossbar::Crossbar
     RVCommon::RVCommon
     Support::Support
 )

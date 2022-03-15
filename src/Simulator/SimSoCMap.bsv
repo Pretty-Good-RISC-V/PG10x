@@ -1,25 +1,7 @@
 import PGTypes::*;
+import SoCAddressMap::*;
 
-interface SimSoCMap;
-    (* always_ready *) method TileId crossbarId;
-
-    (* always_ready *) method FabricAddress clintBase;
-    (* always_ready *) method FabricAddress clintSize;
-    (* always_ready *) method FabricAddress clintEnd;
-    (* always_ready *) method TileId clintId;
-
-    (* always_ready *) method FabricAddress uart0Base;
-    (* always_ready *) method FabricAddress uart0Size;
-    (* always_ready *) method FabricAddress uart0End;
-    (* always_ready *) method TileId uart0Id;
-
-    (* always_ready *) method FabricAddress ram0Base;
-    (* always_ready *) method FabricAddress ram0Size;
-    (* always_ready *) method FabricAddress ram0End;
-    (* always_ready *) method TileId ram0Id;
-endinterface
-
-module mkSimSoCMap(SimSoCMap);
+module mkSimSoCMap(SoCAddressMap);
     TileId        _crossbarId = 15;
 
     FabricAddress _clintBase = 'h0020_0000;
@@ -32,8 +14,13 @@ module mkSimSoCMap(SimSoCMap);
     FabricAddress _uart0End  = _uart0Base + _uart0Size;
     TileId        _uart0Id   = 4;
 
+    FabricAddress _rom0Base  = 0;
+    FabricAddress _rom0Size  = 0;
+    FabricAddress _rom0End   = 0;
+    TileId        _rom0Id    = 0;
+
     FabricAddress _ram0Base  = 'h8000_0000;
-    FabricAddress _ram0Size  = 'h8000_0000;     // 2G
+    FabricAddress _ram0Size  = 'h4000_0000;     // 1G
     FabricAddress _ram0End   = _ram0Base + _ram0Size;
     TileId        _ram0Id    = 5;
 
@@ -48,6 +35,11 @@ module mkSimSoCMap(SimSoCMap);
     method FabricAddress uart0Size = _uart0Size;
     method FabricAddress uart0End  = _uart0End;
     method TileId uart0Id          = _uart0Id;
+
+    method FabricAddress rom0Base  = _rom0Base;
+    method FabricAddress rom0Size  = _rom0Size;
+    method FabricAddress rom0End   = _rom0End;
+    method TileId rom0Id           = _rom0Id;
 
     method FabricAddress ram0Base  = _ram0Base;
     method FabricAddress ram0Size  = _ram0Size;
