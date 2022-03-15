@@ -12,7 +12,7 @@ import GetPut::*;
 import RegFile::*;
 
 (* synthesize *)
-module mkSimulator(Empty);
+module mkSimSoC(Empty);
     ReadOnly#(Maybe#(Word)) toHostAddress <- mkReadOnly(tagged Valid 'h8000_1000);
     Reg#(Bool) initialized <- mkReg(False);
 

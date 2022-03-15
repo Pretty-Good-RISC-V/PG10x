@@ -5,7 +5,7 @@ add_subdirectory(Support)
 #
 # Simulator
 #
-add_executable(Simulator Simulator.bsv)
+add_executable(Simulator SimSoC.bsv)
 set_target_properties(Simulator PROPERTIES LINKER_LANGUAGE BSV)
 
 target_link_libraries(Simulator 
