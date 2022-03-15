@@ -1,7 +1,7 @@
 #include "ProgramMemory.hpp"
 #include "catch2/catch_all.hpp"
 
-TEST_CASE("Verify ProgramMemory C++ Library") {
+TEST_CASE("ProgramMemory C++ library") {
     ::setenv("PROGRAM_MEMORY_FILE", "./test_assets/rv32mi-p-csr", 1);
     auto handle = program_memory_open();
     REQUIRE(handle != 0);

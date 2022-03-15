@@ -18,10 +18,8 @@ target_link_libraries(Support PUBLIC elfio::elfio)
 
 # Find all tests
 file(GLOB TEST_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*_test.cpp")
-message(">>>>>>>>>>>>>>>>> Found tests: ${TEST_FILES}")
 foreach(TEST_FILE ${TEST_FILES})
     get_filename_component(TEST_TARGET ${TEST_FILE} NAME_WLE)
-    message("Adding test target ${TEST_TARGET} for ${TEST_FILE}")
     add_executable(${TEST_TARGET} ${TEST_FILE})
 
     target_link_libraries(${TEST_TARGET} Support Catch2::Catch2WithMain)
