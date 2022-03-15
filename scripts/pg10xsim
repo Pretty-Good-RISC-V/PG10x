@@ -16,11 +16,17 @@ CHECK=""
 SPIKE=""
 ISA="RV32I"
 LOGFILENAME_BASE=""
+SIMHOST="src/Simulator/Simulator"
 
 while [[ $# -gt 0 ]]; do
     key="$1"
 
     case $key in
+        --sim-host)
+            SIMHOST="$2"
+            shift
+            shift
+            ;;
         --max-cycles)
             MAX_CYCLES="-m $2"
             shift # past argument
@@ -76,9 +82,9 @@ if [ "$SPIKE" != "" ] && [ "$LOGFILENAME_BASE" != "" ]; then
 fi
 
 if [ "$CHECK" == "" ]; then
-    ./build/$MODEL/src/Simulator/Simulator $MAX_CYCLES
+    ./build/$MODEL/$SIMHOST $MAX_CYCLES
 else
-    ./build/$MODEL/src/Simulator/Simulator $MAX_CYCLES > /tmp/simoutput.txt
+    ./build/$MODEL/$SIMHOST $MAX_CYCLES > /tmp/simoutput.txt
 
     if [ "$LOGFILENAME_BASE" != "" ]; then
         cp /tmp/simoutput.txt ${LOGFILENAME_BASE%.*}.stdout.txt

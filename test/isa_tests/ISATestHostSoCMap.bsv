@@ -1,28 +1,28 @@
 import PGTypes::*;
 import SoCAddressMap::*;
 
-module mkSoCMap(SoCADDRESSMap);
+module mkISATestHostSoCMap(SoCAddressMap);
     TileId        _crossbarId = 15;
 
-    FabricAddress _clintBase = 'h0020_0000;
-    FabricAddress _clintSize = 'h0000_1000;     // 4K
-    FabricAddress _clintEnd  = _clintBase + _clintSize;
+    FabricAddress _clintBase = 0;
+    FabricAddress _clintSize = 0;
+    FabricAddress _clintEnd  = 0;
     TileId        _clintId   = 3;
 
-    FabricAddress _uart0Base = 'h0020_1000;
-    FabricAddress _uart0Size = 'h0000_1000;     // 4K
-    FabricAddress _uart0End  = _uart0Base + _uart0Size;
+    FabricAddress _uart0Base = 0;
+    FabricAddress _uart0Size = 0;     // 4K
+    FabricAddress _uart0End  = 0;
     TileId        _uart0Id   = 4;
 
-    FabricAddress _rom0Base  = 'h0040_0000;
-    FabricAddress _rom0Size  = 'h0800_0000;     // 128M
-    FabricAddress _rom0End   = _rom0Base + _rom0Size;
-    TileId        _rom0Id    = 5;
+    FabricAddress _rom0Base  = 0;
+    FabricAddress _rom0Size  = 0;
+    FabricAddress _rom0End   = 0;
+    TileId        _rom0Id    = 0;
 
     FabricAddress _ram0Base  = 'h8000_0000;
-    FabricAddress _ram0Size  = 'h8000_0000;     // 2G
+    FabricAddress _ram0Size  = 'h4000_0000;     // 1G
     FabricAddress _ram0End   = _ram0Base + _ram0Size;
-    TileId        _ram0Id    = 6;
+    TileId        _ram0Id    = 5;
 
     method TileId crossbarId = _crossbarId;
 

@@ -1,7 +1,7 @@
 import PGTypes::*;
 import SoCAddressMap::*;
 
-module mkSimSoCMap(SoCAddressMap);
+module mkSoCAddressMap(SoCAddressMap);
     TileId        _crossbarId = 15;
 
     FabricAddress _clintBase = 'h0020_0000;
@@ -14,15 +14,15 @@ module mkSimSoCMap(SoCAddressMap);
     FabricAddress _uart0End  = _uart0Base + _uart0Size;
     TileId        _uart0Id   = 4;
 
-    FabricAddress _rom0Base  = 0;
-    FabricAddress _rom0Size  = 0;
-    FabricAddress _rom0End   = 0;
-    TileId        _rom0Id    = 0;
+    FabricAddress _rom0Base  = 'h0040_0000;
+    FabricAddress _rom0Size  = 'h0800_0000;     // 128M
+    FabricAddress _rom0End   = _rom0Base + _rom0Size;
+    TileId        _rom0Id    = 5;
 
     FabricAddress _ram0Base  = 'h8000_0000;
-    FabricAddress _ram0Size  = 'h4000_0000;     // 1G
+    FabricAddress _ram0Size  = 'h8000_0000;     // 2G
     FabricAddress _ram0End   = _ram0Base + _ram0Size;
-    TileId        _ram0Id    = 5;
+    TileId        _ram0Id    = 6;
 
     method TileId crossbarId = _crossbarId;
 

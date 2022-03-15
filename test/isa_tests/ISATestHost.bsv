@@ -4,7 +4,7 @@ import DebugModule::*;
 import ProgramMemoryTile::*;
 import ReadOnly::*;
 import SoCAddressMap::*;
-import SimSoCMap::*;
+import ISATestHostSocMap::*;
 
 import Connectable::*;
 import Core::*;
@@ -12,7 +12,7 @@ import GetPut::*;
 import RegFile::*;
 
 (* synthesize *)
-module mkSimSoC(Empty);
+module mkISATestHost(Empty);
     ReadOnly#(Maybe#(Word)) toHostAddress <- mkReadOnly(tagged Valid 'h8000_1000);
     Reg#(Bool) initialized <- mkReg(False);
 
@@ -21,7 +21,7 @@ module mkSimSoC(Empty);
 `else
     ReadOnly#(Bool) enablePipelining <- mkReadOnly(True);
 `endif
-    SoCAddressMap socMap <- mkSimSoCMap;
+    SoCAddressMap socMap <- mkISATestHostSoCMap;
 
     // RAM
     ProgramMemoryTile ram <- mkProgramMemoryTile(socMap.ram0Id);
@@ -46,7 +46,7 @@ module mkSimSoC(Empty);
 
         $display("----------------");
 `ifdef DISABLE_PIPELINING
-        $display("PG-10x Simulator");
+        $display("PG-10x  ISA TEST");
         $display("*Pipelining OFF*");
 `else
         $display("PG-10x Simulator");
