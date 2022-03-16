@@ -23,7 +23,7 @@ import "BDPI" function void program_memory_write_u32(ContextHandle ctx, Word add
 import "BDPI" function void program_memory_write_u64(ContextHandle ctx, Word address, Bit#(64) newValue);
 
 interface ROMTile;
-    interface TileLinkLiteWordServer#(SizeOf#(TileId), SizeOf#(TileId), XLEN) server;
+    interface StdTileLinkServer server;
 endinterface
 
 module mkROMTile#(
@@ -31,13 +31,13 @@ module mkROMTile#(
 )(ROMTile);
     Word32 programMemoryContext = program_memory_open();
 
-    FIFO#(TileLinkLiteWordResponse#(SizeOf#(TileId), SizeOf#(TileId), XLEN)) responses <- mkFIFO;
+    FIFO#(StdTileLinkResponse) responses <- mkFIFO;
 
     interface TileLinkLiteWordServer server;
         interface Get response = toGet(responses);
         interface Put request;
-            method Action put(TileLinkLiteWordRequest#(SizeOf#(TileId), XLEN) request);
-                TileLinkLiteWordResponse#(SizeOf#(TileId), SizeOf#(TileId), XLEN) response = TileLinkLiteWordResponse{
+            method Action put(StdTileLinkRequest request);
+                StdTileLinkResponse response = TileLinkLiteWordResponse{
                     d_opcode: d_ACCESS_ACK,
                     d_param: 0,
                     d_size: request.a_size,

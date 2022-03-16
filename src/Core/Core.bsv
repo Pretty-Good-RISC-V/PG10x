@@ -17,7 +17,7 @@ interface Core;
     method Action start;
     method HARTState getState;
 
-    interface TileLinkLiteWordClient#(SizeOf#(TileId), SizeOf#(TileId), XLEN) systemMemoryBusClient;
+    interface StdTileLinkClient systemMemoryBusClient;
 
     interface Put#(Bool) putPipeliningDisabled;
     interface Put#(Maybe#(Word)) putToHostAddress;
@@ -41,17 +41,17 @@ module mkCore#(
 
     HART hart <- mkHART(initialProgramCounter);
 
-    FIFO#(TileLinkLiteWordRequest#(SizeOf#(TileId), XLEN)) instructionMemoryRequests <- mkFIFO;
-    FIFO#(TileLinkLiteWordResponse#(SizeOf#(TileId), SizeOf#(TileId), XLEN)) instructionMemoryResponses <- mkFIFO;
+    FIFO#(StdTileLinkRequest) instructionMemoryRequests <- mkFIFO;
+    FIFO#(StdTileLinkResponse) instructionMemoryResponses <- mkFIFO;
 
-    FIFO#(TileLinkLiteWordRequest#(SizeOf#(TileId), XLEN)) dataMemoryRequests <- mkFIFO;
-    FIFO#(TileLinkLiteWordResponse#(SizeOf#(TileId), SizeOf#(TileId), XLEN)) dataMemoryResponses <- mkFIFO;
+    FIFO#(StdTileLinkRequest) dataMemoryRequests <- mkFIFO;
+    FIFO#(StdTileLinkResponse) dataMemoryResponses <- mkFIFO;
 
     mkConnection(toGPServer(instructionMemoryRequests, instructionMemoryResponses), hart.instructionMemoryClient);
     mkConnection(toGPServer(dataMemoryRequests, dataMemoryResponses), hart.dataMemoryClient);
 
-    FIFO#(TileLinkLiteWordRequest#(SizeOf#(TileId), XLEN)) systemBusRequests <- mkFIFO;
-    FIFO#(TileLinkLiteWordResponse#(SizeOf#(TileId), SizeOf#(TileId), XLEN)) systemBusResponses <- mkFIFO;
+    FIFO#(StdTileLinkRequest) systemBusRequests <- mkFIFO;
+    FIFO#(StdTileLinkResponse) systemBusResponses <- mkFIFO;
 
     rule handleInstructionMemoryRequests;
         let request <- pop(instructionMemoryRequests);

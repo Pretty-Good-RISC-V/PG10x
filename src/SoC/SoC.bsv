@@ -3,13 +3,16 @@ import Core::*;
 import Crossbar::*;
 import SoCMap::*;
 import SoCAddressMap::*;
+import SPIController::*;
 import TileLink::*;
 
 interface SoC;
 endinterface
 
 (* synthesize *)
-module mkSoC(SoC);
+module mkSoC#(
+    Clock peripheralClock
+)(SoC);
     // SoCMap
     SoCAddressMap socMap <- mkSoCAddressMap;
 

@@ -3,4 +3,5 @@ add_bsv_verilog_module(SoC
     Core::Core
     Crossbar::Crossbar
     RVCommon::RVCommon
+    SPIController::SPIController
 )

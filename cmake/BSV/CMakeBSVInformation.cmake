@@ -107,12 +107,12 @@ function(add_bsv_verilog_module target modulefile)
         resolve_dependencies(${dependency})
         get_target_property(RESOLVED_LINK_LIBRARIES ${dependency} RESOLVED_LINK_LIBRARIES)
 
-        message("++++++++ DIRECT_DEPENDENCY: ${dependency} - ${RESOLVED_LINK_LIBRARIES}")
+#        message("++++++++ DIRECT_DEPENDENCY: ${dependency} - ${RESOLVED_LINK_LIBRARIES}")
         list(APPEND RESOLVED_DEPENDENCIES ${RESOLVED_LINK_LIBRARIES})
     endforeach()
 
     list(REMOVE_DUPLICATES RESOLVED_DEPENDENCIES)
-    message("++++++++++ All deps: '${RESOLVED_DEPENDENCIES}'")
+#    message("++++++++++ All deps: '${RESOLVED_DEPENDENCIES}'")
 
     # Next, go through each of the dependencies given and extract the INTERFACE_INCLUDE_DIRECTORIES.
     # The directories found are then added to DEPENDENCY_DIRS (which is then given to the BSV compiler)

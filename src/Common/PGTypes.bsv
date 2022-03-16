@@ -17,6 +17,12 @@ typedef Word ProgramCounter;
 typedef Bit#(4) TileId;
 typedef Word FabricAddress;
 
+typedef TileLinkLiteWordRequest#(SizeOf#(TileId), XLEN) StdTileLinkRequest;
+typedef TileLinkLiteWordResponse#(SizeOf#(TileId), SizeOf#(TileId), XLEN) StdTileLinkResponse;
+
+typedef TileLinkLiteWordClient#(SizeOf#(TileId), SizeOf#(TileId), XLEN) StdTileLinkClient;
+typedef TileLinkLiteWordServer#(SizeOf#(TileId), SizeOf#(TileId), XLEN) StdTileLinkServer;
+
 typedef TLog#(TDiv#(n,8)) DataSz#(numeric type n);
 
 // A Rust inspired Result type.

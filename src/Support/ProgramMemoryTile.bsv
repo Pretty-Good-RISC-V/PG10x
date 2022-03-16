@@ -6,8 +6,8 @@ import FIFO::*;
 import GetPut::*;
 
 interface ProgramMemoryTile;
-    interface TileLinkLiteWordServer#(SizeOf#(TileId), SizeOf#(TileId), XLEN) portA;
-    interface TileLinkLiteWordServer#(SizeOf#(TileId), SizeOf#(TileId), XLEN) portB;
+    interface StdTileLinkServer portA;
+    interface StdTileLinkServer portB;
 
     method Bool isValidAddress(Word address);
 endinterface
@@ -34,13 +34,13 @@ module mkProgramMemoryTile#(
 )(ProgramMemoryTile);
     Word32 programMemoryContext = program_memory_open();
 
-    FIFO#(TileLinkLiteWordResponse#(SizeOf#(TileId), SizeOf#(TileId), XLEN)) responses[2];
+    FIFO#(StdTileLinkResponse) responses[2];
     responses[0] <- mkFIFO;
     responses[1] <- mkFIFO;
 
-    function Action handleRequestToPort(TileLinkLiteWordRequest#(SizeOf#(TileId), XLEN) request, Integer portNumber);
+    function Action handleRequestToPort(StdTileLinkRequest request, Integer portNumber);
         action
-        TileLinkLiteWordResponse#(SizeOf#(TileId), SizeOf#(TileId), XLEN) response = TileLinkLiteWordResponse{
+        StdTileLinkResponse response = TileLinkLiteWordResponse{
             d_opcode: d_ACCESS_ACK,
             d_param: 0,
             d_size: request.a_size,
@@ -99,7 +99,7 @@ module mkProgramMemoryTile#(
         interface Get response = toGet(responses[0]);
 
         interface Put request;
-            method Action put(TileLinkLiteWordRequest#(SizeOf#(TileId), XLEN) request);
+            method Action put(StdTileLinkRequest request);
                 handleRequestToPort(request, 0);
             endmethod
         endinterface
@@ -109,7 +109,7 @@ module mkProgramMemoryTile#(
         interface Get response = toGet(responses[1]);
 
         interface Put request;
-            method Action put(TileLinkLiteWordRequest#(SizeOf#(TileId), XLEN) request);
+            method Action put(StdTileLinkRequest request);
                 handleRequestToPort(request, 1);
             endmethod
         endinterface

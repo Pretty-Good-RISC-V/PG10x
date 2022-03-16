@@ -7,31 +7,31 @@ import FIFO::*;
 import GetPut::*;
 
 interface Crossbar;
-    interface TileLinkLiteWordServer#(SizeOf#(TileId), SizeOf#(TileId), XLEN) systemMemoryBusServer;
+    interface StdTileLinkServer systemMemoryBusServer;
 
-    interface TileLinkLiteWordClient#(SizeOf#(TileId), SizeOf#(TileId), XLEN) clintClient;
-    interface TileLinkLiteWordClient#(SizeOf#(TileId), SizeOf#(TileId), XLEN) uart0Client;
-    interface TileLinkLiteWordClient#(SizeOf#(TileId), SizeOf#(TileId), XLEN) rom0Client;
-    interface TileLinkLiteWordClient#(SizeOf#(TileId), SizeOf#(TileId), XLEN) ram0Client;
+    interface StdTileLinkClient clintClient;
+    interface StdTileLinkClient uart0Client;
+    interface StdTileLinkClient rom0Client;
+    interface StdTileLinkClient ram0Client;
 endinterface
 
 module mkCrossbar#(
     SoCAddressMap socMap
 )(Crossbar);
-    FIFO#(TileLinkLiteWordRequest#(SizeOf#(TileId), XLEN)) systemMemoryBusRequests <- mkFIFO;
-    FIFO#(TileLinkLiteWordResponse#(SizeOf#(TileId), SizeOf#(TileId), XLEN)) systemMemoryBusResponses <- mkFIFO;
+    FIFO#(StdTileLinkRequest) systemMemoryBusRequests <- mkFIFO;
+    FIFO#(StdTileLinkResponse) systemMemoryBusResponses <- mkFIFO;
 
-    FIFO#(TileLinkLiteWordRequest#(SizeOf#(TileId), XLEN)) clintRequests <- mkFIFO;
-    FIFO#(TileLinkLiteWordResponse#(SizeOf#(TileId), SizeOf#(TileId), XLEN)) clintResponses <- mkFIFO;
+    FIFO#(StdTileLinkRequest) clintRequests <- mkFIFO;
+    FIFO#(StdTileLinkResponse) clintResponses <- mkFIFO;
 
-    FIFO#(TileLinkLiteWordRequest#(SizeOf#(TileId), XLEN)) uart0Requests <- mkFIFO;
-    FIFO#(TileLinkLiteWordResponse#(SizeOf#(TileId), SizeOf#(TileId), XLEN)) uart0Responses <- mkFIFO;
+    FIFO#(StdTileLinkRequest) uart0Requests <- mkFIFO;
+    FIFO#(StdTileLinkResponse) uart0Responses <- mkFIFO;
 
-    FIFO#(TileLinkLiteWordRequest#(SizeOf#(TileId), XLEN)) rom0Requests <- mkFIFO;
-    FIFO#(TileLinkLiteWordResponse#(SizeOf#(TileId), SizeOf#(TileId), XLEN)) rom0Responses <- mkFIFO;
+    FIFO#(StdTileLinkRequest) rom0Requests <- mkFIFO;
+    FIFO#(StdTileLinkResponse) rom0Responses <- mkFIFO;
 
-    FIFO#(TileLinkLiteWordRequest#(SizeOf#(TileId), XLEN)) ram0Requests <- mkFIFO;
-    FIFO#(TileLinkLiteWordResponse#(SizeOf#(TileId), SizeOf#(TileId), XLEN)) ram0Responses <- mkFIFO;
+    FIFO#(StdTileLinkRequest) ram0Requests <- mkFIFO;
+    FIFO#(StdTileLinkResponse) ram0Responses <- mkFIFO;
 
     rule handleSystemMemoryBusRequests;
         // Get the request
