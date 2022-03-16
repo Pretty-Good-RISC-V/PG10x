@@ -1,8 +1,8 @@
 import PGTypes::*;
 import Core::*;
 import Crossbar::*;
-import ROMTile::*;
 import SoCMap::*;
+import SoCAddressMap::*;
 import TileLink::*;
 
 interface SoC;
@@ -11,13 +11,10 @@ endinterface
 (* synthesize *)
 module mkSoC(SoC);
     // SoCMap
-    SoCMap socMap <- mkSoCMap;
-
-    // ROM
-    ROMTile rom <- mkROMTile(socMap.rom0Id);
+    SoCAddressMap socMap <- mkSoCAddressMap;
 
     // Crossbar
-    Crossbar crossbar <- mkCrossbar(socMap.crossbarId);
+    Crossbar crossbar <- mkCrossbar(socMap);
 
     // Core
     ProgramCounter initialProgramCounter = socMap.rom0Base;

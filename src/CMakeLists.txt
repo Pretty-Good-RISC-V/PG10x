@@ -8,7 +8,13 @@ if(ENABLE_ISA_TESTS)
     add_subdirectory(ISATestHost)
 endif()
 
-add_subdirectory(SoC)
-add_subdirectory(Simulator)
-add_subdirectory(Support)
+if (NOT ENABLE_SOC_VERILOG_OUTPUT)
+    add_subdirectory(Simulator)
+    add_subdirectory(Support)
+endif()
+
 add_subdirectory(Tiles)
+
+if (ENABLE_SOC_VERILOG_OUTPUT)
+    add_subdirectory(SoC)
+endif()

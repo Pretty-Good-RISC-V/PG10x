@@ -34,6 +34,21 @@
       }
     },
     {
+      "name": "pg101_verilog",
+      "displayName": "PG101 (RV32I) SoC Verilog",
+      "inherits": "base",
+      "cacheVariables": {
+        "BASE_ISA": {
+          "type": "STRING",
+          "value": "RV32"
+        },
+        "ENABLE_SOC_VERILOG_OUTPUT": {
+          "type": "BOOL",
+          "value": "ON"
+        }
+      }
+    },
+    {
       "name": "pg101_isa_tests",
       "displayName": "PG101 (RV32I) ISA_TESTS",
       "inherits": "pg101",

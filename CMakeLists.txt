@@ -20,6 +20,8 @@ option(ENABLE_INSTRUCTION_LOGGING "Enable disassembled instruction logging" OFF)
 option(ENABLE_BRANCH_PREDICTION "Enable branch prediction inside RISC-V core" ON)
 option(ENABLE_PIPELINING "Enable instruction pipelining inside RISC-V core" ON)
 
+option(ENABLE_SOC_VERILOG_OUTPUT "Enable output of Verilog for SoC" OFF)
+
 enable_testing()
 
 add_subdirectory(src)
