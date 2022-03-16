@@ -1,35 +1,5 @@
 find_package(RISCV_ISA_Tests)
 
-#
-# ISATestHost
-#
-add_executable(ISATestHost ISATestHost.bsv)
-set_target_properties(ISATestHost PROPERTIES LINKER_LANGUAGE BSV)
-
-target_link_libraries(ISATestHost 
-    Core::Core
-    Crossbar::Crossbar
-    RVCommon::RVCommon
-    Support::Support
-)
-
-target_compile_definitions(ISATestHost PUBLIC
-    ${BASE_ISA}
-    ${MONITOR_TOHOST_ADDRESS}
-)
-
-if (NOT ENABLE_BRANCH_PREDICTION)
-    target_compile_definitions(ISATestHost PUBLIC
-        DISABLE_BRANCH_PREDICTION
-    )
-endif()
-
-if (NOT ENABLE_PIPELINING)
-    target_compile_definitions(ISATestHost PUBLIC
-        DISABLE_PIPELINING
-    )
-endif()
-
 if ("${BASE_ISA}" STREQUAL "RV32")
     set(ISA_TEST_BINARIES
         "${RISCV_ISA_TEST_BUILD_DIR}/src/riscv_isa_tests-build/isa/rv32mi-p-breakpoint" # Breakpoint Tests
@@ -64,7 +34,7 @@ foreach(ISA_TEST_BINARY ${ISA_TEST_BINARIES})
     message("Test Commandline: ${CMAKE_SOURCE_DIR}/scripts/pg10xsim --spike --model ${BUILD_PRESET} --log ${CMAKE_CURRENT_BINARY_DIR}/${TEST_NAME}.trace.txt ${ISA_TEST_BINARY}")
     add_test(
         NAME "ISA_TEST_${TEST_NAME}"
-        COMMAND "${CMAKE_SOURCE_DIR}/scripts/pg10xsim" --sim-host test/isa_tests/ISATestHost --isa "${BASE_ISA}" --spike --check --max-cycles 30000 --model "${BUILD_PRESET}" --log "${CMAKE_CURRENT_BINARY_DIR}/${TEST_NAME}" "${ISA_TEST_BINARY}"
+        COMMAND "${CMAKE_SOURCE_DIR}/scripts/pg10xsim" --sim-host src/ISATestHost/ISATestHost --isa "${BASE_ISA}" --spike --check --max-cycles 30000 --model "${BUILD_PRESET}" --log "${CMAKE_CURRENT_BINARY_DIR}/${TEST_NAME}" "${ISA_TEST_BINARY}"
         WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
     )
 endforeach()

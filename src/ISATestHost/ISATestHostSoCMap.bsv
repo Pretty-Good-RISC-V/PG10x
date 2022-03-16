@@ -10,7 +10,7 @@ module mkISATestHostSoCMap(SoCAddressMap);
     TileId        _clintId   = 3;
 
     FabricAddress _uart0Base = 0;
-    FabricAddress _uart0Size = 0;     // 4K
+    FabricAddress _uart0Size = 0;
     FabricAddress _uart0End  = 0;
     TileId        _uart0Id   = 4;
 
