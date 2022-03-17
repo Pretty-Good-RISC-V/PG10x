@@ -15,3 +15,4 @@ https://github.com/riscv-software-src/homebrew-riscv[RISC-V Toolchain for MacOS]
 https://github.com/riscv-software-src/riscof[RISC-V Architectural Test Framework (NEW!)] +
 https://github.com/riscv-non-isa/riscv-arch-test[RISC-V Architecture Tests (Older)] +
 https://github.com/hadirkhan10/TileLink/blob/master/docs/index.md[TileLink spec details] +
+https://github.com/fpganow/vivado_scm[Using Vivado with Git] +
