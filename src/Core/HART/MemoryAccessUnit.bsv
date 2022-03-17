@@ -58,17 +58,17 @@ module mkMemoryAccessUnit#(
         waitingForStoreResponse <= False;
 
         if (memoryResponse.d_opcode != d_ACCESS_ACK) begin
-            $display("[%0d:****:memory] FATAL - Store returned unexpected opcode: ", fshow(memoryResponse));
+            $display("[****:****:memory] FATAL - Store returned unexpected opcode: ", fshow(memoryResponse));
             $fatal();
         end
 
         if (memoryResponse.d_denied) begin
-            $display("[%0d:****:memory] FATAL - Store returned access denied: ", fshow(memoryResponse));
+            $display("[****:****:memory] FATAL - Store returned access denied: ", fshow(memoryResponse));
             $fatal();
         end
 
         if (memoryResponse.d_corrupt) begin
-            $display("[%0d:****:memory] FATAL - Store returned access corrupted: ", fshow(memoryResponse));
+            $display("[****:****:memory] FATAL - Store returned access corrupted: ", fshow(memoryResponse));
             $fatal();
         end
 
@@ -79,22 +79,22 @@ module mkMemoryAccessUnit#(
         let memoryResponse <- pop(dataMemoryResponses);
         let executedInstruction = instructionWaitingForMemoryOperation;
 
-        $display("[%0d:****:memory] Load completed", cycleCounter, executedInstruction.programCounter);
+        $display("[****:****:memory] Load completed", cycleCounter, executedInstruction.programCounter);
 
         waitingForLoadToComplete <= False;
 
         if (memoryResponse.d_opcode != d_ACCESS_ACK_DATA) begin
-            $display("[%0d:****:memory] FATAL - Load returned unexpected opcode: ", fshow(memoryResponse));
+            $display("[****:****:memory] FATAL - Load returned unexpected opcode: ", fshow(memoryResponse));
             $fatal();
         end
 
         if (memoryResponse.d_denied) begin
-            $display("[%0d:****:memory] FATAL - Load returned access denied: ", fshow(memoryResponse));
+            $display("[****]:****:memory] FATAL - Load returned access denied: ", fshow(memoryResponse));
             $fatal();
         end
 
         if (memoryResponse.d_corrupt) begin
-            $display("[%0d:****:memory] FATAL - Load returned access corrupted: ", fshow(memoryResponse));
+            $display("[****:****:memory] FATAL - Load returned access corrupted: ", fshow(memoryResponse));
             $fatal();
         end
 

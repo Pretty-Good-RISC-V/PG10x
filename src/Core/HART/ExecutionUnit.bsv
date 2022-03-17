@@ -367,7 +367,7 @@ module mkExecutionUnit#(
                                     executedInstruction.changedProgramCounter = tagged Valid mepc;
                                     executedInstruction.exception = tagged Invalid;
                                 end else begin
-                                    $display("%0d,%0d,%0d,%0x,%0d,execute,MRET instruction - failed to read MEPC");
+                                    $display("%0d,%0d,%0d,%0x,%0d,execute,MRET instruction - failed to read MEPC", decodedInstruction.fetchIndex, exceptionController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber);
                                 end
                             end
                             default begin
