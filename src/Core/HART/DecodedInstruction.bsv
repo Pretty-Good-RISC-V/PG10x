@@ -1,4 +1,5 @@
 import PGTypes::*;
+import Exception::*;
 import PipelineController::*;
 
 //
@@ -115,4 +116,7 @@ typedef struct {
     // rs2Value - The value held inside the second *source* register (validith of this is determined
     //            by the validity of the 'rs2' field.)
     Word rs2Value;
+
+    // exception - Any exception detected in the decode (or previous) stages
+    Maybe#(Exception) exception;
 } DecodedInstruction deriving(Bits, Eq, FShow);

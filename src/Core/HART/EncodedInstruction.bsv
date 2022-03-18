@@ -1,4 +1,5 @@
 import PGTypes::*;
+import Exception::*;
 import PipelineController::*;
 
 //
@@ -22,4 +23,7 @@ typedef struct {
 
     // rawInstruction - encoded (raw) instruction bytes.
     Word32 rawInstruction;
+
+    // exception - exception encountered during fetch
+    Maybe#(Exception) exception;
 } EncodedInstruction deriving(Bits, Eq, FShow);

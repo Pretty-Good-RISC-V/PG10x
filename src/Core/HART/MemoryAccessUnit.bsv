@@ -10,6 +10,7 @@ import PGTypes::*;
 
 import BypassUnit::*;
 import EncodedInstruction::*;
+import Exception::*;
 import ExecutedInstruction::*;
 import LoadStore::*;
 import PipelineController::*;
@@ -56,20 +57,21 @@ module mkMemoryAccessUnit#(
         let executedInstruction = instructionWaitingForMemoryOperation;
 
         waitingForStoreResponse <= False;
-
-        if (memoryResponse.d_opcode != d_ACCESS_ACK) begin
-            $display("[****:****:memory] FATAL - Store returned unexpected opcode: ", fshow(memoryResponse));
-            $fatal();
-        end
+        let storeAddress = unJust(executedInstruction.storeRequest).tlRequest.a_address;
 
         if (memoryResponse.d_denied) begin
-            $display("[****:****:memory] FATAL - Store returned access denied: ", fshow(memoryResponse));
-            $fatal();
-        end
-
+            $display("[****:****:memory] ERROR - Store returned access denied: ", fshow(memoryResponse));
+            executedInstruction.exception = tagged Valid createStoreAccessFaultException(storeAddress);
+        end else
         if (memoryResponse.d_corrupt) begin
-            $display("[****:****:memory] FATAL - Store returned access corrupted: ", fshow(memoryResponse));
-            $fatal();
+            $display("[****:****:memory] ERROR - Store returned access corrupted: ", fshow(memoryResponse));
+            executedInstruction.exception = tagged Valid createStoreAccessFaultException(storeAddress);
+        end else
+        if (memoryResponse.d_opcode != d_ACCESS_ACK) begin
+            $display("[****:****:memory] ERROR - Store returned unexpected opcode: ", fshow(memoryResponse));
+            executedInstruction.exception = tagged Valid createStoreAccessFaultException(storeAddress);
+        end else begin
+            $display("[****:****:memory] Store completed");
         end
 
         outputQueue.enq(executedInstruction);
@@ -79,65 +81,74 @@ module mkMemoryAccessUnit#(
         let memoryResponse <- pop(dataMemoryResponses);
         let executedInstruction = instructionWaitingForMemoryOperation;
 
-        $display("[****:****:memory] Load completed", cycleCounter, executedInstruction.programCounter);
-
         waitingForLoadToComplete <= False;
-
-        if (memoryResponse.d_opcode != d_ACCESS_ACK_DATA) begin
-            $display("[****:****:memory] FATAL - Load returned unexpected opcode: ", fshow(memoryResponse));
-            $fatal();
-        end
+        let loadAddress = unJust(executedInstruction.loadRequest).tlRequest.a_address;
+        Word value = ?;
+        RVGPRIndex rd = ?;
 
         if (memoryResponse.d_denied) begin
-            $display("[****]:****:memory] FATAL - Load returned access denied: ", fshow(memoryResponse));
-            $fatal();
-        end
-
+            $display("[****]:****:memory] ERROR - Load returned access denied: ", fshow(memoryResponse));
+            executedInstruction.exception = tagged Valid createLoadAccessFaultException(loadAddress);
+            rd = 0; // Make bypass doesn't contain the instruction RD (fix for p-access ISA test)
+        end else
         if (memoryResponse.d_corrupt) begin
-            $display("[****:****:memory] FATAL - Load returned access corrupted: ", fshow(memoryResponse));
-            $fatal();
+            $display("[****:****:memory] ERROR - Load returned access corrupted: ", fshow(memoryResponse));
+            executedInstruction.exception = tagged Valid createLoadAccessFaultException(loadAddress);
+            rd = 0; // Make bypass doesn't contain the instruction RD (fix for p-access ISA test)
+        end else
+        if (memoryResponse.d_opcode != d_ACCESS_ACK_DATA) begin
+            $display("[****:****:memory] ERROR - Load returned unexpected opcode: ", fshow(memoryResponse));
+            executedInstruction.exception = tagged Valid createLoadAccessFaultException(loadAddress);
+            rd = 0; // Make bypass doesn't contain the instruction RD (fix for p-access ISA test)
+        end else begin
+            $display("[****:****:memory] Load completed");
+
+            // Save the data that will be written back into the register file on the
+            // writeback pipeline stage.
+            let loadRequest = unJust(executedInstruction.loadRequest);
+            rd = loadRequest.rd;
+
+            case (loadRequest.tlRequest.a_size)
+                0: begin    // 1 byte
+                    if (loadRequest.signExtend)
+                        value = signExtend(memoryResponse.d_data[7:0]);
+                    else
+                        value = zeroExtend(memoryResponse.d_data[7:0]);
+                end
+                1: begin    // 2 bytes
+                    if (loadRequest.signExtend)
+                        value = signExtend(memoryResponse.d_data[15:0]);
+                    else
+                        value = zeroExtend(memoryResponse.d_data[15:0]);
+                end
+`ifdef RV32
+                2: begin    // 4 bytes
+                    value = memoryResponse.d_data;
+                end
+`elsif RV64
+                2: begin    // 4 bytes
+                    if (loadRequest.signExtend)
+                        value = signExtend(memoryResponse.d_data[31:0]);
+                    else
+                        value = zeroExtend(memoryResponse.d_data[31:0]);
+                end
+                3: begin    // 8 bytes
+                    value = memoryResponse.d_data;
+                end
+`endif
+            endcase
+            executedInstruction.writeBack = tagged Valid WriteBack {
+                rd: rd,
+                value: value
+            };
+
         end
 
-        // Save the data that will be written back into the register file on the
-        // writeback pipeline stage.
-        let loadRequest = unJust(executedInstruction.loadRequest);
-        Word value = ?;
-        case (loadRequest.tlRequest.a_size)
-            0: begin    // 1 byte
-                if (loadRequest.signExtend)
-                    value = signExtend(memoryResponse.d_data[7:0]);
-                else
-                    value = zeroExtend(memoryResponse.d_data[7:0]);
-            end
-            1: begin    // 2 bytes
-                if (loadRequest.signExtend)
-                    value = signExtend(memoryResponse.d_data[15:0]);
-                else
-                    value = zeroExtend(memoryResponse.d_data[15:0]);
-            end
-`ifdef RV32
-            2: begin    // 4 bytes
-                value = memoryResponse.d_data;
-            end
-`elsif RV64
-            2: begin    // 4 bytes
-                if (loadRequest.signExtend)
-                    value = signExtend(memoryResponse.d_data[31:0]);
-                else
-                    value = zeroExtend(memoryResponse.d_data[31:0]);
-            end
-            3: begin    // 8 bytes
-                value = memoryResponse.d_data;
-            end
-`endif
-        endcase
-        executedInstruction.writeBack = tagged Valid WriteBack {
-            rd: loadRequest.rd,
-            value: value
-        };
-
+        // Set the bypass to the value read.  Note: even if an exception 
+        // was encountered, this still needs to be done otherwise other
+        // stages will stall forever.
         gprBypassValue.wset(tagged Valid GPRBypassValue{
-            rd: loadRequest.rd,
+            rd: rd,
             value: tagged Valid value
         });
 

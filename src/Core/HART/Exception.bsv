@@ -24,6 +24,13 @@ function Exception createIllegalInstructionException(Word32 rawInstruction);
     };
 endfunction
 
+function Exception createInstructionAccessFaultException(ProgramCounter programCounter);
+    return Exception {
+        cause: tagged ExceptionCause exception_INSTRUCTION_ACCESS_FAULT,
+        tval: programCounter
+    };
+endfunction
+
 function Exception createMisalignedInstructionException(ProgramCounter programCounter);
     return Exception {
         cause: tagged ExceptionCause exception_INSTRUCTION_ADDRESS_MISALIGNED,
@@ -63,5 +70,19 @@ function Exception createInterruptException(ProgramCounter programCounter, Bit#(
     return Exception {
         cause: tagged InterruptCause pack(interruptNumber),
         tval: programCounter
+    };
+endfunction
+
+function Exception createStoreAccessFaultException(Word storeAddress);
+    return Exception {
+        cause: tagged ExceptionCause exception_STORE_ACCESS_FAULT,
+        tval: storeAddress
+    };
+endfunction
+
+function Exception createLoadAccessFaultException(Word loadAddress);
+    return Exception {
+        cause: tagged ExceptionCause exception_LOAD_ACCESS_FAULT,
+        tval: loadAddress
     };
 endfunction

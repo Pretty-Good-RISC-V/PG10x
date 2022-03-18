@@ -16,7 +16,7 @@ endif()
 
 if ("${BASE_ISA}" STREQUAL "RV64")
     set(ISA_TEST_BINARIES
-        # "${RISCV_ISA_TEST_BUILD_DIR}/src/riscv_isa_tests-build/isa/rv64mi-p-access"     # Access Exception Tests
+        "${RISCV_ISA_TEST_BUILD_DIR}/src/riscv_isa_tests-build/isa/rv64mi-p-access"     # Access Exception Tests
         "${RISCV_ISA_TEST_BUILD_DIR}/src/riscv_isa_tests-build/isa/rv64mi-p-breakpoint" # Breakpoint Tests
         "${RISCV_ISA_TEST_BUILD_DIR}/src/riscv_isa_tests-build/isa/rv64mi-p-csr"        # CSR tests
         "${RISCV_ISA_TEST_BUILD_DIR}/src/riscv_isa_tests-build/isa/rv64mi-p-illegal"    # Illegal instructino traps

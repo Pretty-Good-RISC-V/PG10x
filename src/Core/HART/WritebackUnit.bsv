@@ -66,6 +66,13 @@ module mkWritebackUnit#(
                         logIt = False;
                 end
 
+                if (executedInstruction.exception matches tagged Valid .exception &&& 
+                    exception.cause matches tagged ExceptionCause .exceptionCause &&& 
+                    exceptionCause == exception_INSTRUCTION_ACCESS_FAULT) begin
+                        // Don't log instructions that caused fetch faults (as these weren't executed)
+                        logIt = False;
+                end
+
                 if (logIt)
                     instructionLog.logInstruction(executedInstruction.programCounter, executedInstruction.rawInstruction);
 `endif

@@ -99,7 +99,8 @@ module mkDecodeUnit#(
             rs2: tagged Invalid,
             immediate: tagged Invalid,
             rs1Value: ?,
-            rs2Value: ?
+            rs2Value: ?,
+            exception: tagged Invalid
         };
 
         case(opcode)
@@ -363,6 +364,31 @@ module mkDecodeUnit#(
 
             if (!pipelineController.isCurrentEpoch(stageNumber, 2, encodedInstruction.pipelineEpoch)) begin
                 $display("%0d,%0d,%0d,%0x,%0d,decode,stale instruction...ignoring", fetchIndex, cycleCounter, encodedInstruction.pipelineEpoch, encodedInstruction.programCounter, stageNumber);
+            end else if(isValid(encodedInstruction.exception)) begin
+                // Pass along any exceptions
+                $display("%0d,%0d,%0d,%0x,%0d,decode,exception in encoded instruction...propagating", fetchIndex, cycleCounter, encodedInstruction.pipelineEpoch, encodedInstruction.programCounter, stageNumber);
+                outputQueue.enq(DecodedInstruction {
+                    fetchIndex: fetchIndex,
+                    pipelineEpoch: stageEpoch,
+                    opcode: NO_OP,
+                    programCounter: encodedInstruction.programCounter,
+                    rawInstruction: 0,
+                    predictedNextProgramCounter: ?,
+                    aluOperator: ?,
+                    loadOperator: ?,
+                    storeOperator: ?,
+                    csrOperator: ?,
+                    csrIndex: ?,
+                    branchOperator: ?,
+                    systemOperator: ?,
+                    rd: tagged Invalid,
+                    rs1: tagged Invalid,
+                    rs2: tagged Invalid,
+                    immediate: tagged Invalid,
+                    rs1Value: ?,
+                    rs2Value: ?,
+                    exception: encodedInstruction.exception
+                });
             end else begin
                 let rawInstruction = encodedInstruction.rawInstruction;
                 let programCounter = encodedInstruction.programCounter;

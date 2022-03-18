@@ -48,11 +48,7 @@ module mkExecutionUnit#(
     ALU alu <- mkALU;
 
     function Bool isValidInstructionAddress(ProgramCounter programCounter);
-`ifdef RV32
         return (programCounter[1:0] == 0 ? True : False);
-`elsif RV64
-        return ((programCounter[1:0] == 0 && programCounter[63] == 0) ? True : False);
-`endif
     endfunction
 
     function Bool isValidBranchOperator(RVBranchOperator operator);
@@ -398,6 +394,19 @@ module mkExecutionUnit#(
                     loadRequest: tagged Invalid,
                     storeRequest: tagged Invalid,
                     exception: tagged Invalid,
+                    writeBack: tagged Invalid
+                });
+            end else if (isValid(decodedInstruction.exception)) begin
+                $display("%0d,%0d,%0d,%0x,%0d,execute,EXCEPTION - decoded instruction had exception - prooagating", fetchIndex, exceptionController.csrFile.cycle_counter, decodedInstruction.pipelineEpoch, decodedInstruction.programCounter, stageNumber, decodedInstruction.pipelineEpoch, stageEpoch);
+                outputQueue.enq(ExecutedInstruction{
+                    fetchIndex: decodedInstruction.fetchIndex,
+                    pipelineEpoch: decodedInstruction.pipelineEpoch,
+                    programCounter: decodedInstruction.programCounter,
+                    rawInstruction: decodedInstruction.rawInstruction,
+                    changedProgramCounter: tagged Invalid,
+                    loadRequest: tagged Invalid,
+                    storeRequest: tagged Invalid,
+                    exception: decodedInstruction.exception,
                     writeBack: tagged Invalid
                 });
             end else begin
