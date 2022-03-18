@@ -1,3 +1,4 @@
 build
 **/*.sched
 test/conformance/riscof_work/
+**/.DS_Store
