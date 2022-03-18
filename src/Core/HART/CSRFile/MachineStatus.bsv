@@ -53,8 +53,8 @@ module mkMachineStatusRegister(MachineStatus);
     ReadOnly#(Bit#(1)) tsr          <- mkReadOnly(0);            // Trap SRET Instruction
 
 `ifdef RV64
-    ReadOnly#(XLENEncoding) uxl     <- mkReadOnly(xlen_64);      // User Mode XLEN value
-    ReadOnly#(XLENEncoding) sxl     <- mkReadOnly(xlen_64);      // Supervisor Mode XLEN value
+    ReadOnly#(XLENEncoding) uxl     <- mkReadOnly(0);            // User Mode XLEN value
+    ReadOnly#(XLENEncoding) sxl     <- mkReadOnly(0);            // Supervisor Mode XLEN value
 `endif
     ReadOnly#(Bit#(1)) sbe          <- mkReadOnly(0);            // Supervisor Mode Data Accesses are Big Endian
     ReadOnly#(Bit#(1)) mbe          <- mkReadOnly(0);            // Machine Mode Data Accesses are Big Endian
