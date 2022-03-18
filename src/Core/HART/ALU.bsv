@@ -36,11 +36,13 @@ module mkALU(ALU);
             alu_SLT:    tagged Valid setLessThan(operand1, operand2);
 `ifdef RV32
             alu_SLL:    tagged Valid (operand1 << operand2[4:0]);
-`elsif RV64
-            alu_SLL:    tagged Valid (operand1 << operand2[5:0]);
-`endif
             alu_SRA:    tagged Valid signedShiftRight(operand1, operand2[4:0]);
             alu_SRL:    tagged Valid (operand1 >> operand2[4:0]);
+`elsif RV64
+            alu_SLL:    tagged Valid (operand1 << operand2[5:0]);
+            alu_SRA:    tagged Valid signedShiftRight(operand1, operand2[5:0]);
+            alu_SRL:    tagged Valid (operand1 >> operand2[5:0]);
+`endif
             default: tagged Invalid;
         endcase;
     endmethod
@@ -57,15 +59,15 @@ module mkALU(ALU);
                 return tagged Valid signExtend(result[31:0]);
             end
             alu_SLL: begin
-                let result = (operand1 << operand2[5:0]);
+                let result = (operand1 << operand2[4:0]);
                 return tagged Valid signExtend(result[31:0]);
             end
             alu_SRA: begin
-                let result = signedShiftRight(operand1, operand2[5:0]);
+                let result = signedShiftRight(operand1, operand2[4:0]);
                 return tagged Valid signExtend(result[31:0]);
             end
             alu_SRL: begin
-                let result = (operand1 >> operand2[5:0]);
+                let result = (operand1 >> operand2[4:0]);
                 return tagged Valid signExtend(result[31:0]);
             end
             default: tagged Invalid;

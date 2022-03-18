@@ -11,7 +11,7 @@ module mkMachineISARegister(MachineISA);
 `ifdef RV32
         result[31:30] = 'b01;
 `elsif RV64
-        result[63:62] = 'b01;
+        result[63:62] = 'b10;
 `endif
         result[25:0] = isaext_I;
         return result;
