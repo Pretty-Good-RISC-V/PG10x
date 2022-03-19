@@ -140,7 +140,7 @@ function Result#(StoreRequest, Exception) getStoreRequest(
 
     let storeRequest = StoreRequest {
         tlRequest: TileLinkLiteWordRequest {
-            a_opcode: a_PUT_PARTIAL_DATA,
+            a_opcode: a_PUT_FULL_DATA,
             a_param: 0,
             a_size: ?,
             a_source: 0,

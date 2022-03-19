@@ -42,9 +42,8 @@ module mkMemoryAccessUnit#(
 )(MemoryAccessUnit);
     Wire#(Word64) cycleCounter <- mkBypassWire;
     FIFO#(ExecutedInstruction) outputQueue <- mkPipelineFIFO;
-    Reg#(Bool) waitingForLoadToComplete <- mkReg(False);
-    Reg#(Bool) waitingForStoreResponse <- mkReg(False);
     Reg#(Maybe#(Word)) toHostAddress <- mkReg(tagged Invalid);
+    Reg#(Bool) waitingForMemoryResponse <- mkReg(False);
 
     Reg#(ExecutedInstruction) instructionWaitingForMemoryOperation <- mkRegU;
     FIFO#(StdTileLinkRequest) dataMemoryRequests <- mkFIFO;
@@ -52,111 +51,102 @@ module mkMemoryAccessUnit#(
 
     RWire#(Maybe#(GPRBypassValue)) gprBypassValue <- mkRWire();
 
-    rule handleStoreResponse(waitingForStoreResponse == True && waitingForLoadToComplete == False);
+    rule handleMemoryResponse(waitingForMemoryResponse == True);
         let memoryResponse <- pop(dataMemoryResponses);
         let executedInstruction = instructionWaitingForMemoryOperation;
+        waitingForMemoryResponse <= False;
 
-        waitingForStoreResponse <= False;
-        let storeAddress = unJust(executedInstruction.storeRequest).tlRequest.a_address;
+        if (executedInstruction.storeRequest matches tagged Valid .storeRequest) begin
+            let storeAddress = storeRequest.tlRequest.a_address;
+            if (memoryResponse.d_denied) begin
+                $display("[****:****:memory] ERROR - Store returned access denied: ", fshow(memoryResponse));
+                executedInstruction.exception = tagged Valid createStoreAccessFaultException(storeAddress);
+            end else
+            if (memoryResponse.d_corrupt) begin
+                $display("[****:****:memory] ERROR - Store returned access corrupted: ", fshow(memoryResponse));
+                executedInstruction.exception = tagged Valid createStoreAccessFaultException(storeAddress);
+            end else
+            if (memoryResponse.d_opcode != d_ACCESS_ACK) begin
+                $display("[****:****:memory] ERROR - Store returned unexpected opcode: ", fshow(memoryResponse));
+                executedInstruction.exception = tagged Valid createStoreAccessFaultException(storeAddress);
+            end else begin
+                $display("[****:****:memory] Store completed");
+            end
+        end else if (executedInstruction.loadRequest matches tagged Valid .loadRequest) begin
+            let loadAddress = loadRequest.tlRequest.a_address;
+            Word value = ?;
+            RVGPRIndex rd = ?;
 
-        if (memoryResponse.d_denied) begin
-            $display("[****:****:memory] ERROR - Store returned access denied: ", fshow(memoryResponse));
-            executedInstruction.exception = tagged Valid createStoreAccessFaultException(storeAddress);
-        end else
-        if (memoryResponse.d_corrupt) begin
-            $display("[****:****:memory] ERROR - Store returned access corrupted: ", fshow(memoryResponse));
-            executedInstruction.exception = tagged Valid createStoreAccessFaultException(storeAddress);
-        end else
-        if (memoryResponse.d_opcode != d_ACCESS_ACK) begin
-            $display("[****:****:memory] ERROR - Store returned unexpected opcode: ", fshow(memoryResponse));
-            executedInstruction.exception = tagged Valid createStoreAccessFaultException(storeAddress);
-        end else begin
-            $display("[****:****:memory] Store completed");
-        end
+            if (memoryResponse.d_denied) begin
+                $display("[****]:****:memory] ERROR - Load returned access denied: ", fshow(memoryResponse));
+                executedInstruction.exception = tagged Valid createLoadAccessFaultException(loadAddress);
+                rd = 0; // Make bypass doesn't contain the instruction RD (fix for p-access ISA test)
+            end else
+            if (memoryResponse.d_corrupt) begin
+                $display("[****:****:memory] ERROR - Load returned access corrupted: ", fshow(memoryResponse));
+                executedInstruction.exception = tagged Valid createLoadAccessFaultException(loadAddress);
+                rd = 0; // Make bypass doesn't contain the instruction RD (fix for p-access ISA test)
+            end else
+            if (memoryResponse.d_opcode != d_ACCESS_ACK_DATA) begin
+                $display("[****:****:memory] ERROR - Load returned unexpected opcode: ", fshow(memoryResponse));
+                executedInstruction.exception = tagged Valid createLoadAccessFaultException(loadAddress);
+                rd = 0; // Make bypass doesn't contain the instruction RD (fix for p-access ISA test)
+            end else begin
+                $display("[****:****:memory] Load completed");
 
-        outputQueue.enq(executedInstruction);
-    endrule
+                // Save the data that will be written back into the register file on the
+                // writeback pipeline stage.
+                rd = loadRequest.rd;
 
-    rule handleLoadResponse(waitingForLoadToComplete == True && waitingForStoreResponse == False);
-        let memoryResponse <- pop(dataMemoryResponses);
-        let executedInstruction = instructionWaitingForMemoryOperation;
-
-        waitingForLoadToComplete <= False;
-        let loadAddress = unJust(executedInstruction.loadRequest).tlRequest.a_address;
-        Word value = ?;
-        RVGPRIndex rd = ?;
-
-        if (memoryResponse.d_denied) begin
-            $display("[****]:****:memory] ERROR - Load returned access denied: ", fshow(memoryResponse));
-            executedInstruction.exception = tagged Valid createLoadAccessFaultException(loadAddress);
-            rd = 0; // Make bypass doesn't contain the instruction RD (fix for p-access ISA test)
-        end else
-        if (memoryResponse.d_corrupt) begin
-            $display("[****:****:memory] ERROR - Load returned access corrupted: ", fshow(memoryResponse));
-            executedInstruction.exception = tagged Valid createLoadAccessFaultException(loadAddress);
-            rd = 0; // Make bypass doesn't contain the instruction RD (fix for p-access ISA test)
-        end else
-        if (memoryResponse.d_opcode != d_ACCESS_ACK_DATA) begin
-            $display("[****:****:memory] ERROR - Load returned unexpected opcode: ", fshow(memoryResponse));
-            executedInstruction.exception = tagged Valid createLoadAccessFaultException(loadAddress);
-            rd = 0; // Make bypass doesn't contain the instruction RD (fix for p-access ISA test)
-        end else begin
-            $display("[****:****:memory] Load completed");
-
-            // Save the data that will be written back into the register file on the
-            // writeback pipeline stage.
-            let loadRequest = unJust(executedInstruction.loadRequest);
-            rd = loadRequest.rd;
-
-            case (loadRequest.tlRequest.a_size)
-                0: begin    // 1 byte
-                    if (loadRequest.signExtend)
-                        value = signExtend(memoryResponse.d_data[7:0]);
-                    else
-                        value = zeroExtend(memoryResponse.d_data[7:0]);
-                end
-                1: begin    // 2 bytes
-                    if (loadRequest.signExtend)
-                        value = signExtend(memoryResponse.d_data[15:0]);
-                    else
-                        value = zeroExtend(memoryResponse.d_data[15:0]);
-                end
+                case (loadRequest.tlRequest.a_size)
+                    0: begin    // 1 byte
+                        if (loadRequest.signExtend)
+                            value = signExtend(memoryResponse.d_data[7:0]);
+                        else
+                            value = zeroExtend(memoryResponse.d_data[7:0]);
+                    end
+                    1: begin    // 2 bytes
+                        if (loadRequest.signExtend)
+                            value = signExtend(memoryResponse.d_data[15:0]);
+                        else
+                            value = zeroExtend(memoryResponse.d_data[15:0]);
+                    end
 `ifdef RV32
-                2: begin    // 4 bytes
-                    value = memoryResponse.d_data;
-                end
+                    2: begin    // 4 bytes
+                        value = memoryResponse.d_data;
+                    end
 `elsif RV64
-                2: begin    // 4 bytes
-                    if (loadRequest.signExtend)
-                        value = signExtend(memoryResponse.d_data[31:0]);
-                    else
-                        value = zeroExtend(memoryResponse.d_data[31:0]);
-                end
-                3: begin    // 8 bytes
-                    value = memoryResponse.d_data;
-                end
+                    2: begin    // 4 bytes
+                        if (loadRequest.signExtend)
+                            value = signExtend(memoryResponse.d_data[31:0]);
+                        else
+                            value = zeroExtend(memoryResponse.d_data[31:0]);
+                    end
+                    3: begin    // 8 bytes
+                        value = memoryResponse.d_data;
+                    end
 `endif
-            endcase
-            executedInstruction.writeBack = tagged Valid WriteBack {
+                endcase
+                executedInstruction.writeBack = tagged Valid WriteBack {
+                    rd: rd,
+                    value: value
+                };
+            end
+
+            // Set the bypass to the value read.  Note: even if an exception 
+            // was encountered, this still needs to be done otherwise other
+            // stages will stall forever.
+            gprBypassValue.wset(tagged Valid GPRBypassValue{
                 rd: rd,
-                value: value
-            };
-
+                value: tagged Valid value
+            });
         end
-
-        // Set the bypass to the value read.  Note: even if an exception 
-        // was encountered, this still needs to be done otherwise other
-        // stages will stall forever.
-        gprBypassValue.wset(tagged Valid GPRBypassValue{
-            rd: rd,
-            value: tagged Valid value
-        });
 
         outputQueue.enq(executedInstruction);
     endrule
 
     interface Put putExecutedInstruction;
-        method Action put(ExecutedInstruction executedInstruction) if(waitingForLoadToComplete == False && waitingForStoreResponse == False);
+        method Action put(ExecutedInstruction executedInstruction) if (waitingForMemoryResponse == False);
             let fetchIndex = executedInstruction.fetchIndex;
             let stageEpoch = pipelineController.stageEpoch(stageNumber, 1);
             if (!pipelineController.isCurrentEpoch(stageNumber, 1, executedInstruction.pipelineEpoch)) begin
@@ -177,29 +167,27 @@ module mkMemoryAccessUnit#(
                         stageEpoch, 
                         executedInstruction.programCounter, 
                         stageNumber);
-                    begin
 
-                        // Set the bypass value but mark the value as invalid since
-                        // the other side of the bypass has to wait for the load to complete.
-                        gprBypassValue.wset(tagged Valid GPRBypassValue{
-                            rd: loadRequest.rd,
-                            value: tagged Invalid
-                        });
+                    // Set the bypass value but mark the value as invalid since
+                    // the other side of the bypass has to wait for the load to complete.
+                    gprBypassValue.wset(tagged Valid GPRBypassValue{
+                        rd: loadRequest.rd,
+                        value: tagged Invalid
+                    });
 
-                        // NOTE: Alignment checks were already performed during the execution stage.
-                        dataMemoryRequests.enq(loadRequest.tlRequest);
+                    // NOTE: Alignment checks were already performed during the execution stage.
+                    dataMemoryRequests.enq(loadRequest.tlRequest);
 
-                        $display("%0d,%0d,%0d,%0x,%0d,memory access,Loading from $%08x with size: %d", 
-                            fetchIndex, 
-                            cycleCounter, 
-                            stageEpoch, 
-                            executedInstruction.programCounter, 
-                            stageNumber, 
-                            loadRequest.tlRequest.a_address, 
-                            loadRequest.tlRequest.a_size);
-                        instructionWaitingForMemoryOperation <= executedInstruction;
-                        waitingForLoadToComplete <= True;
-                    end
+                    $display("%0d,%0d,%0d,%0x,%0d,memory access,Loading from $%08x with size: %d", 
+                        fetchIndex, 
+                        cycleCounter, 
+                        stageEpoch, 
+                        executedInstruction.programCounter, 
+                        stageNumber, 
+                        loadRequest.tlRequest.a_address, 
+                        loadRequest.tlRequest.a_size);
+                    instructionWaitingForMemoryOperation <= executedInstruction;
+                    waitingForMemoryResponse <= True;
                 end else if (executedInstruction.storeRequest matches tagged Valid .storeRequest) begin
                     $display("%0d,%0d,%0d,%0x,%0d,memory access,Storing to $0x", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, storeRequest.tlRequest.a_address);
                     if (toHostAddress matches tagged Valid .tha &&& tha == storeRequest.tlRequest.a_address) begin
@@ -210,7 +198,8 @@ module mkMemoryAccessUnit#(
                         $finish();
                     end
                     dataMemoryRequests.enq(storeRequest.tlRequest);
-                    waitingForStoreResponse <= True;
+                    instructionWaitingForMemoryOperation <= executedInstruction;
+                    waitingForMemoryResponse <= True;
                 end else begin
                     // Not a LOAD/STORE
                     $display("%0d,%0d,%0d,%0x,%0d,memory access,NO-OP", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
