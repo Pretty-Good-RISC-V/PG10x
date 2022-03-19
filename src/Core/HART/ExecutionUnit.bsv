@@ -34,6 +34,10 @@ interface ExecutionUnit;
     interface Put#(Bool) putHalt;
 endinterface
 
+`ifdef ENABLE_RISCOF_TESTS
+RVCSRIndex csr_HALTTEST = 12'h7C0;      // Register, that when written, is used to halt a RISCOF test (and the simulation).
+`endif
+
 module mkExecutionUnit#(
     Integer stageNumber,
     PipelineController pipelineController,
@@ -111,6 +115,11 @@ module mkExecutionUnit#(
                 endcase
 
                 if (writeValue matches tagged Valid .v) begin
+                    // Special case handling for tests
+`ifdef ENABLE_RISCOF_TESTS
+                    if (csrIndex == csr_TESTHALT) begin
+                    end
+`endif                    
                     let writeSucceeded <- exceptionController.csrFile.write2(csrIndex, v);
                     if (writeSucceeded == False) begin
                         $display("CSR($%0x): Write failed", csrIndex);

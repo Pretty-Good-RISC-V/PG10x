@@ -15,6 +15,7 @@ project(PG10x BSV CXX)
 # Build Options
 #
 option(ENABLE_ISA_TESTS "Enable the RISC-V ISA Architecture Tests" OFF)
+option(ENABLE_RISCOF_TESTS "Enable the RISC-V Architecture Tests" OFF)
 option(ENABLE_INSTRUCTION_LOGGING "Enable disassembled instruction logging" OFF)
 
 option(ENABLE_BRANCH_PREDICTION "Enable branch prediction inside RISC-V core" ON)

@@ -65,6 +65,10 @@
           "type": "BOOL",
           "value": "ON"
         },
+        "ENABLE_RISCOF_TESTS": {
+          "type": "BOOL",
+          "value": "ON"
+        },
         "ENABLE_INSTRUCTION_LOGGING": {
           "type": "BOOL",
           "value": "ON"
