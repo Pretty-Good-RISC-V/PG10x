@@ -27,6 +27,10 @@ interface WritebackUnit;
     interface Put#(Word64) putCycleCounter;
     interface Put#(ExecutedInstruction) putExecutedInstruction;
     method Bool wasInstructionRetired;
+
+`ifdef ENABLE_RISCOF_TESTS
+    interface Get#(Bool) getRISCOFHaltRequested;
+`endif
 endinterface
 
 module mkWritebackUnit#(
@@ -39,12 +43,20 @@ module mkWritebackUnit#(
     Wire#(Word64) cycleCounter <- mkBypassWire;
     Reg#(Bool) instructionRetired <- mkDReg(False);
 
+`ifdef ENABLE_RISCOF_TESTS
+    Reg#(Bool) riscofHaltRequested <- mkReg(False);
+`endif
+
 `ifdef ENABLE_INSTRUCTION_LOGGING
     InstructionLog instructionLog<- mkInstructionLog;
 `endif
 
     interface Put putExecutedInstruction;
+`ifdef ENABLE_RISCOF_TESTS    
+        method Action put(ExecutedInstruction executedInstruction) if(riscofHaltRequested == False);
+`else
         method Action put(ExecutedInstruction executedInstruction);
+`endif        
             let fetchIndex = executedInstruction.fetchIndex;
             let stageEpoch = pipelineController.stageEpoch(stageNumber, 0);
 
@@ -89,6 +101,14 @@ module mkWritebackUnit#(
                     $display("%0d,%0d,%0d,%0x,%0d,writeback,Jumping to exception handler at $%08x", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, exceptionVector);
 
                     programCounterRedirect.exception(exceptionVector); 
+
+`ifdef ENABLE_RISCOF_TESTS
+                    if (exception.cause matches tagged ExceptionCause .cause &&& cause == exception_RISCOFTestHaltException) begin
+                        // Dump signature
+                        $display("%0d,%0d,%0d,%0x,%0d,writeback,RISCOF HALT Requested", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
+                        riscofHaltRequested <= True;
+                    end
+`endif                    
                 end
                 $display("%0d,%0d,%0d,%0x,%0d,writeback,---------------------------", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
                 exceptionController.csrFile.increment_instructions_retired_counter;
@@ -102,4 +122,9 @@ module mkWritebackUnit#(
     endmethod
 
     interface Put putCycleCounter = toPut(asIfc(cycleCounter));
+
+`ifdef ENABLE_RISCOF_TESTS
+    interface Get getRISCOFHaltRequested = toGet(riscofHaltRequested);
+`endif
+
 endmodule

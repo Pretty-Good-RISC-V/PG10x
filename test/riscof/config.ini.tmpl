@@ -1,0 +1,17 @@
+[RISCOF]
+ReferencePlugin=spike_simple
+ReferencePluginPath=${CMAKE_CURRENT_SOURCE_DIR}/spike_simple
+DUTPlugin=pg10x
+DUTPluginPath=${CMAKE_CURRENT_SOURCE_DIR}/pg10x
+
+[pg10x]
+pluginpath=${CMAKE_CURRENT_SOURCE_DIR}/pg10x
+ispec=${CMAKE_CURRENT_SOURCE_DIR}/pg10x/pg10x_isa.yaml
+pspec=${CMAKE_CURRENT_SOURCE_DIR}/pg10x/pg10x_platform.yaml
+target_run=1
+PATH=${CMAKE_SOURCE_DIR}/scripts/
+
+[spike_simple]
+pluginpath=${CMAKE_CURRENT_SOURCE_DIR}/spike_simple
+ispec=${CMAKE_CURRENT_SOURCE_DIR}/spike_simple/spike_simple_isa.yaml
+pspec=${CMAKE_CURRENT_SOURCE_DIR}/spike_simple/spike_simple_platform.yaml

@@ -42,6 +42,10 @@
           "type": "STRING",
           "value": "MONITOR_TOHOST_ADDRESS"
         },
+        "ENABLE_RISCOF_TESTS": {
+          "type": "BOOL",
+          "value": "ON"
+        },
         "ENABLE_ISA_TESTS": {
           "type": "BOOL",
           "value": "ON"
@@ -62,10 +66,6 @@
           "value": "MONITOR_TOHOST_ADDRESS"
         },
         "ENABLE_ISA_TESTS": {
-          "type": "BOOL",
-          "value": "ON"
-        },
-        "ENABLE_RISCOF_TESTS": {
           "type": "BOOL",
           "value": "ON"
         },

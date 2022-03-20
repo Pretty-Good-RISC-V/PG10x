@@ -23,6 +23,12 @@ interface Core;
     interface Put#(Maybe#(Word)) putToHostAddress;
 
     interface Debug debug;
+
+`ifdef ENABLE_RISCOF_TESTS
+    interface Put#(Word) putSignatureBeginAddress;
+    interface Put#(Word) putSignatureEndAddress;
+`endif    
+
 endinterface
 
 module mkCore#(
@@ -87,4 +93,10 @@ module mkCore#(
     interface Put putPipeliningDisabled = hart.putPipeliningDisabled;
     interface Put putToHostAddress = hart.putToHostAddress;
     interface Debug debug = hart.debug;
+
+`ifdef ENABLE_RISCOF_TESTS
+    interface Put putSignatureBeginAddress = hart.putSignatureBeginAddress;
+    interface Put putSignatureEndAddress = hard.putSignatureEndAddress;
+`endif
+
 endmodule

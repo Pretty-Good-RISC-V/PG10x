@@ -10,6 +10,11 @@ interface ProgramMemoryTile;
     interface StdTileLinkServer portB;
 
     method Bool isValidAddress(Word address);
+
+`ifdef ENABLE_RISCOF_TESTS
+    interface Get#(Word) getSignatureBeginAddress;
+    interface Get#(Word) getSignatureEndAddress;
+`endif    
 endinterface
 
 typedef Word32 ContextHandle;
@@ -28,6 +33,11 @@ import "BDPI" function void program_memory_write_u8(ContextHandle ctx, Word addr
 import "BDPI" function void program_memory_write_u16(ContextHandle ctx, Word address, Bit#(16) newValue);
 import "BDPI" function void program_memory_write_u32(ContextHandle ctx, Word address, Bit#(32) newValue);
 import "BDPI" function void program_memory_write_u64(ContextHandle ctx, Word address, Bit#(64) newValue);
+
+`ifdef ENABLE_RISCOF_TESTS
+import "BDPI" function Word program_memory_signature_address_begin(ContextHandle ctx);
+import "BDPI" function Word program_memory_signature_address_end(ContextHandle ctx);
+`endif
 
 module mkProgramMemoryTile#(
     TileId tileID
@@ -118,4 +128,18 @@ module mkProgramMemoryTile#(
     method Bool isValidAddress(Word address);
         return program_memory_is_valid_address(programMemoryContext, address);
     endmethod
+
+`ifdef ENABLE_RISCOF_TESTS
+    interface Get getSignatureBeginAddress;
+        method ActionValue#(Word) get;
+            return program_memory_signature_address_begin(programMemoryContext);
+        endmethod
+    endinterface
+
+    interface Get getSignatureEndAddress;
+        method ActionValue#(Word) get;
+            return program_memory_signature_address_end(programMemoryContext);
+        endmethod
+    endinterface
+`endif    
 endmodule

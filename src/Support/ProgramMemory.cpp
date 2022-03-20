@@ -37,7 +37,6 @@ struct SectionCompare {
 
 struct Context {
     std::set<std::shared_ptr<Section>, SectionCompare> sections;
-
     std::shared_ptr<Section> find(address_t address) const {
         for (const auto s : sections) {
             if (s->contains(address)) {
@@ -47,6 +46,9 @@ struct Context {
 
         return std::shared_ptr<Section>();
     }
+
+    address_t signature_memory_begin = 0;
+    address_t signature_memory_end = 0;
 };
 
 uint32_t next_handle = 1;
@@ -74,38 +76,60 @@ uint32_t program_memory_open() {
         std::shared_ptr<Section> previous_section;
 
         for (const auto section : reader.sections) {
-            if (section->get_type() == ELFIO::SHT_PROGBITS) {
-                // std::cout << "Loading ELF section: " << section->get_name() << std::endl;
-                // std::cout << "               Type: " << section->get_type() << std::endl;
-                // std::cout << "            Address: " << std::hex << section->get_address() << std::endl;
-                // std::cout << "               Size: " << std::hex << section->get_size() << std::endl;
-                // std::cout << "      Address Align: " << std::dec << section->get_addr_align() << std::endl;
-                // std::cout << "         Entry Size: " << std::dec << section->get_entry_size() << std::endl;
-                // std::cout << "        Name Offset: " << std::hex << section->get_name_string_offset() << std::endl;
-                // std::cout << "             Offset: " << std::hex << section->get_offset() << std::endl;
+            switch(section->get_type()) {
+                case ELFIO::SHT_PROGBITS: {
+                    // std::cout << "Loading ELF section: " << section->get_name() << std::endl;
+                    // std::cout << "               Type: " << section->get_type() << std::endl;
+                    // std::cout << "            Address: " << std::hex << section->get_address() << std::endl;
+                    // std::cout << "               Size: " << std::hex << section->get_size() << std::endl;
+                    // std::cout << "      Address Align: " << std::dec << section->get_addr_align() << std::endl;
+                    // std::cout << "         Entry Size: " << std::dec << section->get_entry_size() << std::endl;
+                    // std::cout << "        Name Offset: " << std::hex << section->get_name_string_offset() << std::endl;
+                    // std::cout << "             Offset: " << std::hex << section->get_offset() << std::endl;
 
-                if(previous_section && 
-                    section->get_address() >= previous_section->address &&
-                    section->get_address() < (previous_section->address + previous_section->data.size() + 8192)) {
+                    if(previous_section && 
+                        section->get_address() >= previous_section->address &&
+                        section->get_address() < (previous_section->address + previous_section->data.size() + 8192)) {
 
-                    // std::cout << "Merging section with previous section" << std::endl;
+                        // std::cout << "Merging section with previous section" << std::endl;
 
-                    const size_t new_size = (section->get_address() + section->get_size()) -
-                        previous_section->address;
+                        const size_t new_size = (section->get_address() + section->get_size()) -
+                            previous_section->address;
 
-                    // std::cout << "New section size: " << std::hex << new_size << std::endl;
-                    const size_t byte_offset = section->get_address() - previous_section->address;
-                    // std::cout << "Copy offset: " << std::hex << byte_offset << std::endl;
+                        // std::cout << "New section size: " << std::hex << new_size << std::endl;
+                        const size_t byte_offset = section->get_address() - previous_section->address;
+                        // std::cout << "Copy offset: " << std::hex << byte_offset << std::endl;
 
-                    previous_section->data.resize(new_size);
+                        previous_section->data.resize(new_size);
 
-                    std::copy(section->get_data(), section->get_data() + section->get_size(),
-                        &previous_section->data[byte_offset]);
-                } else {
-                    std::shared_ptr<Section> new_section(new Section(section));
-                    previous_section = new_section;
-                    context->sections.insert(new_section);
+                        std::copy(section->get_data(), section->get_data() + section->get_size(),
+                            &previous_section->data[byte_offset]);
+                    } else {
+                        std::shared_ptr<Section> new_section(new Section(section));
+                        previous_section = new_section;
+                        context->sections.insert(new_section);
+                    }
                 }
+                break;
+
+                case ELFIO::SHT_SYMTAB: {
+                    ELFIO::symbol_section_accessor ssa(reader, section);
+
+                    ELFIO::Elf64_Addr value;
+                    ELFIO::Elf_Xword size;
+                    unsigned char bind, type, other;
+                    ELFIO::Elf_Half section_index;
+                    ssa.get_symbol("begin_signature", value, size, bind, type, section_index, other);
+                    std::cout << "SYMBOL -'begin_signature': $" << std::hex << value << std::endl;
+
+                    context->signature_memory_begin = value;
+
+                    ssa.get_symbol("begin_signature", value, size, bind, type, section_index, other);
+                    std::cout << "SYMBOL -'end_signature'  : $" << std::hex << value << std::endl;
+
+                    context->signature_memory_end = value;
+                }
+                break;
             }
         }
 
@@ -267,4 +291,26 @@ void program_memory_write_u32(context_handle handle, address_t address, uint32_t
 
 void program_memory_write_u64(context_handle handle, address_t address, uint64_t value) {
     program_memory_write(handle, address, value);
+}
+
+address_t program_memory_signature_address_begin(context_handle handle) {
+    address_t result = 0;
+
+    const auto &i = contexts.find(handle);
+    if (i != contexts.end()) {
+        result = (*i).second->signature_memory_begin;
+    }
+
+    return result;
+}
+
+address_t program_memory_get_signature_address_end(context_handle handle) {
+    address_t result = 0;
+
+    const auto &i = contexts.find(handle);
+    if (i != contexts.end()) {
+        result = (*i).second->signature_memory_end;
+    }
+
+    return result;
 }

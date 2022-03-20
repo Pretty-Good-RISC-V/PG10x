@@ -34,6 +34,12 @@ typedef enum {
     RESUMING,       // -> RUNNING
     STEPPING,       // -> HALTED
     QUITTING
+
+`ifdef ENABLE_RISCOF_TESTS
+    ,
+    RISCOF_HALTING,
+    RISCOF_DUMPING_SIGNATURES
+`endif
 } HARTState deriving(Bits, Eq, FShow);
 
 interface HART;
@@ -47,6 +53,11 @@ interface HART;
     interface Put#(Maybe#(Word)) putToHostAddress;
 
     interface Debug debug;
+
+`ifdef ENABLE_RISCOF_TESTS
+    interface Put#(Word) putSignatureBeginAddress;
+    interface Put#(Word) putSignatureEndAddress;
+`endif    
 endinterface
 
 //
@@ -68,6 +79,12 @@ module mkHART#(
     Reg#(Bool) forcePipeliningDisabled <- mkReg(False); // External pipeline control
     Reg#(Bool) pipeliningDisabled <- mkReg(False);      // Internal pipeline enable/disable
     Reg#(Maybe#(Word)) toHostAddress <- mkReg(tagged Invalid);
+
+`ifdef ENABLE_RISCOF_TESTS
+    Reg#(Word) signatureBeginAddress <- mkReg(0);
+    Reg#(Word) signatureEndAddress <- mkReg(0);
+    Reg#(Word) signatureDumpAddress <- mkReg(0);
+`endif
 
     //
     // HARTState
@@ -281,11 +298,63 @@ module mkHART#(
         $finish();
     endrule
 
+`ifdef ENABLE_RISCOF_TESTS
+    Reg#(Bool) riscofHaltRequested <- mkReg(False);
+    Reg#(Bool) riscofHalting <- mkReg(False);
+    Reg#(Bool) riscofWaitingForSignature <- mkReg(False);
+    mkConnection(writebackUnit.getRISCOFHaltRequested, toPut(asIfc(riscofHaltRequested)));
+
+    rule handleRISCOFHaltRequested(riscofHaltRequested && !riscofHalting);
+        riscofHalting <= True;
+        changeState(RISCOF_HALTING);
+    endrule
+
+    rule handleRISCOFHaltingState(hartState == RISCOF_HALTING);
+        $display("RISCOF HALTING ---- ");
+        $display("RISCOF DUMPING SIGNATURES [$%0x:$%0x]", signatureBeginAddress, signatureEndAddress);
+        changeState(RISCOF_DUMPING_SIGNATURES);
+        signatureDumpAddress <= signatureBeginAddress;
+    endrule
+
+    rule handleRISCOFDumpingState(hartState == RISCOF_DUMPING_SIGNATURES && riscofWaitingForSignature == False);
+        if (signatureDumpAddress < signatureEndAddress) begin
+            $display("Requesting signature from: $%0x", signatureDumpAddress);
+            dataMemoryClient.request.put(StdTileLinkRequest {
+                a_opcode: a_GET,
+                a_param: 0,
+                a_size: 2, // Four bytes
+                a_source: 0,
+                a_address: signatureDumpAddress,
+                a_mask: ?,
+                a_data: ?,
+                a_corrupt: False
+            });
+            signatureDumpAddress <= signatureDumpAddress + 4;
+            riscofWaitingForSignature <= True;
+        end else begin
+            changeState(QUITTING);
+        end
+    endrule
+
+    rule waitForSignature(riscofWaitingForSignature == True);
+        let response = dataMemoryClient.response.get;
+
+        dynamicAssert(response.d_denied, "Signature response should *not* be denied");
+        dynamicAssert(response.d_corrupt, "Signature response should *not* be corrupt");
+        let signature = response.d_data[31:0];
+
+        $display("Dumping signature: $%0x", signature);
+        riscofWaitingForSignature <= False;
+    endrule
+
+`endif
+
     (* fire_when_enabled *)
     rule handleStateTransition;
         let newState <- pop(stateTransitionQueue);
         hartState <= newState;
     endrule
+
 
     (* fire_when_enabled, no_implicit_conditions *)
     rule incrementCycleCounter;
@@ -335,4 +404,10 @@ module mkHART#(
             changeState(STEPPING);
         endmethod
     endinterface
+
+`ifdef ENABLE_RISCOF_TESTS
+    interface Put putSignatureBeginAddress = toPut(asIfc(signatureBeginAddress));
+    interface Put putSignatureEndAddress = toPut(asIfc(signatureEndAddress));
+`endif    
+
 endmodule

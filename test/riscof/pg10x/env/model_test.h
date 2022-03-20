@@ -11,10 +11,10 @@
         .word 4;
 
 //RV_COMPLIANCE_HALT
-#define RVMODEL_HALT        \
-  li x1, 1;                 \
-  csrw 0x7C0, 1;            \
-  forever:                  \
+#define RVMODEL_HALT            \
+  li x1, 1;                     \
+  csrw 0x7C0, 1;                \
+  forever:                      \
     j forever;
 
 #define RVMODEL_BOOT

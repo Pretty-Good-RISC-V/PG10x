@@ -39,7 +39,12 @@ module mkSimulator(Empty);
 
     // Crossbar -> RAM
     mkConnection(ram.portA, crossbar.ram0Client);
-    
+
+`ifdef ENABLE_RISCOF_TESTS
+    mkConnection(ram.getSignatureBeginAddress, core.putSignatureBeginAddress);
+    mkConnection(ram.getSignatureEndAddress, core.putSignatureEndAddress);
+`endif
+
     (* fire_when_enabled *)
     rule initialization(initialized == False && core.getState == RESET);
         initialized <= True;

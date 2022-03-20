@@ -35,7 +35,7 @@ interface ExecutionUnit;
 endinterface
 
 `ifdef ENABLE_RISCOF_TESTS
-RVCSRIndex csr_HALTTEST = 12'h7C0;      // Register, that when written, is used to halt a RISCOF test (and the simulation).
+RVCSRIndex csr_RISCOF_HALT = 12'h7C0;      // Register, that when written, is used to halt a RISCOF test (and the simulation).
 `endif
 
 module mkExecutionUnit#(
@@ -115,17 +115,21 @@ module mkExecutionUnit#(
                 endcase
 
                 if (writeValue matches tagged Valid .v) begin
-                    // Special case handling for tests
 `ifdef ENABLE_RISCOF_TESTS
-                    if (csrIndex == csr_TESTHALT) begin
-                    end
-`endif                    
-                    let writeSucceeded <- exceptionController.csrFile.write2(csrIndex, v);
-                    if (writeSucceeded == False) begin
-                        $display("CSR($%0x): Write failed", csrIndex);
-                        executedInstruction.exception = tagged Valid createIllegalInstructionException(decodedInstruction.rawInstruction);
-                    end else begin
-                        executedInstruction.exception = tagged Invalid;
+                    // Special case handling for tests
+                    if (csrIndex == csr_RISCOF_HALT) begin
+                        $display("CSR($%0x): RISCOF Test Halt Requested", csrIndex);
+                        executedInstruction.exception = tagged Valid createRISCOFTestHaltException(decodedInstruction.programCounter);
+                    end else 
+`endif
+                    begin
+                        let writeSucceeded <- exceptionController.csrFile.write2(csrIndex, v);
+                        if (writeSucceeded == False) begin
+                            $display("CSR($%0x): Write failed", csrIndex);
+                            executedInstruction.exception = tagged Valid createIllegalInstructionException(decodedInstruction.rawInstruction);
+                        end else begin
+                            executedInstruction.exception = tagged Invalid;
+                        end
                     end
                 end else begin
                     $display("CSR($%0x): Write not requested", csrIndex);
