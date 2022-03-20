@@ -50,7 +50,10 @@ interface HART;
     interface StdTileLinkClient dataMemoryClient;
 
     interface Put#(Bool) putPipeliningDisabled;
+
+`ifdef ENABLE_ISA_TESTS
     interface Put#(Maybe#(Word)) putToHostAddress;
+`endif
 
     interface Debug debug;
 
@@ -78,7 +81,10 @@ module mkHART#(
 )(HART);
     Reg#(Bool) forcePipeliningDisabled <- mkReg(False); // External pipeline control
     Reg#(Bool) pipeliningDisabled <- mkReg(False);      // Internal pipeline enable/disable
+
+`ifdef ENABLE_ISA_TESTS
     Reg#(Maybe#(Word)) toHostAddress <- mkReg(tagged Invalid);
+`endif
 
 `ifdef ENABLE_RISCOF_TESTS
     Reg#(Word) signatureBeginAddress <- mkReg(0);
@@ -375,7 +381,10 @@ module mkHART#(
     interface TileLinkLiteWordClient instructionMemoryClient = fetchUnit.instructionMemoryClient;
     interface TileLinkLiteWordClient dataMemoryClient = memoryAccessUnit.dataMemoryClient;
     interface Put putPipeliningDisabled = toPut(asIfc(forcePipeliningDisabled));
+
+`ifdef ENABLE_ISA_TESTS
     interface Put putToHostAddress = memoryAccessUnit.putToHostAddress;
+`endif
 
     interface Debug debug;
         method Word readGPR(RVGPRIndex idx);

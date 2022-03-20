@@ -33,7 +33,10 @@ interface MemoryAccessUnit;
     interface StdTileLinkClient dataMemoryClient;
 
     interface Get#(Maybe#(GPRBypassValue)) getGPRBypassValue;
+
+`ifdef ENABLE_ISA_TESTS
     interface Put#(Maybe#(Word)) putToHostAddress;
+`endif
 endinterface
 
 module mkMemoryAccessUnit#(
@@ -42,7 +45,10 @@ module mkMemoryAccessUnit#(
 )(MemoryAccessUnit);
     Wire#(Word64) cycleCounter <- mkBypassWire;
     FIFO#(ExecutedInstruction) outputQueue <- mkPipelineFIFO;
+
+`ifdef ENABLE_ISA_TESTS
     Reg#(Maybe#(Word)) toHostAddress <- mkReg(tagged Invalid);
+`endif
     Reg#(Bool) waitingForMemoryResponse <- mkReg(False);
 
     Reg#(ExecutedInstruction) instructionWaitingForMemoryOperation <- mkRegU;
@@ -190,6 +196,7 @@ module mkMemoryAccessUnit#(
                     waitingForMemoryResponse <= True;
                 end else if (executedInstruction.storeRequest matches tagged Valid .storeRequest) begin
                     $display("%0d,%0d,%0d,%0x,%0d,memory access,Storing to $0x", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, storeRequest.tlRequest.a_address);
+`ifdef ENABLE_ISA_TESTS
                     if (toHostAddress matches tagged Valid .tha &&& tha == storeRequest.tlRequest.a_address) begin
                         let test_num = (storeRequest.tlRequest.a_data >> 1);
                         if (test_num == 0) $display ("    PASS");
@@ -197,6 +204,7 @@ module mkMemoryAccessUnit#(
 
                         $finish();
                     end
+`endif
                     dataMemoryRequests.enq(storeRequest.tlRequest);
                     instructionWaitingForMemoryOperation <= executedInstruction;
                     waitingForMemoryResponse <= True;
@@ -213,5 +221,7 @@ module mkMemoryAccessUnit#(
     interface Get getExecutedInstruction = toGet(outputQueue);
     interface TileLinkLiteWordClient dataMemoryClient = toGPClient(dataMemoryRequests, dataMemoryResponses);
     interface Get getGPRBypassValue = toGet(gprBypassValue);
+`ifdef ENABLE_ISA_TESTS
     interface Put putToHostAddress = toPut(asIfc(toHostAddress));
+`endif
 endmodule
