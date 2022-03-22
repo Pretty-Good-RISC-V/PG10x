@@ -12,9 +12,9 @@ interface ProgramMemoryTile;
     method Bool isValidAddress(Word address);
 
 `ifdef ENABLE_RISCOF_TESTS
-    interface Get#(Word) getSignatureBeginAddress;
-    interface Get#(Word) getSignatureEndAddress;
-`endif    
+    method Action dump;
+    method Action dumpSignatures;
+`endif
 endinterface
 
 typedef Word32 ContextHandle;
@@ -29,20 +29,25 @@ import "BDPI" function Bit#(8) program_memory_read_u8(ContextHandle ctx, Word ad
 import "BDPI" function Bit#(16) program_memory_read_u16(ContextHandle ctx, Word address);
 import "BDPI" function Bit#(32) program_memory_read_u32(ContextHandle ctx, Word address);
 import "BDPI" function Bit#(64) program_memory_read_u64(ContextHandle ctx, Word address);
-import "BDPI" function void program_memory_write_u8(ContextHandle ctx, Word address, Bit#(8) newValue);
-import "BDPI" function void program_memory_write_u16(ContextHandle ctx, Word address, Bit#(16) newValue);
-import "BDPI" function void program_memory_write_u32(ContextHandle ctx, Word address, Bit#(32) newValue);
-import "BDPI" function void program_memory_write_u64(ContextHandle ctx, Word address, Bit#(64) newValue);
+import "BDPI" function Action program_memory_write_u8(ContextHandle ctx, Word address, Bit#(8) newValue);
+import "BDPI" function Action program_memory_write_u16(ContextHandle ctx, Word address, Bit#(16) newValue);
+import "BDPI" function Action program_memory_write_u32(ContextHandle ctx, Word address, Bit#(32) newValue);
+import "BDPI" function Action program_memory_write_u64(ContextHandle ctx, Word address, Bit#(64) newValue);
 
 `ifdef ENABLE_RISCOF_TESTS
-import "BDPI" function Word program_memory_signature_address_begin(ContextHandle ctx);
-import "BDPI" function Word program_memory_signature_address_end(ContextHandle ctx);
+import "BDPI" function Action program_memory_dump(ContextHandle ctx);
+import "BDPI" function Action program_memory_dump_signature_area(ContextHandle ctx);
 `endif
 
 module mkProgramMemoryTile#(
     TileId tileID
 )(ProgramMemoryTile);
-    Word32 programMemoryContext = program_memory_open();
+    Reg#(Word32) programMemoryContext <- mkRegU;
+    Reg#(Bool) loaded <- mkReg(False);
+    rule load(loaded == False);
+        loaded <= True;
+        programMemoryContext <= program_memory_open();
+    endrule
 
     FIFO#(StdTileLinkResponse) responses[2];
     responses[0] <- mkFIFO;
@@ -94,8 +99,32 @@ module mkProgramMemoryTile#(
 `endif
             endcase
         end else if (addressValid && !request.a_corrupt && request.a_opcode == a_PUT_FULL_DATA) begin
-            response.d_opcode = d_ACCESS_ACK;
-            response.d_denied = False;
+            case (request.a_size)
+                0:  begin   // 1 byte
+                    response.d_denied = False;
+                    program_memory_write_u8(programMemoryContext, request.a_address, request.a_data[7:0]);
+                end
+                1:  begin   // 2 bytes
+                    if (request.a_address[0] == 0) begin
+                        response.d_denied = False;
+                        program_memory_write_u16(programMemoryContext, request.a_address, request.a_data[15:0]);
+                    end
+                end
+                2:  begin   // 4 bytes
+                    if (request.a_address[1:0] == 0) begin
+                        response.d_denied = False;
+                        program_memory_write_u32(programMemoryContext, request.a_address, request.a_data[31:0]);
+                    end
+                end
+`ifdef RV64
+                3:  begin   // 8 bytes
+                    if (request.a_address[2:0] == 0) begin
+                        response.d_denied = False;
+                        program_memory_write_u64(programMemoryContext, request.a_address, request.a_data);
+                    end
+                end
+`endif
+            endcase
         end else begin
             response.d_denied = True;
         end
@@ -130,16 +159,13 @@ module mkProgramMemoryTile#(
     endmethod
 
 `ifdef ENABLE_RISCOF_TESTS
-    interface Get getSignatureBeginAddress;
-        method ActionValue#(Word) get;
-            return program_memory_signature_address_begin(programMemoryContext);
-        endmethod
-    endinterface
+    method Action dump;
+        program_memory_dump(programMemoryContext);
+    endmethod
+    
+    method Action dumpSignatures;
+        program_memory_dump_signature_area(programMemoryContext);
+    endmethod
+`endif
 
-    interface Get getSignatureEndAddress;
-        method ActionValue#(Word) get;
-            return program_memory_signature_address_end(programMemoryContext);
-        endmethod
-    endinterface
-`endif    
 endmodule

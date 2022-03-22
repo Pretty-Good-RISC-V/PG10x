@@ -57,17 +57,21 @@ module mkWritebackUnit#(
 `else
         method Action put(ExecutedInstruction executedInstruction);
 `endif        
+            Bool verbose <- $test$plusargs ("verbose");
             let fetchIndex = executedInstruction.fetchIndex;
             let stageEpoch = pipelineController.stageEpoch(stageNumber, 0);
 
             if (!pipelineController.isCurrentEpoch(stageNumber, 0, executedInstruction.pipelineEpoch)) begin
-                $display("%0d,%0d,%0d,%0d,%0d,writeback,stale instruction...popping bubble", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
+                if (verbose)
+                    $display("%0d,%0d,%0d,%0d,%0d,writeback,stale instruction...popping bubble", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
             end else begin
                 if (executedInstruction.writeBack matches tagged Valid .wb) begin
-                    $display("%0d,%0d,%0d,%0x,%0d,writeback,writing result ($%08x) to register x%0d", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, wb.value, wb.rd);
+                    if (verbose)
+                        $display("%0d,%0d,%0d,%0x,%0d,writeback,writing result ($%08x) to register x%0d", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, wb.value, wb.rd);
                     gprFile.write(wb.rd, wb.value);
                 end else begin
-                    $display("%0d,%0d,%0d,%0x,%0d,writeback,NO-OP", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
+                    if (verbose)
+                        $display("%0d,%0d,%0d,%0x,%0d,writeback,NO-OP", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
                 end
 
 `ifdef ENABLE_INSTRUCTION_LOGGING
@@ -97,20 +101,22 @@ module mkWritebackUnit#(
 
                     let exceptionVector <- exceptionController.beginException(executedInstruction.programCounter, exception);
 
-                    $display("%0d,%0d,%0d,%0x,%0d,writeback,EXCEPTION:", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, fshow(exception));
-                    $display("%0d,%0d,%0d,%0x,%0d,writeback,Jumping to exception handler at $%08x", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, exceptionVector);
-
+                    if (verbose) begin
+                        $display("%0d,%0d,%0d,%0x,%0d,writeback,EXCEPTION:", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, fshow(exception));
+                        $display("%0d,%0d,%0d,%0x,%0d,writeback,Jumping to exception handler at $%08x", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, exceptionVector);
+                    end
                     programCounterRedirect.exception(exceptionVector); 
 
 `ifdef ENABLE_RISCOF_TESTS
                     if (exception.cause matches tagged ExceptionCause .cause &&& cause == exception_RISCOFTestHaltException) begin
-                        // Dump signature
-                        $display("%0d,%0d,%0d,%0x,%0d,writeback,RISCOF HALT Requested", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
+                        if (verbose)
+                            $display("%0d,%0d,%0d,%0x,%0d,writeback,RISCOF HALT Requested", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
                         riscofHaltRequested <= True;
                     end
 `endif                    
                 end
-                $display("%0d,%0d,%0d,%0x,%0d,writeback,---------------------------", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
+                if (verbose)
+                    $display("%0d,%0d,%0d,%0x,%0d,writeback,---------------------------", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
                 exceptionController.csrFile.increment_instructions_retired_counter;
                 instructionRetired <= True;
             end

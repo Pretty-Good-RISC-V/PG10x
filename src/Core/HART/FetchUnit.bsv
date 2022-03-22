@@ -60,6 +60,8 @@ module mkFetchUnit#(
 
     (* fire_when_enabled *)
     rule sendFetchRequest(fetchEnabled == True && !waitingForMemoryResponse);
+        Bool verbose <- $test$plusargs ("verbose");
+
         // Get the current program counter from the 'fetchProgramCounter' register, if the 
         // program counter redirect has a value, move that into the program counter and
         // increment the epoch.
@@ -73,10 +75,12 @@ module mkFetchUnit#(
             fetchEpoch = fetchEpoch + 1;
             currentEpoch <= fetchEpoch;
 
-            $display("%0d,%0d,%0d,%0x,%0d,fetch send,redirected PC: $%08x", fetchCounter, cycleCounter, fetchEpoch, fetchProgramCounter, stageNumber, fetchProgramCounter);
+            if (verbose)
+                $display("%0d,%0d,%0d,%0x,%0d,fetch send,redirected PC: $%08x", fetchCounter, cycleCounter, fetchEpoch, fetchProgramCounter, stageNumber, fetchProgramCounter);
         end
 
-        $display("%0d,%0d,%0d,%0x,%0d,fetch send,fetch address: $%08x", fetchCounter, cycleCounter, fetchEpoch, fetchProgramCounter, stageNumber, fetchProgramCounter);
+        if (verbose)
+            $display("%0d,%0d,%0d,%0x,%0d,fetch send,fetch address: $%08x", fetchCounter, cycleCounter, fetchEpoch, fetchProgramCounter, stageNumber, fetchProgramCounter);
 
         instructionMemoryRequests.enq(TileLinkLiteWordRequest {
             a_opcode: a_GET,
@@ -101,26 +105,37 @@ module mkFetchUnit#(
 
     (* fire_when_enabled *)
     rule handleFetchResponse(waitingForMemoryResponse);
+        Bool verbose <- $test$plusargs ("verbose");
         let fetchResponse <- pop(instructionMemoryResponses);
         let fetchInfo <- pop(fetchInfoQueue);
         Maybe#(Exception) exception = tagged Invalid;
 
         if (fetchResponse.d_denied) begin
-            $display("%0d,%0d,%0d,%0x,%0d,fetch receive,EXCEPTION - received access denied from memory system.", fetchInfo.index, cycleCounter, fetchInfo.epoch, fetchInfo.address, stageNumber);
+            if (verbose)
+                $display("%0d,%0d,%0d,%0x,%0d,fetch receive,EXCEPTION - received access denied from memory system.", fetchInfo.index, cycleCounter, fetchInfo.epoch, fetchInfo.address, stageNumber);
+`ifdef ENABLE_RISCOF_TESTS
+            if (fetchInfo.address == 'hc0dec0de)
+                exception = tagged Valid createRISCOFTestHaltException(fetchInfo.address);
+            else
+`endif
             exception = tagged Valid createInstructionAccessFaultException(fetchInfo.address);
         end else if (fetchResponse.d_corrupt) begin
-            $display("%0d,%0d,%0d,%0x,%0d,fetch receive,EXCEPTION - received corrupted data from memory system.", fetchInfo.index, cycleCounter, fetchInfo.epoch, fetchInfo.address, stageNumber);
+            if (verbose)
+                $display("%0d,%0d,%0d,%0x,%0d,fetch receive,EXCEPTION - received corrupted data from memory system.", fetchInfo.index, cycleCounter, fetchInfo.epoch, fetchInfo.address, stageNumber);
             exception = tagged Valid createInstructionAccessFaultException(fetchInfo.address);
         end else if (fetchResponse.d_opcode != d_ACCESS_ACK_DATA) begin
-            $display("%0d,%0d,%0d,%0x,%0d,fetch receive,EXCEPTION - received unexpected opcode from memory system: ", fetchInfo.index, cycleCounter, fetchInfo.epoch, fetchInfo.address, stageNumber, fshow(fetchResponse.d_opcode));
+            if (verbose)
+                $display("%0d,%0d,%0d,%0x,%0d,fetch receive,EXCEPTION - received unexpected opcode from memory system: ", fetchInfo.index, cycleCounter, fetchInfo.epoch, fetchInfo.address, stageNumber, fshow(fetchResponse.d_opcode));
             exception = tagged Valid createInstructionAccessFaultException(fetchInfo.address);
         end else begin
-            $display("%0d,%0d,%0d,%0x,%0d,fetch receive,encoded instruction=%08h", fetchInfo.index, cycleCounter, fetchInfo.epoch, fetchInfo.address, stageNumber, fetchResponse.d_data);
+            if (verbose)
+                $display("%0d,%0d,%0d,%0x,%0d,fetch receive,encoded instruction=%08h", fetchInfo.index, cycleCounter, fetchInfo.epoch, fetchInfo.address, stageNumber, fetchResponse.d_data);
         end
 
         // Predict what the next program counter will be
         let predictedNextProgramCounter = branchPredictor.predictNextProgramCounter(fetchInfo.address, fetchResponse.d_data[31:0]);
-        $display("%0d,%0d,%0d,%0x,%0d,fetch receive,predicted next instruction=$%x", fetchInfo.index, cycleCounter, fetchInfo.epoch, fetchInfo.address, stageNumber, predictedNextProgramCounter);
+        if (verbose)
+            $display("%0d,%0d,%0d,%0x,%0d,fetch receive,predicted next instruction=$%x", fetchInfo.index, cycleCounter, fetchInfo.epoch, fetchInfo.address, stageNumber, predictedNextProgramCounter);
         programCounter <= predictedNextProgramCounter;
 
         // Tell the decode stage what the program counter for the insruction it'll receive.

@@ -21,16 +21,15 @@ interface Core;
 
     interface Put#(Bool) putPipeliningDisabled;
 
+    interface Debug debug;
+
 `ifdef ENABLE_ISA_TESTS
     interface Put#(Maybe#(Word)) putToHostAddress;
 `endif
 
-    interface Debug debug;
-
 `ifdef ENABLE_RISCOF_TESTS
-    interface Put#(Word) putSignatureBeginAddress;
-    interface Put#(Word) putSignatureEndAddress;
-`endif    
+    interface Get#(Bool) getRISCOFHaltRequested;
+`endif
 
 endinterface
 
@@ -96,14 +95,14 @@ module mkCore#(
     method HARTState getState = hart.getState;
     interface TileLinkLiteWordClient systemMemoryBusClient = toGPClient(systemBusRequests, systemBusResponses);
     interface Put putPipeliningDisabled = hart.putPipeliningDisabled;
+    interface Debug debug = hart.debug;
+
 `ifdef ENABLE_ISA_TESTS
     interface Put putToHostAddress = hart.putToHostAddress;
 `endif
-    interface Debug debug = hart.debug;
 
 `ifdef ENABLE_RISCOF_TESTS
-    interface Put putSignatureBeginAddress = hart.putSignatureBeginAddress;
-    interface Put putSignatureEndAddress = hard.putSignatureEndAddress;
+    interface Get getRISCOFHaltRequested = hart.getRISCOFHaltRequested;
 `endif
 
 endmodule

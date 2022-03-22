@@ -34,12 +34,6 @@ typedef enum {
     RESUMING,       // -> RUNNING
     STEPPING,       // -> HALTED
     QUITTING
-
-`ifdef ENABLE_RISCOF_TESTS
-    ,
-    RISCOF_HALTING,
-    RISCOF_DUMPING_SIGNATURES
-`endif
 } HARTState deriving(Bits, Eq, FShow);
 
 interface HART;
@@ -51,16 +45,16 @@ interface HART;
 
     interface Put#(Bool) putPipeliningDisabled;
 
+    interface Debug debug;
+
 `ifdef ENABLE_ISA_TESTS
     interface Put#(Maybe#(Word)) putToHostAddress;
 `endif
 
-    interface Debug debug;
-
 `ifdef ENABLE_RISCOF_TESTS
-    interface Put#(Word) putSignatureBeginAddress;
-    interface Put#(Word) putSignatureEndAddress;
-`endif    
+    interface Get#(Bool) getRISCOFHaltRequested;
+`endif
+
 endinterface
 
 //
@@ -84,12 +78,6 @@ module mkHART#(
 
 `ifdef ENABLE_ISA_TESTS
     Reg#(Maybe#(Word)) toHostAddress <- mkReg(tagged Invalid);
-`endif
-
-`ifdef ENABLE_RISCOF_TESTS
-    Reg#(Word) signatureBeginAddress <- mkReg(0);
-    Reg#(Word) signatureEndAddress <- mkReg(0);
-    Reg#(Word) signatureDumpAddress <- mkReg(0);
 `endif
 
     //
@@ -304,57 +292,6 @@ module mkHART#(
         $finish();
     endrule
 
-`ifdef ENABLE_RISCOF_TESTS
-    Reg#(Bool) riscofHaltRequested <- mkReg(False);
-    Reg#(Bool) riscofHalting <- mkReg(False);
-    Reg#(Bool) riscofWaitingForSignature <- mkReg(False);
-    mkConnection(writebackUnit.getRISCOFHaltRequested, toPut(asIfc(riscofHaltRequested)));
-
-    rule handleRISCOFHaltRequested(riscofHaltRequested && !riscofHalting);
-        riscofHalting <= True;
-        changeState(RISCOF_HALTING);
-    endrule
-
-    rule handleRISCOFHaltingState(hartState == RISCOF_HALTING);
-        $display("RISCOF HALTING ---- ");
-        $display("RISCOF DUMPING SIGNATURES [$%0x:$%0x]", signatureBeginAddress, signatureEndAddress);
-        changeState(RISCOF_DUMPING_SIGNATURES);
-        signatureDumpAddress <= signatureBeginAddress;
-    endrule
-
-    rule handleRISCOFDumpingState(hartState == RISCOF_DUMPING_SIGNATURES && riscofWaitingForSignature == False);
-        if (signatureDumpAddress < signatureEndAddress) begin
-            $display("Requesting signature from: $%0x", signatureDumpAddress);
-            dataMemoryClient.request.put(StdTileLinkRequest {
-                a_opcode: a_GET,
-                a_param: 0,
-                a_size: 2, // Four bytes
-                a_source: 0,
-                a_address: signatureDumpAddress,
-                a_mask: ?,
-                a_data: ?,
-                a_corrupt: False
-            });
-            signatureDumpAddress <= signatureDumpAddress + 4;
-            riscofWaitingForSignature <= True;
-        end else begin
-            changeState(QUITTING);
-        end
-    endrule
-
-    rule waitForSignature(riscofWaitingForSignature == True);
-        let response = dataMemoryClient.response.get;
-
-        dynamicAssert(response.d_denied, "Signature response should *not* be denied");
-        dynamicAssert(response.d_corrupt, "Signature response should *not* be corrupt");
-        let signature = response.d_data[31:0];
-
-        $display("Dumping signature: $%0x", signature);
-        riscofWaitingForSignature <= False;
-    endrule
-
-`endif
-
     (* fire_when_enabled *)
     rule handleStateTransition;
         let newState <- pop(stateTransitionQueue);
@@ -381,10 +318,6 @@ module mkHART#(
     interface TileLinkLiteWordClient instructionMemoryClient = fetchUnit.instructionMemoryClient;
     interface TileLinkLiteWordClient dataMemoryClient = memoryAccessUnit.dataMemoryClient;
     interface Put putPipeliningDisabled = toPut(asIfc(forcePipeliningDisabled));
-
-`ifdef ENABLE_ISA_TESTS
-    interface Put putToHostAddress = memoryAccessUnit.putToHostAddress;
-`endif
 
     interface Debug debug;
         method Word readGPR(RVGPRIndex idx);
@@ -414,9 +347,12 @@ module mkHART#(
         endmethod
     endinterface
 
+`ifdef ENABLE_ISA_TESTS
+    interface Put putToHostAddress = memoryAccessUnit.putToHostAddress;
+`endif
+
 `ifdef ENABLE_RISCOF_TESTS
-    interface Put putSignatureBeginAddress = toPut(asIfc(signatureBeginAddress));
-    interface Put putSignatureEndAddress = toPut(asIfc(signatureEndAddress));
+    interface Get getRISCOFHaltRequested = writebackUnit.getRISCOFHaltRequested;
 `endif    
 
 endmodule

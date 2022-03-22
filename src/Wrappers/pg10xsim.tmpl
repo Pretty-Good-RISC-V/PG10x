@@ -10,13 +10,13 @@ function usage
 }
 
 MAX_CYCLES=""
-MODEL="<not specified>"
 INPUT=""
 CHECK=""
 SPIKE=""
 ISA="RV32I"
 LOGFILENAME_BASE=""
-SIMHOST="src/Simulator/Simulator"
+SIGNATURE_FILENAME=""
+SIMHOST="@CMAKE_BINARY_DIR@/src/Simulator/Simulator"
 
 while [[ $# -gt 0 ]]; do
     key="$1"
@@ -32,19 +32,20 @@ while [[ $# -gt 0 ]]; do
             shift # past argument
             shift # past value
             ;;
-        --model)
-            MODEL="$2"
-            shift # past argument
-            shift # past value
-            ;;
         --spike)
             SPIKE="True"
             shift
             ;;
+        --signature-file)
+            SIGNATURE_FILENAME="$2"
+            export SIGNATURE_FILENAME="${SIGNATURE_FILENAME}"
+            shift # past argument
+            shift # past value
+            ;;
         --isa)
-            if [ "$2" == "RV32" ]; then
+            if [ "$2" == "RV32" || "$2" == "rv32i" ]; then
                 ISA="RV32I"
-            elif [ "$2" == "RV64" ]; then
+            elif [ "$2" == "RV64" || "$2" == "rv64i" ]; then
                 ISA="RV64I"
             fi
             shift
@@ -82,9 +83,9 @@ if [ "$SPIKE" != "" ] && [ "$LOGFILENAME_BASE" != "" ]; then
 fi
 
 if [ "$CHECK" == "" ]; then
-    ./build/$MODEL/$SIMHOST $MAX_CYCLES
+    $SIMHOST $MAX_CYCLES
 else
-    ./build/$MODEL/$SIMHOST $MAX_CYCLES > /tmp/simoutput.txt
+    $SIMHOST $MAX_CYCLES > /tmp/simoutput.txt
 
     if [ "$LOGFILENAME_BASE" != "" ]; then
         cp /tmp/simoutput.txt ${LOGFILENAME_BASE%.*}.stdout.txt

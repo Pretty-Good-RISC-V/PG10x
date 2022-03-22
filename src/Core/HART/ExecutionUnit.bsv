@@ -115,29 +115,29 @@ module mkExecutionUnit#(
                 endcase
 
                 if (writeValue matches tagged Valid .v) begin
-`ifdef ENABLE_RISCOF_TESTS
-                    // Special case handling for tests
-                    if (csrIndex == csr_RISCOF_HALT) begin
-                        $display("CSR($%0x): RISCOF Test Halt Requested", csrIndex);
-                        executedInstruction.exception = tagged Valid createRISCOFTestHaltException(decodedInstruction.programCounter);
-                    end else 
-`endif
-                    begin
-                        let writeSucceeded <- exceptionController.csrFile.write2(csrIndex, v);
-                        if (writeSucceeded == False) begin
-                            $display("CSR($%0x): Write failed", csrIndex);
-                            executedInstruction.exception = tagged Valid createIllegalInstructionException(decodedInstruction.rawInstruction);
-                        end else begin
-                            executedInstruction.exception = tagged Invalid;
-                        end
+                    let writeSucceeded <- exceptionController.csrFile.write2(csrIndex, v);
+                    if (writeSucceeded == False) begin
+                        $display("CSR($%0x): Write failed", csrIndex);
+                        executedInstruction.exception = tagged Valid createIllegalInstructionException(decodedInstruction.rawInstruction);
+                    end else begin
+                        executedInstruction.exception = tagged Invalid;
                     end
                 end else begin
                     $display("CSR($%0x): Write not requested", csrIndex);
                     executedInstruction.exception = tagged Invalid;
                 end
             end else begin
-                executedInstruction.exception = tagged Valid createIllegalInstructionException(decodedInstruction.rawInstruction);
-                $display("CSR($%0x): Read failed", decodedInstruction.csrIndex);
+`ifdef ENABLE_RISCOF_TESTS
+                // Special case handling for RISCOF tests
+                if (csrIndex == csr_RISCOF_HALT) begin
+                    $display("CSR($%0x): RISCOF Test Halt Requested", csrIndex);
+                    executedInstruction.exception = tagged Valid createRISCOFTestHaltException(decodedInstruction.programCounter);
+                end else
+`endif
+                begin
+                    executedInstruction.exception = tagged Valid createIllegalInstructionException(decodedInstruction.rawInstruction);
+                    $display("CSR($%0x): Read failed", decodedInstruction.csrIndex);
+                end
             end
         end
         return executedInstruction;
@@ -148,6 +148,7 @@ module mkExecutionUnit#(
         DecodedInstruction decodedInstruction,
         PipelineEpoch currentEpoch);
         actionvalue
+            Bool verbose <- $test$plusargs ("verbose");
             let executedInstruction = ExecutedInstruction {
                 fetchIndex: decodedInstruction.fetchIndex,
                 pipelineEpoch: decodedInstruction.pipelineEpoch,
@@ -271,7 +272,8 @@ module mkExecutionUnit#(
                         let immediate = unJust(decodedInstruction.immediate);
                         let jumpTarget = getEffectiveAddress(decodedInstruction.programCounter, immediate);
 
-                        $display("JUMP: RS1: $%0x - Offset: $%0x - JumpTarget: $%0x", decodedInstruction.rs1Value, immediate, jumpTarget);
+                        if (verbose)
+                            $display("JUMP: RS1: $%0x - Offset: $%0x - JumpTarget: $%0x", decodedInstruction.rs1Value, immediate, jumpTarget);
 
                         if (isValidInstructionAddress(jumpTarget) == False) begin
                             executedInstruction.exception = tagged Valid createMisalignedInstructionException(jumpTarget);
@@ -295,7 +297,8 @@ module mkExecutionUnit#(
                         let jumpTarget = getEffectiveAddress(decodedInstruction.rs1Value, immediate);
                         jumpTarget[0] = 0;
 
-                        $display("JUMP_INDIRECT: RS1: $%0x - Offset: $%0x - JumpTarget: $%0x", decodedInstruction.rs1Value, immediate, jumpTarget);
+                        if (verbose)
+                            $display("JUMP_INDIRECT: RS1: $%0x - Offset: $%0x - JumpTarget: $%0x", decodedInstruction.rs1Value, immediate, jumpTarget);
 
                         if (isValidInstructionAddress(jumpTarget) == False) begin
                             executedInstruction.exception = tagged Valid createMisalignedInstructionException(jumpTarget);
@@ -325,7 +328,8 @@ module mkExecutionUnit#(
                             effectiveAddress
                         );
 
-                        $display("LEA: $%0x - $%0x", effectiveAddress, decodedInstruction.loadOperator);
+                        if (verbose)
+                            $display("LEA: $%0x - $%0x", effectiveAddress, decodedInstruction.loadOperator);
                         if (isSuccess(result)) begin
                             executedInstruction.loadRequest = tagged Valid result.Success;
                             executedInstruction.exception = tagged Invalid;
@@ -343,7 +347,8 @@ module mkExecutionUnit#(
 
                         let effectiveAddress = getEffectiveAddress(decodedInstruction.rs1Value, unJust(decodedInstruction.immediate));
 
-                        $display("Store effective address: $%x", effectiveAddress);
+                        if (verbose)
+                            $display("Store effective address: $%x", effectiveAddress);
 
                         let result = getStoreRequest(
                             decodedInstruction.storeOperator,
@@ -362,21 +367,25 @@ module mkExecutionUnit#(
                     SYSTEM: begin
                         case(decodedInstruction.systemOperator)
                             sys_ECALL: begin
-                                $display("%0d,%0d,%0d,%0x,%0d,execute,ECALL instruction encountered", decodedInstruction.fetchIndex, exceptionController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber);
+                            if (verbose)
+                                    $display("%0d,%0d,%0d,%0x,%0d,execute,ECALL instruction encountered", decodedInstruction.fetchIndex, exceptionController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber);
                                 executedInstruction.exception = tagged Valid createEnvironmentCallException(decodedInstruction.programCounter);
                             end
                             sys_EBREAK: begin
-                                $display("%0d,%0d,%0d,%0x,%0d,execute,EBREAK instruction encountered", decodedInstruction.fetchIndex, exceptionController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber);
+                                if (verbose)
+                                    $display("%0d,%0d,%0d,%0x,%0d,execute,EBREAK instruction encountered", decodedInstruction.fetchIndex, exceptionController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber);
                                 executedInstruction.exception = tagged Valid createBreakpointException(decodedInstruction.programCounter);
                             end
                             sys_MRET: begin
-                                $display("%0d,%0d,%0d,%0x,%0d,execute,MRET instruction", decodedInstruction.fetchIndex, exceptionController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber);
+                                if (verbose)
+                                    $display("%0d,%0d,%0d,%0x,%0d,execute,MRET instruction", decodedInstruction.fetchIndex, exceptionController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber);
                                 let readStatus = exceptionController.csrFile.read2(csr_MEPC);
                                 if (readStatus matches tagged Valid .mepc) begin
                                     executedInstruction.changedProgramCounter = tagged Valid mepc;
                                     executedInstruction.exception = tagged Invalid;
                                 end else begin
-                                    $display("%0d,%0d,%0d,%0x,%0d,execute,MRET instruction - failed to read MEPC", decodedInstruction.fetchIndex, exceptionController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber);
+                                    if (verbose)
+                                        $display("%0d,%0d,%0d,%0x,%0d,execute,MRET instruction - failed to read MEPC", decodedInstruction.fetchIndex, exceptionController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber);
                                 end
                             end
                             default begin
@@ -393,11 +402,13 @@ module mkExecutionUnit#(
 
     interface Put putDecodedInstruction;
         method Action put(DecodedInstruction decodedInstruction);
+            Bool verbose <- $test$plusargs ("verbose");
             let fetchIndex = decodedInstruction.fetchIndex;
             let stageEpoch = pipelineController.stageEpoch(stageNumber, 1);
 
             if (!pipelineController.isCurrentEpoch(stageNumber, 1, decodedInstruction.pipelineEpoch)) begin
-                $display("%0d,%0d,%0d,%0x,%0d,execute,stale instruction (%0d != %0d)...adding bubble to pipeline", fetchIndex, exceptionController.csrFile.cycle_counter, decodedInstruction.pipelineEpoch, decodedInstruction.programCounter, stageNumber, decodedInstruction.pipelineEpoch, stageEpoch);
+                if (verbose)
+                    $display("%0d,%0d,%0d,%0x,%0d,execute,stale instruction (%0d != %0d)...adding bubble to pipeline", fetchIndex, exceptionController.csrFile.cycle_counter, decodedInstruction.pipelineEpoch, decodedInstruction.programCounter, stageNumber, decodedInstruction.pipelineEpoch, stageEpoch);
                 outputQueue.enq(ExecutedInstruction{
                     fetchIndex: decodedInstruction.fetchIndex,
                     pipelineEpoch: decodedInstruction.pipelineEpoch,
@@ -410,7 +421,8 @@ module mkExecutionUnit#(
                     writeBack: tagged Invalid
                 });
             end else if (isValid(decodedInstruction.exception)) begin
-                $display("%0d,%0d,%0d,%0x,%0d,execute,EXCEPTION - decoded instruction had exception - prooagating", fetchIndex, exceptionController.csrFile.cycle_counter, decodedInstruction.pipelineEpoch, decodedInstruction.programCounter, stageNumber, decodedInstruction.pipelineEpoch, stageEpoch);
+                if (verbose)
+                    $display("%0d,%0d,%0d,%0x,%0d,execute,EXCEPTION - decoded instruction had exception - prooagating", fetchIndex, exceptionController.csrFile.cycle_counter, decodedInstruction.pipelineEpoch, decodedInstruction.programCounter, stageNumber, decodedInstruction.pipelineEpoch, stageEpoch);
                 outputQueue.enq(ExecutedInstruction{
                     fetchIndex: decodedInstruction.fetchIndex,
                     pipelineEpoch: decodedInstruction.pipelineEpoch,
@@ -425,10 +437,12 @@ module mkExecutionUnit#(
             end else begin
                 let currentEpoch = stageEpoch;
 
-                $display("%0d,%0d,%0d,%0x,%0d,execute,executing instruction: ", fetchIndex, exceptionController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber, fshow(decodedInstruction.opcode));
-                $display("%0d,%0d,%0d,%0x,%0d,execute,RS1: ", fetchIndex, exceptionController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber, (isValid(decodedInstruction.rs1) ? $format("x%0d = %0d ($%0x)", unJust(decodedInstruction.rs1), decodedInstruction.rs1Value, decodedInstruction.rs1Value) : $format("INVALID")));
-                $display("%0d,%0d,%0d,%0x,%0d,execute,RS2: ", fetchIndex, exceptionController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber, (isValid(decodedInstruction.rs2) ? $format("x%0d = %0d ($%0x)", unJust(decodedInstruction.rs2), decodedInstruction.rs2Value, decodedInstruction.rs2Value) : $format("INVALID")));
-                
+                if (verbose) begin
+                    $display("%0d,%0d,%0d,%0x,%0d,execute,executing instruction: ", fetchIndex, exceptionController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber, fshow(decodedInstruction.opcode));
+                    $display("%0d,%0d,%0d,%0x,%0d,execute,RS1: ", fetchIndex, exceptionController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber, (isValid(decodedInstruction.rs1) ? $format("x%0d = %0d ($%0x)", unJust(decodedInstruction.rs1), decodedInstruction.rs1Value, decodedInstruction.rs1Value) : $format("INVALID")));
+                    $display("%0d,%0d,%0d,%0x,%0d,execute,RS2: ", fetchIndex, exceptionController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber, (isValid(decodedInstruction.rs2) ? $format("x%0d = %0d ($%0x)", unJust(decodedInstruction.rs2), decodedInstruction.rs2Value, decodedInstruction.rs2Value) : $format("INVALID")));
+                end
+
                 let executedInstruction <- executeInstruction(decodedInstruction, currentEpoch);
 
                 // If the program counter was changed, see if it matches a predicted branch/jump.
@@ -439,12 +453,14 @@ module mkExecutionUnit#(
 
                     executedInstruction.pipelineEpoch = ~executedInstruction.pipelineEpoch;
 
-                    $display("%0d,%0d,%0d,%0x,%0d,execute,branch/jump to: $%08x", fetchIndex, cycleCounter, currentEpoch, decodedInstruction.programCounter, stageNumber, targetAddress);
+                    if (verbose)
+                        $display("%0d,%0d,%0d,%0x,%0d,execute,branch/jump to: $%08x", fetchIndex, cycleCounter, currentEpoch, decodedInstruction.programCounter, stageNumber, targetAddress);
                     programCounterRedirect.branch(targetAddress);
                 end
 
                 if (executedInstruction.exception matches tagged Valid .exception) begin
-                    $display("%0d,%0d,%0d,%0x,%0d,execute,EXCEPTION:", fetchIndex, cycleCounter, currentEpoch, decodedInstruction.programCounter, stageNumber, fshow(exception));
+                    if (verbose)
+                        $display("%0d,%0d,%0d,%0x,%0d,execute,EXCEPTION:", fetchIndex, cycleCounter, currentEpoch, decodedInstruction.programCounter, stageNumber, fshow(exception));
                 end
 
                 // If writeback data exists, that needs to be written into the previous pipeline 
@@ -454,9 +470,11 @@ module mkExecutionUnit#(
                         rd: wb.rd,
                         value: tagged Valid wb.value
                     });
-                    $display("%0d,%0d,%0d,%0x,%0d,execute,complete (WB: x%0d = %08x)", fetchIndex, cycleCounter, currentEpoch, decodedInstruction.programCounter, stageNumber, wb.rd, wb.value);
+                    if (verbose)
+                        $display("%0d,%0d,%0d,%0x,%0d,execute,complete (WB: x%0d = %08x)", fetchIndex, cycleCounter, currentEpoch, decodedInstruction.programCounter, stageNumber, wb.rd, wb.value);
                 end else begin
-                    $display("%0d,%0d,%0d,%0x,%0d,execute,complete", fetchIndex, cycleCounter, currentEpoch, decodedInstruction.programCounter, stageNumber);
+                    if (verbose)
+                        $display("%0d,%0d,%0d,%0x,%0d,execute,complete", fetchIndex, cycleCounter, currentEpoch, decodedInstruction.programCounter, stageNumber);
                 end
 
                 outputQueue.enq(executedInstruction);

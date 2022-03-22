@@ -4,8 +4,18 @@
 #include <map>
 #include <memory>
 #include <set>
+#include <string>
+#include <sstream>
 
 #include <elfio/elfio.hpp>
+
+template< typename T >
+std::string to_hex(T i)
+{
+    std::stringstream stream;
+    stream << std::setfill ('0') << std::setw(sizeof(T)*2) << std::hex << (int)i;
+    return stream.str();
+}
 
 struct Section {
     std::string name;
@@ -24,6 +34,25 @@ struct Section {
 
     bool contains(address_t check) const {
         return check >= address && check < (address + data.size());
+    }
+
+    void dump(std::ostream &dumpstream) const {
+        dumpstream << "Section: " << name << std::endl;
+        dumpstream << "Address: $" << std::hex << address << std::endl;
+
+        auto dump_address = address;
+        auto i = 0;
+        for (auto value : data) {
+            if (i % 16 == 0) {
+                dumpstream << std::endl << "$" << std::hex << dump_address << ": ";
+            }
+
+            dumpstream << std::setfill ('0') << std::setw(2) << to_hex(value) << "  ";
+            ++dump_address;
+            ++i;
+        }
+
+        dumpstream << std::endl << std::endl;
     }
 };
 
@@ -71,22 +100,22 @@ uint32_t program_memory_open() {
 
     if (filename.empty() || !reader.load(filename)) {
         std::cout << "ERROR: Can't find or process ELF file " << filename << std::endl;
-    }
-    else {
+    } else {
         std::shared_ptr<Section> previous_section;
 
         for (const auto section : reader.sections) {
+            // std::cout << "======================================" << std::endl;
+            // std::cout << "Loading ELF section: " << section->get_name() << std::endl;
+            // std::cout << "               Type: " << section->get_type() << std::endl;
+            // std::cout << "            Address: " << std::hex << section->get_address() << std::endl;
+            // std::cout << "               Size: " << std::hex << section->get_size() << std::endl;
+            // std::cout << "      Address Align: " << std::dec << section->get_addr_align() << std::endl;
+            // std::cout << "         Entry Size: " << std::dec << section->get_entry_size() << std::endl;
+            // std::cout << "        Name Offset: " << std::hex << section->get_name_string_offset() << std::endl;
+            // std::cout << "             Offset: " << std::hex << section->get_offset() << std::endl;
+
             switch(section->get_type()) {
                 case ELFIO::SHT_PROGBITS: {
-                    // std::cout << "Loading ELF section: " << section->get_name() << std::endl;
-                    // std::cout << "               Type: " << section->get_type() << std::endl;
-                    // std::cout << "            Address: " << std::hex << section->get_address() << std::endl;
-                    // std::cout << "               Size: " << std::hex << section->get_size() << std::endl;
-                    // std::cout << "      Address Align: " << std::dec << section->get_addr_align() << std::endl;
-                    // std::cout << "         Entry Size: " << std::dec << section->get_entry_size() << std::endl;
-                    // std::cout << "        Name Offset: " << std::hex << section->get_name_string_offset() << std::endl;
-                    // std::cout << "             Offset: " << std::hex << section->get_offset() << std::endl;
-
                     if(previous_section && 
                         section->get_address() >= previous_section->address &&
                         section->get_address() < (previous_section->address + previous_section->data.size() + 8192)) {
@@ -120,16 +149,11 @@ uint32_t program_memory_open() {
                     unsigned char bind, type, other;
                     ELFIO::Elf_Half section_index;
                     ssa.get_symbol("begin_signature", value, size, bind, type, section_index, other);
-                    std::cout << "SYMBOL -'begin_signature': $" << std::hex << value << std::endl;
-
                     context->signature_memory_begin = value;
 
-                    ssa.get_symbol("begin_signature", value, size, bind, type, section_index, other);
-                    std::cout << "SYMBOL -'end_signature'  : $" << std::hex << value << std::endl;
-
+                    ssa.get_symbol("end_signature", value, size, bind, type, section_index, other);
                     context->signature_memory_end = value;
                 }
-                break;
             }
         }
 
@@ -235,15 +259,27 @@ uint64_t AlignmentTraits<uint64_t>::defaultValue() {
 }
 
 template<typename T>
+T program_memory_read(std::shared_ptr<Context> context, address_t address) {
+    T result = AlignmentTraits<T>::defaultValue();
+    const auto &s = context->find(address);
+    if (s) {
+        const auto sectionOffset = address - s->address;
+        result = *(const T *)&s->data[sectionOffset];
+    } else {
+        std::cout << "Failed loading value...address not found in section" << std::endl;
+    }
+
+    return result;
+}
+
+template<typename T>
 T program_memory_read(context_handle handle, address_t address) {
     T result = AlignmentTraits<T>::defaultValue();
     const auto &i = contexts.find(handle);
     if (i != contexts.end()) {
-        const auto &s = (*i).second->find(address);
-        if (s) {
-            const auto sectionOffset = address - s->address;
-            result = *(const T *)&s->data[sectionOffset];
-        }
+        result = program_memory_read<T>((*i).second, address);
+    } else {
+        std::cerr << "Error: Context not found" << std::endl;
     }
 
     return result;
@@ -253,11 +289,19 @@ template<typename T>
 void program_memory_write(context_handle handle, address_t address, T value) {
     const auto &i = contexts.find(handle);
     if (i != contexts.end()) {
-        const auto &s = (*i).second->find(address);
+        auto s = (*i).second->find(address);
         if (s) {
             const auto sectionOffset = address - s->address;
-            *(T *)&s->data[sectionOffset] = value;
+            std::cout << "Section base: " << std::hex << s->address << ", Size: $" << s->data.size() << " - Storing $" << std::hex << value << " to: $" << address << " - Section offset: " << sectionOffset << std::endl;
+            uint8_t *data = s->data.data();
+            uint8_t *area = &data[sectionOffset];
+            *(T *)area = value;
+            std::cout << "Written: " << std::hex << *(T *)area << std::endl;
+        } else {
+            std::cout << "Failed storing value...address not found in section" << std::endl;
         }
+    } else {
+        std::cerr << "Error: Context not found" << std::endl;
     }
 }
 
@@ -293,24 +337,35 @@ void program_memory_write_u64(context_handle handle, address_t address, uint64_t
     program_memory_write(handle, address, value);
 }
 
-address_t program_memory_signature_address_begin(context_handle handle) {
-    address_t result = 0;
-
+void program_memory_dump(context_handle handle) {
     const auto &i = contexts.find(handle);
     if (i != contexts.end()) {
-        result = (*i).second->signature_memory_begin;
-    }
+        const auto context = (*i).second;
 
-    return result;
+        for (const auto section : context->sections) {
+            section->dump(std::cout);
+        }
+    }
 }
 
-address_t program_memory_get_signature_address_end(context_handle handle) {
-    address_t result = 0;
+void program_memory_dump_signature_area(context_handle handle) {
+    const auto filename = ::getenv("SIGNATURE_FILENAME");
+    if (!filename) {
+        std::cerr << "Warning: no signature filename specified in SIGNATURE_FILENAME environment variable" << std::endl;
+    } else {
+        std::ofstream signatureFile(std::string(filename), std::ios_base::trunc);
+        const auto &i = contexts.find(handle);
+        if (i != contexts.end()) {
+            const auto context = (*i).second;
 
-    const auto &i = contexts.find(handle);
-    if (i != contexts.end()) {
-        result = (*i).second->signature_memory_end;
+            assert((context->signature_memory_begin & 3) == 0);
+            assert((context->signature_memory_end & 3) == 0);
+
+            for (auto address = context->signature_memory_begin; address < context->signature_memory_end; address += 4) {
+                const auto value = program_memory_read<uint32_t>(context, address);
+                std::cout << "Dumping $" << std::hex << address << " = " << value << std::endl;
+                signatureFile << std::hex << std::setfill ('0') << std::setw(8) << value << std::endl;
+            }
+        }
     }
-
-    return result;
 }

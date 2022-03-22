@@ -25,6 +25,6 @@ extern "C" {
     void program_memory_write_u32(context_handle handle, address_t address, uint32_t value);
     void program_memory_write_u64(context_handle handle, address_t address, uint64_t value);
 
-    address_t program_memory_signature_address_begin(context_handle handle);
-    address_t program_memory_signature_address_end(context_handle handle);
+    void program_memory_dump(context_handle handle);
+    void program_memory_dump_signature_area(context_handle handle);
 }

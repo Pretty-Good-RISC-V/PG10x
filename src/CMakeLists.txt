@@ -18,3 +18,5 @@ add_subdirectory(Tiles)
 if (ENABLE_SOC_VERILOG_OUTPUT)
     add_subdirectory(SoC)
 endif()
+
+add_subdirectory(Wrappers)

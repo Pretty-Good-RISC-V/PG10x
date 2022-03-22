@@ -328,6 +328,7 @@ module mkDecodeUnit#(
     FIFOF#(DecodedInstruction) decodedInstructionWaitingForOperands <- mkFIFOF;
 
     rule waitForOperands;
+        Bool verbose <- $test$plusargs ("verbose");
         let decodedInstruction = decodedInstructionWaitingForOperands.first;
 
         let fetchIndex = decodedInstruction.fetchIndex;
@@ -346,27 +347,32 @@ module mkDecodeUnit#(
         decodedInstruction = tpl_2(bypassTpl2);
 
         if (stallWaitingForOperands1 || stallWaitingForOperands2) begin
-            $display("%0d,%0d,%0d,%0x,%0d,decode,stall waiting for operands", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber);
+            if (verbose)
+                $display("%0d,%0d,%0d,%0x,%0d,decode,stall waiting for operands", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber);
         end else begin
             decodedInstructionWaitingForOperands.deq;
 
             // Send the decode result to the output queue.
             outputQueue.enq(decodedInstruction);
 
-            $display("%0d,%0d,%0d,%0x,%0d,decode,decode complete", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber);
+            if (verbose)
+                $display("%0d,%0d,%0d,%0x,%0d,decode,decode complete", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber);
         end
     endrule
 
     interface Put putEncodedInstruction;
         method Action put(EncodedInstruction encodedInstruction) if(decodedInstructionWaitingForOperands.notEmpty == False);
+            Bool verbose <- $test$plusargs ("verbose");
             let fetchIndex = encodedInstruction.fetchIndex;
             let stageEpoch = pipelineController.stageEpoch(stageNumber, 2);
 
             if (!pipelineController.isCurrentEpoch(stageNumber, 2, encodedInstruction.pipelineEpoch)) begin
-                $display("%0d,%0d,%0d,%0x,%0d,decode,stale instruction...ignoring", fetchIndex, cycleCounter, encodedInstruction.pipelineEpoch, encodedInstruction.programCounter, stageNumber);
+                if (verbose)
+                    $display("%0d,%0d,%0d,%0x,%0d,decode,stale instruction...ignoring", fetchIndex, cycleCounter, encodedInstruction.pipelineEpoch, encodedInstruction.programCounter, stageNumber);
             end else if(isValid(encodedInstruction.exception)) begin
                 // Pass along any exceptions
-                $display("%0d,%0d,%0d,%0x,%0d,decode,exception in encoded instruction...propagating", fetchIndex, cycleCounter, encodedInstruction.pipelineEpoch, encodedInstruction.programCounter, stageNumber);
+                if (verbose)
+                    $display("%0d,%0d,%0d,%0x,%0d,decode,exception in encoded instruction...propagating", fetchIndex, cycleCounter, encodedInstruction.pipelineEpoch, encodedInstruction.programCounter, stageNumber);
                 outputQueue.enq(DecodedInstruction {
                     fetchIndex: fetchIndex,
                     pipelineEpoch: stageEpoch,
@@ -410,13 +416,15 @@ module mkDecodeUnit#(
                 decodedInstruction = tpl_2(bypassTpl2);
 
                 if (stallWaitingForOperands1 || stallWaitingForOperands2) begin
-                    $display("%0d,%0d,%0d,%0x,%0d,decode,stall waiting for operands", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber);
+                    if (verbose)
+                        $display("%0d,%0d,%0d,%0x,%0d,decode,stall waiting for operands", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber);
                     decodedInstructionWaitingForOperands.enq(decodedInstruction);
                 end else begin
                     // Send the decode result to the output queue.
                     outputQueue.enq(decodedInstruction);
 
-                    $display("%0d,%0d,%0d,%0x,%0d,decode,decode complete", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber);
+                    if (verbose)
+                        $display("%0d,%0d,%0d,%0x,%0d,decode,decode complete", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber);
                 end
             end
         endmethod
