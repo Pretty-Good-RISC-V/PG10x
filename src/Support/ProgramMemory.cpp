@@ -120,14 +120,10 @@ uint32_t program_memory_open() {
                         section->get_address() >= previous_section->address &&
                         section->get_address() < (previous_section->address + previous_section->data.size() + 8192)) {
 
-                        // std::cout << "Merging section with previous section" << std::endl;
-
                         const size_t new_size = (section->get_address() + section->get_size()) -
                             previous_section->address;
 
-                        // std::cout << "New section size: " << std::hex << new_size << std::endl;
                         const size_t byte_offset = section->get_address() - previous_section->address;
-                        // std::cout << "Copy offset: " << std::hex << byte_offset << std::endl;
 
                         previous_section->data.resize(new_size);
 
@@ -153,6 +149,9 @@ uint32_t program_memory_open() {
 
                     ssa.get_symbol("end_signature", value, size, bind, type, section_index, other);
                     context->signature_memory_end = value;
+
+                    std::cout << "Signature Begin Address: " << std::hex << context->signature_memory_begin << std::endl;
+                    std::cout << "Signature End Address  : " << std::hex << context->signature_memory_end << std::endl;
                 }
             }
         }
@@ -292,11 +291,7 @@ void program_memory_write(context_handle handle, address_t address, T value) {
         auto s = (*i).second->find(address);
         if (s) {
             const auto sectionOffset = address - s->address;
-            std::cout << "Section base: " << std::hex << s->address << ", Size: $" << s->data.size() << " - Storing $" << std::hex << value << " to: $" << address << " - Section offset: " << sectionOffset << std::endl;
-            uint8_t *data = s->data.data();
-            uint8_t *area = &data[sectionOffset];
-            *(T *)area = value;
-            std::cout << "Written: " << std::hex << *(T *)area << std::endl;
+            *(T *)&s->data[sectionOffset] = value;
         } else {
             std::cout << "Failed storing value...address not found in section" << std::endl;
         }
