@@ -158,22 +158,33 @@ module mkDecodeUnit#(
             // OP-IMM32
             //
             7'b0011011: begin
-                // OP-IMM only used func3 for operator encoding.
-                decodedInstruction.aluOperator = extend(func3);
-
                 // Check for shift instructions
                 if (func3[1:0] == 2'b01) begin
                     if (func7 == 7'b0000000 || func7 == 7'b0100000) begin
-                        decodedInstruction.opcode = ALU3264;
+                        decodedInstruction.aluOperator = extend({func7, func3});
+                        decodedInstruction.opcode = ALU32;
                         decodedInstruction.rd = tagged Valid rd;
                         decodedInstruction.rs1 = tagged Valid rs1;
-                        decodedInstruction.immediate = tagged Valid extend(shamt);
+                        decodedInstruction.immediate = tagged Valid extend(instruction[24:20]);
                     end
                 end else begin
-                    decodedInstruction.opcode = ALU3264;
+                    decodedInstruction.aluOperator = extend(func3);
+                    decodedInstruction.opcode = ALU32;
                     decodedInstruction.rd = tagged Valid rd;
                     decodedInstruction.rs1 = tagged Valid rs1;
                     decodedInstruction.immediate = tagged Valid immediate31_20;
+                end
+            end
+            //
+            // OP32
+            //
+            7'b0111011: begin
+                if (func7 == 7'b0000000 || (func7 == 7'b0100000 && (func3 == 3'b000 || func3 == 3'b101))) begin
+                    decodedInstruction.aluOperator = extend({func7, func3});
+                    decodedInstruction.opcode = ALU32;
+                    decodedInstruction.rd = tagged Valid rd;
+                    decodedInstruction.rs1 = tagged Valid rs1;
+                    decodedInstruction.rs2 = tagged Valid rs2;
                 end
             end
 `endif

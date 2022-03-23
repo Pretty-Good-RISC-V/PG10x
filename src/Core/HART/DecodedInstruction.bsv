@@ -10,7 +10,7 @@ typedef enum {
     ALU,
 `ifdef RV64
     // Arithmetic Logic Unit (ALU) operations (32 bit on 64bit ISA)
-    ALU3264,
+    ALU32,
 `endif
 
     // Conditional branch.

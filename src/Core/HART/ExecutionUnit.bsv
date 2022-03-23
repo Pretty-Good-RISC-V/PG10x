@@ -191,11 +191,11 @@ module mkExecutionUnit#(
                     end
 
 `ifdef RV64
-                    ALU3264: begin
+                    ALU32: begin
                         dynamicAssert(isValid(decodedInstruction.rd), "ALU: rd is invalid");
                         dynamicAssert(isValid(decodedInstruction.rs1), "ALU: rs1 is invalid");
 
-                        let result = alu.execute3264(
+                        let result = alu.execute32(
                             decodedInstruction.aluOperator, 
                             decodedInstruction.rs1Value,
                             fromMaybe(decodedInstruction.rs2Value, decodedInstruction.immediate)

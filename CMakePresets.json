@@ -107,6 +107,21 @@
           "value": "OFF"
         }
       }
+    },
+    {
+      "name": "pg103_riscof_tests",
+      "displayName": "PG103 (RV64I) RISCOF_TESTS",
+      "inherits": "pg103",
+      "cacheVariables": {
+        "ENABLE_RISCOF_TESTS": {
+          "type": "BOOL",
+          "value": "ON"
+        },
+        "ENABLE_INSTRUCTION_LOGGING": {
+          "type": "BOOL",
+          "value": "ON"
+        }
+      }
     }
   ],
   "buildPresets": [
