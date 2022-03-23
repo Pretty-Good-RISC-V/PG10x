@@ -20,9 +20,17 @@ interface Core;
     interface StdTileLinkClient systemMemoryBusClient;
 
     interface Put#(Bool) putPipeliningDisabled;
-    interface Put#(Maybe#(Word)) putToHostAddress;
 
     interface Debug debug;
+
+`ifdef ENABLE_ISA_TESTS
+    interface Put#(Maybe#(Word)) putToHostAddress;
+`endif
+
+`ifdef ENABLE_RISCOF_TESTS
+    interface Get#(Bool) getRISCOFHaltRequested;
+`endif
+
 endinterface
 
 module mkCore#(
@@ -31,7 +39,9 @@ module mkCore#(
     //
     // HART
     //
+`ifdef ENABLE_ISA_TESTS
     ReadOnly#(Maybe#(Word)) toHostAddress <- mkReadOnly(tagged Valid 'h8000_1000);
+`endif
 
 `ifdef DISABLE_PIPELINING
     ReadOnly#(Bool) enablePipelining <- mkReadOnly(False);
@@ -85,6 +95,14 @@ module mkCore#(
     method HARTState getState = hart.getState;
     interface TileLinkLiteWordClient systemMemoryBusClient = toGPClient(systemBusRequests, systemBusResponses);
     interface Put putPipeliningDisabled = hart.putPipeliningDisabled;
-    interface Put putToHostAddress = hart.putToHostAddress;
     interface Debug debug = hart.debug;
+
+`ifdef ENABLE_ISA_TESTS
+    interface Put putToHostAddress = hart.putToHostAddress;
+`endif
+
+`ifdef ENABLE_RISCOF_TESTS
+    interface Get getRISCOFHaltRequested = hart.getRISCOFHaltRequested;
+`endif
+
 endmodule

@@ -15,8 +15,13 @@ target_link_libraries(Simulator
 
 target_compile_definitions(Simulator PUBLIC
     ${BASE_ISA}
-    ${MONITOR_TOHOST_ADDRESS}
 )
+
+if (ENABLE_RISCOF_TESTS)
+    target_compile_definitions(Simulator PUBLIC
+        ENABLE_RISCOF_TESTS
+    )
+endif()
 
 if (NOT ENABLE_BRANCH_PREDICTION)
     target_compile_definitions(Simulator PUBLIC
@@ -27,5 +32,11 @@ endif()
 if (NOT ENABLE_PIPELINING)
     target_compile_definitions(Simulator PUBLIC
         DISABLE_PIPELINING
+    )
+endif()
+
+if (ENABLE_ISA_TESTS)
+    target_compile_definitions(Simulator PUBLIC
+        ENABLE_ISA_TESTS
     )
 endif()

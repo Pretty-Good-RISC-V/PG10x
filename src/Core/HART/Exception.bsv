@@ -86,3 +86,14 @@ function Exception createLoadAccessFaultException(Word loadAddress);
         tval: loadAddress
     };
 endfunction
+
+`ifdef ENABLE_RISCOF_TESTS
+RVExceptionCause exception_RISCOFTestHaltException = 24;
+
+function Exception createRISCOFTestHaltException(Word programCounter);
+    return Exception {
+        cause: tagged ExceptionCause exception_RISCOFTestHaltException,
+        tval: programCounter
+    };
+endfunction
+`endif

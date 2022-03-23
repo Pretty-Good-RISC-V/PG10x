@@ -130,14 +130,15 @@ module mkDecodeUnit#(
             //
             7'b0010011: begin   
                 // OP-IMM only used func3 for operator encoding.
-                decodedInstruction.aluOperator = extend(func3);
 
                 // Check for shift instructions
                 if (func3[1:0] == 2'b01) begin
 `ifdef RV32
                     if (func7 == 7'b0000000 || func7 == 7'b0100000) begin
+                        decodedInstruction.aluOperator = extend({func7, func3});
 `elsif RV64
                     if (func7[6:1] == 6'b000000 || func7[6:1] == 6'b010000) begin
+                        decodedInstruction.aluOperator = extend({func7[6:1], 1'b0, func3});
 `endif
                         decodedInstruction.opcode = ALU;
                         decodedInstruction.rd = tagged Valid rd;
@@ -145,6 +146,7 @@ module mkDecodeUnit#(
                         decodedInstruction.immediate = tagged Valid extend(shamt);
                     end
                 end else begin
+                    decodedInstruction.aluOperator = extend(func3);
                     decodedInstruction.opcode = ALU;
                     decodedInstruction.rd = tagged Valid rd;
                     decodedInstruction.rs1 = tagged Valid rs1;
@@ -156,22 +158,33 @@ module mkDecodeUnit#(
             // OP-IMM32
             //
             7'b0011011: begin
-                // OP-IMM only used func3 for operator encoding.
-                decodedInstruction.aluOperator = extend(func3);
-
                 // Check for shift instructions
                 if (func3[1:0] == 2'b01) begin
                     if (func7 == 7'b0000000 || func7 == 7'b0100000) begin
-                        decodedInstruction.opcode = ALU3264;
+                        decodedInstruction.aluOperator = extend({func7, func3});
+                        decodedInstruction.opcode = ALU32;
                         decodedInstruction.rd = tagged Valid rd;
                         decodedInstruction.rs1 = tagged Valid rs1;
-                        decodedInstruction.immediate = tagged Valid extend(shamt);
+                        decodedInstruction.immediate = tagged Valid extend(instruction[24:20]);
                     end
                 end else begin
-                    decodedInstruction.opcode = ALU3264;
+                    decodedInstruction.aluOperator = extend(func3);
+                    decodedInstruction.opcode = ALU32;
                     decodedInstruction.rd = tagged Valid rd;
                     decodedInstruction.rs1 = tagged Valid rs1;
                     decodedInstruction.immediate = tagged Valid immediate31_20;
+                end
+            end
+            //
+            // OP32
+            //
+            7'b0111011: begin
+                if (func7 == 7'b0000000 || (func7 == 7'b0100000 && (func3 == 3'b000 || func3 == 3'b101))) begin
+                    decodedInstruction.aluOperator = extend({func7, func3});
+                    decodedInstruction.opcode = ALU32;
+                    decodedInstruction.rd = tagged Valid rd;
+                    decodedInstruction.rs1 = tagged Valid rs1;
+                    decodedInstruction.rs2 = tagged Valid rs2;
                 end
             end
 `endif
@@ -328,6 +341,7 @@ module mkDecodeUnit#(
     FIFOF#(DecodedInstruction) decodedInstructionWaitingForOperands <- mkFIFOF;
 
     rule waitForOperands;
+        Bool verbose <- $test$plusargs ("verbose");
         let decodedInstruction = decodedInstructionWaitingForOperands.first;
 
         let fetchIndex = decodedInstruction.fetchIndex;
@@ -346,27 +360,32 @@ module mkDecodeUnit#(
         decodedInstruction = tpl_2(bypassTpl2);
 
         if (stallWaitingForOperands1 || stallWaitingForOperands2) begin
-            $display("%0d,%0d,%0d,%0x,%0d,decode,stall waiting for operands", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber);
+            if (verbose)
+                $display("%0d,%0d,%0d,%0x,%0d,decode,stall waiting for operands", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber);
         end else begin
             decodedInstructionWaitingForOperands.deq;
 
             // Send the decode result to the output queue.
             outputQueue.enq(decodedInstruction);
 
-            $display("%0d,%0d,%0d,%0x,%0d,decode,decode complete", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber);
+            if (verbose)
+                $display("%0d,%0d,%0d,%0x,%0d,decode,decode complete", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber);
         end
     endrule
 
     interface Put putEncodedInstruction;
         method Action put(EncodedInstruction encodedInstruction) if(decodedInstructionWaitingForOperands.notEmpty == False);
+            Bool verbose <- $test$plusargs ("verbose");
             let fetchIndex = encodedInstruction.fetchIndex;
             let stageEpoch = pipelineController.stageEpoch(stageNumber, 2);
 
             if (!pipelineController.isCurrentEpoch(stageNumber, 2, encodedInstruction.pipelineEpoch)) begin
-                $display("%0d,%0d,%0d,%0x,%0d,decode,stale instruction...ignoring", fetchIndex, cycleCounter, encodedInstruction.pipelineEpoch, encodedInstruction.programCounter, stageNumber);
+                if (verbose)
+                    $display("%0d,%0d,%0d,%0x,%0d,decode,stale instruction...ignoring", fetchIndex, cycleCounter, encodedInstruction.pipelineEpoch, encodedInstruction.programCounter, stageNumber);
             end else if(isValid(encodedInstruction.exception)) begin
                 // Pass along any exceptions
-                $display("%0d,%0d,%0d,%0x,%0d,decode,exception in encoded instruction...propagating", fetchIndex, cycleCounter, encodedInstruction.pipelineEpoch, encodedInstruction.programCounter, stageNumber);
+                if (verbose)
+                    $display("%0d,%0d,%0d,%0x,%0d,decode,exception in encoded instruction...propagating", fetchIndex, cycleCounter, encodedInstruction.pipelineEpoch, encodedInstruction.programCounter, stageNumber);
                 outputQueue.enq(DecodedInstruction {
                     fetchIndex: fetchIndex,
                     pipelineEpoch: stageEpoch,
@@ -410,13 +429,15 @@ module mkDecodeUnit#(
                 decodedInstruction = tpl_2(bypassTpl2);
 
                 if (stallWaitingForOperands1 || stallWaitingForOperands2) begin
-                    $display("%0d,%0d,%0d,%0x,%0d,decode,stall waiting for operands", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber);
+                    if (verbose)
+                        $display("%0d,%0d,%0d,%0x,%0d,decode,stall waiting for operands", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber);
                     decodedInstructionWaitingForOperands.enq(decodedInstruction);
                 end else begin
                     // Send the decode result to the output queue.
                     outputQueue.enq(decodedInstruction);
 
-                    $display("%0d,%0d,%0d,%0x,%0d,decode,decode complete", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber);
+                    if (verbose)
+                        $display("%0d,%0d,%0d,%0x,%0d,decode,decode complete", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber);
                 end
             end
         endmethod

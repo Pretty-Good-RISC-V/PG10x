@@ -21,5 +21,31 @@ TEST_CASE("ProgramMemory C++ library") {
     addr = 0x800000c8;
     REQUIRE(program_memory_read_u8(handle, addr) == 0x73);
 
+    addr = 0x800000d0;
+    program_memory_write_u32(handle, addr, addr);
+    addr += 4;
+
+    program_memory_write_u32(handle, addr, addr);
+    addr += 4;
+
+    program_memory_write_u32(handle, addr, addr);
+    addr += 4;
+
+    program_memory_write_u32(handle, addr, addr);
+    addr += 4;
+
+    addr = 0x800000d0;
+    REQUIRE(program_memory_read_u32(handle, addr) == addr);
+    addr += 4;
+
+    REQUIRE(program_memory_read_u32(handle, addr) == addr);
+    addr += 4;
+
+    REQUIRE(program_memory_read_u32(handle, addr) == addr);
+    addr += 4;
+
+    REQUIRE(program_memory_read_u32(handle, addr) == addr);
+    addr += 4;
+
     program_memory_close(handle);
 }

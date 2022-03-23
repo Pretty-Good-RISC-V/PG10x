@@ -20,8 +20,12 @@ module mkSoCAddressMap(SoCAddressMap);
     TileId        _rom0Id    = 5;
 
     FabricAddress _ram0Base  = 'h8000_0000;
-    FabricAddress _ram0Size  = 'h8000_0000;     // 2G
+    FabricAddress _ram0Size  = 'h4000_0000;     // 2G
+`ifdef RV32
+    FabricAddress _ram0End   = (_ram0Base - 1) + _ram0Size;
+`elsif RV64
     FabricAddress _ram0End   = _ram0Base + _ram0Size;
+`endif
     TileId        _ram0Id    = 6;
 
     method TileId crossbarId = _crossbarId;

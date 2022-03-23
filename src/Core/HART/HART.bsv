@@ -44,9 +44,17 @@ interface HART;
     interface StdTileLinkClient dataMemoryClient;
 
     interface Put#(Bool) putPipeliningDisabled;
-    interface Put#(Maybe#(Word)) putToHostAddress;
 
     interface Debug debug;
+
+`ifdef ENABLE_ISA_TESTS
+    interface Put#(Maybe#(Word)) putToHostAddress;
+`endif
+
+`ifdef ENABLE_RISCOF_TESTS
+    interface Get#(Bool) getRISCOFHaltRequested;
+`endif
+
 endinterface
 
 //
@@ -67,7 +75,10 @@ module mkHART#(
 )(HART);
     Reg#(Bool) forcePipeliningDisabled <- mkReg(False); // External pipeline control
     Reg#(Bool) pipeliningDisabled <- mkReg(False);      // Internal pipeline enable/disable
+
+`ifdef ENABLE_ISA_TESTS
     Reg#(Maybe#(Word)) toHostAddress <- mkReg(tagged Invalid);
+`endif
 
     //
     // HARTState
@@ -287,6 +298,7 @@ module mkHART#(
         hartState <= newState;
     endrule
 
+
     (* fire_when_enabled, no_implicit_conditions *)
     rule incrementCycleCounter;
         cycleCounter <= cycleCounter + 1;
@@ -306,7 +318,6 @@ module mkHART#(
     interface TileLinkLiteWordClient instructionMemoryClient = fetchUnit.instructionMemoryClient;
     interface TileLinkLiteWordClient dataMemoryClient = memoryAccessUnit.dataMemoryClient;
     interface Put putPipeliningDisabled = toPut(asIfc(forcePipeliningDisabled));
-    interface Put putToHostAddress = memoryAccessUnit.putToHostAddress;
 
     interface Debug debug;
         method Word readGPR(RVGPRIndex idx);
@@ -335,4 +346,13 @@ module mkHART#(
             changeState(STEPPING);
         endmethod
     endinterface
+
+`ifdef ENABLE_ISA_TESTS
+    interface Put putToHostAddress = memoryAccessUnit.putToHostAddress;
+`endif
+
+`ifdef ENABLE_RISCOF_TESTS
+    interface Get getRISCOFHaltRequested = writebackUnit.getRISCOFHaltRequested;
+`endif    
+
 endmodule

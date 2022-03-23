@@ -1,0 +1,15 @@
+[RISCOF]
+ReferencePlugin=sail_cSim
+ReferencePluginPath=${CMAKE_CURRENT_SOURCE_DIR}/sail_cSim
+DUTPlugin=pg10x
+DUTPluginPath=${CMAKE_CURRENT_SOURCE_DIR}/pg10x
+
+[pg10x]
+pluginpath=${CMAKE_CURRENT_SOURCE_DIR}/pg10x
+ispec=${CMAKE_CURRENT_SOURCE_DIR}/pg10x/${CMAKE_RISCOF_ISA_FILE}
+pspec=${CMAKE_CURRENT_SOURCE_DIR}/pg10x/pg10x_platform.yaml
+target_run=1
+PATH=${CMAKE_BINARY_DIR}
+
+[sail_cSim]
+pluginpath=${CMAKE_CURRENT_SOURCE_DIR}/sail_cSim

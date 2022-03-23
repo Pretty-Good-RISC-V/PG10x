@@ -31,10 +31,10 @@ endif()
 foreach(ISA_TEST_BINARY ${ISA_TEST_BINARIES})
     message("Creating ISA test: ${ISA_TEST_BINARY}")
     get_filename_component(TEST_NAME "${ISA_TEST_BINARY}" NAME_WLE)
-    message("Test Commandline: ${CMAKE_SOURCE_DIR}/scripts/pg10xsim --spike --model ${BUILD_PRESET} --log ${CMAKE_CURRENT_BINARY_DIR}/${TEST_NAME}.trace.txt ${ISA_TEST_BINARY}")
+    message("Test Commandline: ${CMAKE_SOURCE_DIR}/pg10xsim --spike --log ${CMAKE_CURRENT_BINARY_DIR}/${TEST_NAME}.trace.txt ${ISA_TEST_BINARY}")
     add_test(
         NAME "ISA_TEST_${TEST_NAME}"
-        COMMAND "${CMAKE_SOURCE_DIR}/scripts/pg10xsim" --sim-host src/ISATestHost/ISATestHost --isa "${BASE_ISA}" --spike --check --max-cycles 30000 --model "${BUILD_PRESET}" --log "${CMAKE_CURRENT_BINARY_DIR}/${TEST_NAME}" "${ISA_TEST_BINARY}"
-        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+        COMMAND "${CMAKE_BINARY_DIR}/pg10xsim" --sim-host src/ISATestHost/ISATestHost --isa "${BASE_ISA}" --spike --check --max-cycles 30000 --log "${CMAKE_CURRENT_BINARY_DIR}/${TEST_NAME}" "${ISA_TEST_BINARY}"
+        WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
     )
 endforeach()

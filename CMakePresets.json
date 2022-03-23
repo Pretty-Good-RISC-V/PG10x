@@ -38,10 +38,6 @@
       "displayName": "PG101 (RV32I) ISA_TESTS",
       "inherits": "pg101",
       "cacheVariables": {
-        "MONITOR_TOHOST_ADDRESS": {
-          "type": "STRING",
-          "value": "MONITOR_TOHOST_ADDRESS"
-        },
         "ENABLE_ISA_TESTS": {
           "type": "BOOL",
           "value": "ON"
@@ -53,25 +49,17 @@
       }
     },
     {
-      "name": "pg101_isa_tests_nopipeline",
-      "displayName": "PG101 (RV32I) ISA_TESTS (NO PIPELINING)",
+      "name": "pg101_riscof_tests",
+      "displayName": "PG101 (RV32I) RISCOF_TESTS",
       "inherits": "pg101",
       "cacheVariables": {
-        "MONITOR_TOHOST_ADDRESS": {
-          "type": "STRING",
-          "value": "MONITOR_TOHOST_ADDRESS"
-        },
-        "ENABLE_ISA_TESTS": {
+        "ENABLE_RISCOF_TESTS": {
           "type": "BOOL",
           "value": "ON"
         },
         "ENABLE_INSTRUCTION_LOGGING": {
           "type": "BOOL",
           "value": "ON"
-        },
-        "ENABLE_PIPELINING": {
-          "type": "BOOL",
-          "value": "OFF"
         }
       }
     },
@@ -106,10 +94,6 @@
       "displayName": "PG103 (RV64I) ISA_TESTS",
       "inherits": "pg103",
       "cacheVariables": {
-        "MONITOR_TOHOST_ADDRESS": {
-          "type": "STRING",
-          "value": "MONITOR_TOHOST_ADDRESS"
-        },
         "ENABLE_ISA_TESTS": {
           "type": "BOOL",
           "value": "ON"
@@ -121,6 +105,21 @@
         "ENABLE_PIPELINING": {
           "type": "BOOL",
           "value": "OFF"
+        }
+      }
+    },
+    {
+      "name": "pg103_riscof_tests",
+      "displayName": "PG103 (RV64I) RISCOF_TESTS",
+      "inherits": "pg103",
+      "cacheVariables": {
+        "ENABLE_RISCOF_TESTS": {
+          "type": "BOOL",
+          "value": "ON"
+        },
+        "ENABLE_INSTRUCTION_LOGGING": {
+          "type": "BOOL",
+          "value": "ON"
         }
       }
     }
