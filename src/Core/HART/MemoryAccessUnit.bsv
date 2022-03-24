@@ -86,24 +86,23 @@ module mkMemoryAccessUnit#(
         end else if (executedInstruction.loadRequest matches tagged Valid .loadRequest) begin
             let loadAddress = loadRequest.tlRequest.a_address;
             Word value = ?;
-            RVGPRIndex rd = ?;
+            RVGPRIndex rd = 0; // Any exceptions below that also have writeback data will
+                               // write to X0 on completion (instead of any existing RD in the
+                               // instruction)
 
             if (memoryResponse.d_denied) begin
                 if (verbose)
                     $display("[****]:****:memory] ERROR - Load returned access denied: ", fshow(memoryResponse));
                 executedInstruction.exception = tagged Valid createLoadAccessFaultException(loadAddress);
-                rd = 0; // Make bypass doesn't contain the instruction RD (fix for p-access ISA test)
             end else
             if (memoryResponse.d_corrupt) begin
                 if (verbose)
                     $display("[****:****:memory] ERROR - Load returned access corrupted: ", fshow(memoryResponse));                executedInstruction.exception = tagged Valid createLoadAccessFaultException(loadAddress);
-                rd = 0; // Make bypass doesn't contain the instruction RD (fix for p-access ISA test)
             end else
             if (memoryResponse.d_opcode != d_ACCESS_ACK_DATA) begin
                 if (verbose)
                     $display("[****:****:memory] ERROR - Load returned unexpected opcode: ", fshow(memoryResponse));
                 executedInstruction.exception = tagged Valid createLoadAccessFaultException(loadAddress);
-                rd = 0; // Make bypass doesn't contain the instruction RD (fix for p-access ISA test)
             end else begin
                 if (verbose)
                     $display("[****:****:memory] Load completed");
