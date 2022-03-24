@@ -65,72 +65,155 @@ module mkDecodeUnit#(
                 func3 == branch_UNSUPPORTED_011) ? False : True;
     endfunction
 
-    function DecodedInstruction decodeInstruction(ProgramCounter programCounter, Word32 instruction);
-        let opcode = instruction[6:0];
-        let rd = instruction[11:7];
-        let func3 = instruction[14:12];
-        let rs1 = instruction[19:15];
-        let uimm = instruction[19:15];   // same bits as rs1
-        let rs2 = instruction[24:20];
-`ifdef RV32
-        let shamt = instruction[24:20];  // same bits as rs2
-`elsif RV64
-        let shamt = instruction[25:20];  // same bits as rs2 including 1 bit above.
-`endif
+    function DecodedInstruction decode000(DecodedInstruction decodedInstruction, Word32 instruction);
         let func7 = instruction[31:25];
-        let immediate31_20 = signExtend(instruction[31:20]); // same bits as {func7, rs2}
+        let rs2 = instruction[24:20];
+        let rs1 = instruction[19:15];
+        let func3 = instruction[14:12];
+        let rd = instruction[11:7];
 
-        let decodedInstruction = DecodedInstruction {
-            fetchIndex: ?,
-            pipelineEpoch: ?,
-            opcode: UNSUPPORTED_OPCODE,
-            programCounter: programCounter,
-            rawInstruction: instruction,
-            predictedNextProgramCounter: ?,
-            aluOperator: {func7, func3},
-            loadOperator: func3,
-            storeOperator: func3,
-            csrOperator: func3,
-            csrIndex: {func7, rs2},
-            branchOperator: ?,
-            systemOperator: ?,
-            rd: tagged Invalid,
-            rs1: tagged Invalid,
-            rs2: tagged Invalid,
-            immediate: tagged Invalid,
-            rs1Value: ?,
-            rs2Value: ?,
-            exception: tagged Invalid
-        };
-
-        case(opcode)
-            //
-            // LOAD
-            //
-            7'b0000011: begin
+        case(instruction[6:5])
+            2'b00: begin    // LOAD
                 if (isValidLoadInstruction(func3)) begin
                     decodedInstruction.opcode = LOAD;
+                    decodedInstruction.loadOperator = func3;
                     decodedInstruction.rd = tagged Valid rd;
                     decodedInstruction.rs1 = tagged Valid rs1;
-                    decodedInstruction.immediate = tagged Valid immediate31_20;
+                    decodedInstruction.immediate = tagged Valid signExtend({func7,rs2});
                 end
             end
-            //
-            // MISC_MEM
-            //
-            7'b0001111: begin
+
+            2'b01: begin    // STORE
+                if (isValidStoreInstruction(func3)) begin
+                    decodedInstruction.opcode = STORE;
+                    decodedInstruction.storeOperator = func3;
+                    decodedInstruction.rs1 = tagged Valid rs1;
+                    decodedInstruction.rs2 = tagged Valid rs2;
+                    decodedInstruction.immediate = tagged Valid (signExtend({instruction[31:25], instruction[11:7]}));
+                end
+            end
+
+            2'b10: begin    // MADD
+            end
+
+            2'b11: begin    // BRANCH
+                if (isValidBranchInstruction(func3)) begin
+                    Word immediate = signExtend({
+                        instruction[31],        // 1 bit
+                        instruction[7],         // 1 bit
+                        instruction[30:25],     // 6 bits
+                        instruction[11:8],      // 4 bits
+                        1'b0                    // 1 bit
+                    });
+                    let branchTarget = decodedInstruction.programCounter + signExtend(immediate);
+                    Bool branchDirectionNegative = (msb(immediate) == 1'b1 ? True : False);
+                    decodedInstruction.opcode = BRANCH;
+                    decodedInstruction.branchOperator = func3;
+                    decodedInstruction.rs1 = tagged Valid rs1;
+                    decodedInstruction.rs2 = tagged Valid rs2;
+                    decodedInstruction.immediate = tagged Valid immediate;
+                end
+            end
+        endcase
+
+        return decodedInstruction;
+    endfunction
+
+    function DecodedInstruction decode001(DecodedInstruction decodedInstruction, Word32 instruction);
+        let rs1 = instruction[19:15];
+        let rd = instruction[11:7];
+
+        case(instruction[6:5])
+            2'b00: begin    // LOAD-FP
+            end
+
+            2'b01: begin    // STORE-FP
+            end
+
+            2'b10: begin    // MSUB
+            end
+
+            2'b11: begin    // JALR
+                decodedInstruction.opcode = JUMP_INDIRECT;
+                decodedInstruction.rd = tagged Valid rd;
+                decodedInstruction.rs1 = tagged Valid rs1;
+                decodedInstruction.immediate = tagged Valid signExtend(instruction[31:20]);
+            end
+        endcase
+
+        return decodedInstruction;
+    endfunction
+
+    function DecodedInstruction decode010(DecodedInstruction decodedInstruction, Word32 instruction);
+        case(instruction[6:5])
+            2'b00: begin    // CUSTOM-0
+            end
+
+            2'b01: begin    // CUSTOM-1
+            end
+
+            2'b10: begin    // NMSUB
+            end
+
+            2'b11: begin    // ** RESERVED **
+            end
+        endcase
+
+        return decodedInstruction;
+    endfunction
+
+    function DecodedInstruction decode011(DecodedInstruction decodedInstruction, Word32 instruction);
+        let rs1 = instruction[19:15];
+        let func3 = instruction[14:12];
+        let rd = instruction[11:7];
+
+        case(instruction[6:5])
+            2'b00: begin    // MISC-MEM
                 if (func3 == 3'b000) begin
                     decodedInstruction.opcode = FENCE;
                     decodedInstruction.rd = tagged Valid rd;
                     decodedInstruction.rs1 = tagged Valid rs1;
                 end
             end
-            //
-            // OP-IMM
-            //
-            7'b0010011: begin   
-                // OP-IMM only used func3 for operator encoding.
 
+            2'b01: begin    // AMO
+            end
+
+            2'b10: begin    // NMADD
+            end
+
+            2'b11: begin    // JAL
+                decodedInstruction.opcode = JUMP;
+                decodedInstruction.rd = tagged Valid rd;
+                decodedInstruction.immediate = tagged Valid signExtend({
+                    instruction[31],    // 1 bit
+                    instruction[19:12], // 8 bits
+                    instruction[20],    // 1 bit
+                    instruction[30:21], // 10 bits
+                    1'b0                // 1 bit
+                });            
+            end
+        endcase
+
+        return decodedInstruction;
+    endfunction
+
+    function DecodedInstruction decode100(DecodedInstruction decodedInstruction, Word32 instruction);
+        let func7 = instruction[31:25];
+        let rs2 = instruction[24:20];
+        let rs1 = instruction[19:15];
+        let func3 = instruction[14:12];
+        let rd = instruction[11:7];
+`ifdef RV32
+        let shamt = instruction[24:20];  // same bits as rs2
+`elsif RV64
+        let shamt = instruction[25:20];  // same bits as rs2 including 1 bit above.
+`endif
+        let immediate31_20 = signExtend({func7, rs2});
+        let uimm = instruction[19:15];   // same bits as rs1
+
+        case(instruction[6:5])
+            2'b00: begin    // OP-IMM
                 // Check for shift instructions
                 if (func3[1:0] == 2'b01) begin
 `ifdef RV32
@@ -153,126 +236,21 @@ module mkDecodeUnit#(
                     decodedInstruction.immediate = tagged Valid immediate31_20;
                 end
             end
-`ifdef RV64
-            //
-            // OP-IMM32
-            //
-            7'b0011011: begin
-                // Check for shift instructions
-                if (func3[1:0] == 2'b01) begin
-                    if (func7 == 7'b0000000 || func7 == 7'b0100000) begin
-                        decodedInstruction.aluOperator = extend({func7, func3});
-                        decodedInstruction.opcode = ALU32;
-                        decodedInstruction.rd = tagged Valid rd;
-                        decodedInstruction.rs1 = tagged Valid rs1;
-                        decodedInstruction.immediate = tagged Valid extend(instruction[24:20]);
-                    end
-                end else begin
-                    decodedInstruction.aluOperator = extend(func3);
-                    decodedInstruction.opcode = ALU32;
-                    decodedInstruction.rd = tagged Valid rd;
-                    decodedInstruction.rs1 = tagged Valid rs1;
-                    decodedInstruction.immediate = tagged Valid immediate31_20;
-                end
-            end
-            //
-            // OP32
-            //
-            7'b0111011: begin
+
+            2'b01: begin    // OP
                 if (func7 == 7'b0000000 || (func7 == 7'b0100000 && (func3 == 3'b000 || func3 == 3'b101))) begin
-                    decodedInstruction.aluOperator = extend({func7, func3});
-                    decodedInstruction.opcode = ALU32;
-                    decodedInstruction.rd = tagged Valid rd;
-                    decodedInstruction.rs1 = tagged Valid rs1;
-                    decodedInstruction.rs2 = tagged Valid rs2;
-                end
-            end
-`endif
-            //
-            // AUIPC
-            //
-            7'b0010111: begin
-                decodedInstruction.opcode = COPY_IMMEDIATE;
-                decodedInstruction.rd = tagged Valid rd;
-                decodedInstruction.immediate = tagged Valid (decodedInstruction.programCounter + (signExtend({instruction[31:12], 12'b0})));
-            end
-            //
-            // STORE
-            //
-            7'b0100011: begin
-                if (isValidStoreInstruction(func3)) begin
-                    decodedInstruction.opcode = STORE;
-                    decodedInstruction.rs1 = tagged Valid rs1;
-                    decodedInstruction.rs2 = tagged Valid rs2;
-                    decodedInstruction.immediate = tagged Valid (signExtend({instruction[31:25], instruction[11:7]}));
-                end
-            end
-            //
-            // OP
-            // 
-            7'b0110011: begin
-                if (func7 == 7'b0000000 || (func7 == 7'b0100000 && (func3 == 3'b000 || func3 == 3'b101)))   
+                    decodedInstruction.aluOperator = {func7, func3};
                     decodedInstruction.opcode = ALU;
                     decodedInstruction.rd = tagged Valid rd;
                     decodedInstruction.rs1 = tagged Valid rs1;
-                    decodedInstruction.rs2 = tagged Valid rs2;
-            end
-            //
-            // LUI
-            //
-            7'b0110111: begin
-                decodedInstruction.opcode = COPY_IMMEDIATE;
-                decodedInstruction.rd = tagged Valid rd;
-                decodedInstruction.immediate = tagged Valid (signExtend({instruction[31:12], 12'b0}));
-            end
-            //
-            // BRANCH
-            //
-            7'b1100011: begin
-                if (isValidBranchInstruction(func3)) begin
-                    Word immediate = signExtend({
-                        instruction[31],        // 1 bit
-                        instruction[7],         // 1 bit
-                        instruction[30:25],     // 6 bits
-                        instruction[11:8],      // 4 bits
-                        1'b0                    // 1 bit
-                    });
-                    let branchTarget = programCounter + signExtend(immediate);
-                    Bool branchDirectionNegative = (msb(immediate) == 1'b1 ? True : False);
-                    decodedInstruction.opcode = BRANCH;
-                    decodedInstruction.branchOperator = func3;
-                    decodedInstruction.rs1 = tagged Valid rs1;
-                    decodedInstruction.rs2 = tagged Valid rs2;
-                    decodedInstruction.immediate = tagged Valid immediate;
+                    decodedInstruction.rs2 = tagged Valid rs2;            
                 end
             end
-            //
-            // JALR
-            //
-            7'b1100111: begin
-                decodedInstruction.opcode = JUMP_INDIRECT;
-                decodedInstruction.rd = tagged Valid rd;
-                decodedInstruction.rs1 = tagged Valid rs1;
-                decodedInstruction.immediate = tagged Valid signExtend(instruction[31:20]);
+
+            2'b10: begin    // OP-FP
             end
-            //
-            // JAL
-            //
-            7'b1101111: begin
-                decodedInstruction.opcode = JUMP;
-                decodedInstruction.rd = tagged Valid rd;
-                decodedInstruction.immediate = tagged Valid signExtend({
-                    instruction[31],    // 1 bit
-                    instruction[19:12], // 8 bits
-                    instruction[20],    // 1 bit
-                    instruction[30:21], // 10 bits
-                    1'b0                // 1 bit
-                });
-            end
-            //
-            // SYSTEM
-            //
-            7'b1110011: begin
+
+            2'b11: begin    // SYSTEM
                 case(func3)
                     3'b000: begin
                         let systemOperator = instruction[31:7];
@@ -320,12 +298,16 @@ module mkDecodeUnit#(
                     //
                     csr_CSRRW, csr_CSRRS, csr_CSRRC: begin
                         decodedInstruction.opcode = CSR;
+                        decodedInstruction.csrOperator = func3;
+                        decodedInstruction.csrIndex = {func7, rs2};
                         decodedInstruction.rd = tagged Valid rd;
                         decodedInstruction.rs1 = tagged Valid rs1;
                     end
 
                     csr_CSRRWI, csr_CSRRSI, csr_CSRRCI: begin
                         decodedInstruction.opcode = CSR;
+                        decodedInstruction.csrOperator = func3;
+                        decodedInstruction.csrIndex = {func7, rs2};
                         decodedInstruction.rd = tagged Valid rd;
                         decodedInstruction.immediate = tagged Valid extend(uimm);
                     end
@@ -333,6 +315,98 @@ module mkDecodeUnit#(
             end
         endcase
 
+        return decodedInstruction;
+    endfunction
+
+    function DecodedInstruction decode101(DecodedInstruction decodedInstruction, Word32 instruction);
+        let rd = instruction[11:7];
+
+        case(instruction[6:5])
+            2'b00: begin    // AUIPC
+                decodedInstruction.opcode = COPY_IMMEDIATE;
+                decodedInstruction.rd = tagged Valid rd;
+                decodedInstruction.immediate = tagged Valid (decodedInstruction.programCounter + (signExtend({instruction[31:12], 12'b0})));
+            end
+
+            2'b01: begin    // LUI
+                decodedInstruction.opcode = COPY_IMMEDIATE;
+                decodedInstruction.rd = tagged Valid rd;
+                decodedInstruction.immediate = tagged Valid (signExtend({instruction[31:12], 12'b0}));
+            end
+
+            2'b10: begin    // ** RESERVED **
+            end
+
+            2'b11: begin    // ** RESERVED **
+            end
+        endcase
+
+        return decodedInstruction;
+    endfunction
+
+
+    function DecodedInstruction decode110(DecodedInstruction decodedInstruction, Word32 instruction);
+        let func7 = instruction[31:25];
+        let rs2 = instruction[24:20];
+        let rs1 = instruction[19:15];
+        let func3 = instruction[14:12];
+        let rd = instruction[11:7];
+        let immediate31_20 = signExtend({func7,rs2});
+
+        decodedInstruction.rs1 = tagged Valid rs1;
+        decodedInstruction.rd = tagged Valid rd;
+
+        case(instruction[6:5])
+`ifdef RV64
+            2'b00: begin    // OP-IMM-32
+                if (func3[1:0] == 2'b01) begin
+                    if (func7 == 7'b0000000 || func7 == 7'b0100000) begin
+                        decodedInstruction.aluOperator = extend({func7, func3});
+                        decodedInstruction.opcode = ALU32;
+                        decodedInstruction.immediate = tagged Valid extend(instruction[24:20]);
+                    end
+                end else begin
+                    decodedInstruction.aluOperator = extend(func3);
+                    decodedInstruction.opcode = ALU32;
+                    decodedInstruction.immediate = tagged Valid immediate31_20;
+                end
+            end
+
+            2'b01: begin    // OP-32
+                if (func7 == 7'b0000000 || (func7 == 7'b0100000 && (func3 == 3'b000 || func3 == 3'b101))) begin
+                    decodedInstruction.aluOperator = extend({func7, func3});
+                    decodedInstruction.opcode = ALU32;
+                    decodedInstruction.rs2 = tagged Valid rs2;
+                end
+            end
+`endif
+            2'b10: begin    // Custom for RV32/RV64, Reserved on RV128
+            end
+            2'b11: begin    // Custom for RV32/RV64, Reserved on RV128
+            end
+        endcase
+
+        return decodedInstruction;
+    endfunction
+
+    function DecodedInstruction decodeInstruction(ProgramCounter programCounter, Word32 instruction);
+        let decodedInstruction = newDecodedInstruction(programCounter, instruction);
+
+        if (instruction[1:0] == 2'b11) begin
+            decodedInstruction = case (instruction[4:2])
+                'b000: decode000(decodedInstruction, instruction);
+                'b001: decode001(decodedInstruction, instruction);
+                'b010: decode010(decodedInstruction, instruction);
+                'b011: decode011(decodedInstruction, instruction);
+                'b100: decode100(decodedInstruction, instruction);
+                'b101: decode101(decodedInstruction, instruction);
+                'b110: decode110(decodedInstruction, instruction);
+                // 'b111: begin
+                //     // ** Reserved for instruction lengths > 32 bits.
+                // end
+            endcase;
+        end
+        
         return decodedInstruction;
     endfunction
 
@@ -386,28 +460,13 @@ module mkDecodeUnit#(
                 // Pass along any exceptions
                 if (verbose)
                     $display("%0d,%0d,%0d,%0x,%0d,decode,exception in encoded instruction...propagating", fetchIndex, cycleCounter, encodedInstruction.pipelineEpoch, encodedInstruction.programCounter, stageNumber);
-                outputQueue.enq(DecodedInstruction {
-                    fetchIndex: fetchIndex,
-                    pipelineEpoch: stageEpoch,
-                    opcode: NO_OP,
-                    programCounter: encodedInstruction.programCounter,
-                    rawInstruction: 0,
-                    predictedNextProgramCounter: ?,
-                    aluOperator: ?,
-                    loadOperator: ?,
-                    storeOperator: ?,
-                    csrOperator: ?,
-                    csrIndex: ?,
-                    branchOperator: ?,
-                    systemOperator: ?,
-                    rd: tagged Invalid,
-                    rs1: tagged Invalid,
-                    rs2: tagged Invalid,
-                    immediate: tagged Invalid,
-                    rs1Value: ?,
-                    rs2Value: ?,
-                    exception: encodedInstruction.exception
-                });
+
+                let decodedInstruction = newDecodedInstruction(encodedInstruction.programCounter, 0);
+                decodedInstruction.fetchIndex = fetchIndex;
+                decodedInstruction.pipelineEpoch = stageEpoch;
+                decodedInstruction.opcode = NO_OP;
+                decodedInstruction.exception = encodedInstruction.exception;
+                outputQueue.enq(decodedInstruction);
             end else begin
                 let rawInstruction = encodedInstruction.rawInstruction;
                 let programCounter = encodedInstruction.programCounter;

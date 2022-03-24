@@ -2,6 +2,8 @@ import PGTypes::*;
 import Exception::*;
 import PipelineController::*;
 
+import DefaultValue::*;
+
 //
 // Opcode - various (micro)operation codes available inside the CPU
 //
@@ -120,3 +122,36 @@ typedef struct {
     // exception - Any exception detected in the decode (or previous) stages
     Maybe#(Exception) exception;
 } DecodedInstruction deriving(Bits, Eq, FShow);
+
+instance DefaultValue#(DecodedInstruction);
+    defaultValue = DecodedInstruction {
+        fetchIndex: ?,
+        pipelineEpoch: ?,
+        opcode: UNSUPPORTED_OPCODE,
+        programCounter: ?,
+        rawInstruction: ?,
+        predictedNextProgramCounter: ?,
+        aluOperator: ?,
+        loadOperator: ?,
+        storeOperator: ?,
+        csrOperator: ?,
+        csrIndex: ?,
+        branchOperator: ?,
+        systemOperator: ?,
+        rd: tagged Invalid,
+        rs1: tagged Invalid,
+        rs2: tagged Invalid,
+        immediate: tagged Invalid,
+        rs1Value: ?,
+        rs2Value: ?,
+        exception: tagged Invalid
+    };
+endinstance
+
+function DecodedInstruction newDecodedInstruction(ProgramCounter programCounter, Word32 rawInstruction);
+    DecodedInstruction decodedInstruction = defaultValue;
+    decodedInstruction.programCounter = programCounter;
+    decodedInstruction.rawInstruction = rawInstruction;
+
+    return decodedInstruction;
+endfunction
