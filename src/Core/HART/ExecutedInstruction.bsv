@@ -49,3 +49,26 @@ typedef struct {
     // writeBack - The data to be written to the register file (if any) for the instruction.
     Maybe#(WriteBack) writeBack;
 } ExecutedInstruction deriving(Bits, Eq, FShow);
+
+instance DefaultValue#(ExecutedInstruction);
+    defaultValue = ExecutedInstruction {
+        fetchIndex: ?,
+        pipelineEpoch: ?,
+        programCounter: ?,
+        rawInstruction: ?,
+        changedProgramCounter: tagged Invalid,
+        loadRequest: tagged Invalid,
+        storeRequest: tagged Invalid,
+        exception: tagged Invalid,
+        writeBack: tagged Invalid
+    };
+endinstance
+
+function ExecutedInstruction newExecutedInstruction(ProgramCounter programCounter, Word32 rawInstruction);
+    ExecutedInstruction executedInstruction = defaultValue;
+    executedInstruction.programCounter = programCounter;
+    executedInstruction.rawInstruction = rawInstruction;
+    executedInstruction.exception = tagged Valid createIllegalInstructionException(rawInstruction);
+
+    return executedInstruction;
+endfunction

@@ -43,9 +43,9 @@ while [[ $# -gt 0 ]]; do
             shift # past value
             ;;
         --isa)
-            if [ "$2" == "RV32" || "$2" == "rv32i" ]; then
+            if [ "$2" == "RV32" ] || [ "$2" == "rv32i" ]; then
                 ISA="RV32I"
-            elif [ "$2" == "RV64" || "$2" == "rv64i" ]; then
+            elif [ "$2" == "RV64" ] || [ "$2" == "rv64i" ]; then
                 ISA="RV64I"
             fi
             shift

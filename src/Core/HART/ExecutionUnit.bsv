@@ -51,6 +51,14 @@ module mkExecutionUnit#(
 
     ALU alu <- mkALU;
 
+    function ExecutedInstruction newExecutedInstructionFromDecodedInstruction(DecodedInstruction decodedInstruction);
+        ExecutedInstruction executedInstruction = newExecutedInstruction(decodedInstruction.programCounter, decodedInstruction.rawInstruction);
+        executedInstruction.fetchIndex = decodedInstruction.fetchIndex;
+        executedInstruction.pipelineEpoch = decodedInstruction.pipelineEpoch;
+        executedInstruction.exception = decodedInstruction.exception;
+        return executedInstruction;
+    endfunction
+
     function Bool isValidInstructionAddress(ProgramCounter programCounter);
         return (programCounter[1:0] == 0 ? True : False);
     endfunction
@@ -149,17 +157,9 @@ module mkExecutionUnit#(
         PipelineEpoch currentEpoch);
         actionvalue
             Bool verbose <- $test$plusargs ("verbose");
-            let executedInstruction = ExecutedInstruction {
-                fetchIndex: decodedInstruction.fetchIndex,
-                pipelineEpoch: decodedInstruction.pipelineEpoch,
-                programCounter: decodedInstruction.programCounter,
-                rawInstruction: decodedInstruction.rawInstruction,
-                changedProgramCounter: tagged Invalid,
-                loadRequest: tagged Invalid,
-                storeRequest: tagged Invalid,
-                exception: tagged Valid createIllegalInstructionException(decodedInstruction.rawInstruction),
-                writeBack: tagged Invalid
-            };
+
+            let executedInstruction = newExecutedInstructionFromDecodedInstruction(decodedInstruction);
+            executedInstruction.exception = tagged Valid createIllegalInstructionException(decodedInstruction.rawInstruction);
 
             // Check for an existing pending interrupt.
             let pendingInterrupt = False;
@@ -409,31 +409,11 @@ module mkExecutionUnit#(
             if (!pipelineController.isCurrentEpoch(stageNumber, 1, decodedInstruction.pipelineEpoch)) begin
                 if (verbose)
                     $display("%0d,%0d,%0d,%0x,%0d,execute,stale instruction (%0d != %0d)...adding bubble to pipeline", fetchIndex, exceptionController.csrFile.cycle_counter, decodedInstruction.pipelineEpoch, decodedInstruction.programCounter, stageNumber, decodedInstruction.pipelineEpoch, stageEpoch);
-                outputQueue.enq(ExecutedInstruction{
-                    fetchIndex: decodedInstruction.fetchIndex,
-                    pipelineEpoch: decodedInstruction.pipelineEpoch,
-                    programCounter: decodedInstruction.programCounter,
-                    rawInstruction: decodedInstruction.rawInstruction,
-                    changedProgramCounter: tagged Invalid,
-                    loadRequest: tagged Invalid,
-                    storeRequest: tagged Invalid,
-                    exception: tagged Invalid,
-                    writeBack: tagged Invalid
-                });
+                outputQueue.enq(newExecutedInstructionFromDecodedInstruction(decodedInstruction));
             end else if (isValid(decodedInstruction.exception)) begin
                 if (verbose)
                     $display("%0d,%0d,%0d,%0x,%0d,execute,EXCEPTION - decoded instruction had exception - prooagating", fetchIndex, exceptionController.csrFile.cycle_counter, decodedInstruction.pipelineEpoch, decodedInstruction.programCounter, stageNumber, decodedInstruction.pipelineEpoch, stageEpoch);
-                outputQueue.enq(ExecutedInstruction{
-                    fetchIndex: decodedInstruction.fetchIndex,
-                    pipelineEpoch: decodedInstruction.pipelineEpoch,
-                    programCounter: decodedInstruction.programCounter,
-                    rawInstruction: decodedInstruction.rawInstruction,
-                    changedProgramCounter: tagged Invalid,
-                    loadRequest: tagged Invalid,
-                    storeRequest: tagged Invalid,
-                    exception: decodedInstruction.exception,
-                    writeBack: tagged Invalid
-                });
+                outputQueue.enq(newExecutedInstructionFromDecodedInstruction(decodedInstruction));
             end else begin
                 let currentEpoch = stageEpoch;
 
