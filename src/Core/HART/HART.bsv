@@ -9,6 +9,7 @@ import GPRFile::*;
 import MemoryAccessUnit::*;
 import PipelineController::*;
 import ProgramCounterRedirect::*;
+import Scoreboard::*;
 import TileLink::*;
 import WritebackUnit::*;
 
@@ -106,6 +107,11 @@ module mkHART#(
     ExceptionController exceptionController <- mkExceptionController;
 
     //
+    // Scoreboard
+    //
+    Scoreboard#(4) scoreboard <- mkScoreboard;
+
+    //
     // Pipeline stage epochs
     //
     PipelineController pipelineController <- mkPipelineController(6 /* stage count */);
@@ -139,7 +145,9 @@ module mkHART#(
     DecodeUnit decodeUnit <- mkDecodeUnit(
         2,  // stage number
         pipelineController,
-        gprFile
+        gprFile,
+        exceptionController.csrFile,
+        scoreboard
     );
 
     mkConnection(toGet(cycleCounter), decodeUnit.putCycleCounter);
@@ -152,7 +160,8 @@ module mkHART#(
         3,  // stage number
         pipelineController,
         programCounterRedirect,
-        exceptionController
+        exceptionController,
+        scoreboard
     );
 
     mkConnection(toGet(cycleCounter), executionUnit.putCycleCounter);
@@ -180,7 +189,8 @@ module mkHART#(
         pipelineController,
         programCounterRedirect,
         gprFile,
-        exceptionController
+        exceptionController,
+        scoreboard
     );
 
     mkConnection(toGet(cycleCounter), writebackUnit.putCycleCounter);

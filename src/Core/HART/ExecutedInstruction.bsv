@@ -5,14 +5,24 @@ import LoadStore::*;
 import PipelineController::*;
 
 //
-// WriteBack
+// GPRWriteBack
 //
-// Structure containing data to be written back to CPU registers
+// Structure containing data to be written back to the GPR file
 //
 typedef struct {
     RVGPRIndex rd;
     Word value;
-} WriteBack deriving(Bits, Eq, FShow);
+} GPRWriteBack deriving(Bits, Eq, FShow);
+
+//
+// CSRWriteBack
+//
+// Structure containing data to be written back to the CSR file
+//
+typedef struct {
+    RVCSRIndex rd;
+    Word value;
+} CSRWriteBack deriving(Bits, Eq, FShow);
 
 //
 // ExecutedInstruction
@@ -46,8 +56,11 @@ typedef struct {
     // storeRequest - The store request (if any) of the executed instruction.
     Maybe#(StoreRequest) storeRequest;
 
-    // writeBack - The data to be written to the register file (if any) for the instruction.
-    Maybe#(WriteBack) writeBack;
+    // gprWriteBack - The data to be written to the GPR file (if any) for the instruction.
+    Maybe#(GPRWriteBack) gprWriteBack;
+
+    // gprWriteBack - The data to be written to the GPR file (if any) for the instruction.
+    Maybe#(CSRWriteBack) csrWriteBack;
 } ExecutedInstruction deriving(Bits, Eq, FShow);
 
 instance DefaultValue#(ExecutedInstruction);
@@ -60,7 +73,8 @@ instance DefaultValue#(ExecutedInstruction);
         loadRequest: tagged Invalid,
         storeRequest: tagged Invalid,
         exception: tagged Invalid,
-        writeBack: tagged Invalid
+        gprWriteBack: tagged Invalid,
+        csrWriteBack: tagged Invalid
     };
 endinstance
 

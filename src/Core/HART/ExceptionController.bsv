@@ -54,9 +54,8 @@ module mkExceptionController(ExceptionController);
         // !todo:
         // xPIE
         // xPP
-
+        innerCsrFile.writeWithOffset1(csr_EPC, exceptionProgramCounter);        
         innerCsrFile.writeWithOffset1(csr_CAUSE, cause);
-        innerCsrFile.writeWithOffset1(csr_EPC, exceptionProgramCounter);
         innerCsrFile.writeWithOffset1(csr_TVAL, exception.tval);
         Word vectorTableBase = unJust(innerCsrFile.readWithOffset1(csr_TVEC));
         let exceptionHandler = vectorTableBase;

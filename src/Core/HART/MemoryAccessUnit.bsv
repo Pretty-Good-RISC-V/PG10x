@@ -140,7 +140,7 @@ module mkMemoryAccessUnit#(
                     end
 `endif
                 endcase
-                executedInstruction.writeBack = tagged Valid WriteBack {
+                executedInstruction.gprWriteBack = tagged Valid GPRWriteBack {
                     rd: rd,
                     value: value
                 };

@@ -101,10 +101,6 @@
         "ENABLE_INSTRUCTION_LOGGING": {
           "type": "BOOL",
           "value": "ON"
-        },
-        "ENABLE_PIPELINING": {
-          "type": "BOOL",
-          "value": "OFF"
         }
       }
     },

@@ -32,6 +32,10 @@ interface MachineStatus;
 `endif
 
     interface Get#(Bool) getMIE;
+    // interface Put#(Bool) putMIE;
+
+    // interface Put#(RVPrivilegeLevel) putMPP;
+    // interface Get#(RVPrivilegeLevel) getMPP;
 endinterface
 
 module mkMachineStatusRegister(MachineStatus);
@@ -42,7 +46,7 @@ module mkMachineStatusRegister(MachineStatus);
     Reg#(Bit#(1)) mpie              <- mkReg(0);                 // Machine Mode Interrupts Enabled During Trap
     ReadOnly#(Bit#(1)) spp          <- mkReadOnly(0);            // Supervisor Previous Privilege Mode
     ReadOnly#(FSVSState) vs         <- mkReadOnly(fsvs_OFF);     // Vector Extension State
-    ReadOnly#(RVPrivilegeLevel) mpp <- mkReadOnly(priv_MACHINE); // Machine Previous Privilege Level
+    Reg#(RVPrivilegeLevel) mpp      <- mkReg(priv_MACHINE);      // Machine Previous Privilege Level
     ReadOnly#(FSVSState) fs         <- mkReadOnly(fsvs_OFF);     // Floating Point Status
     ReadOnly#(XSState) xs           <- mkReadOnly(xs_ALL_OFF);   // User Mode Extension Status
     ReadOnly#(Bit#(1)) mprv         <- mkReadOnly(0);            // Modify Privilege Mode For Loads/Stores
@@ -141,4 +145,8 @@ module mkMachineStatusRegister(MachineStatus);
 `endif
 
     interface Get getMIE = toGet(mie);
+    // interface Put putMIE = toPut(asIfc(mie));
+
+    // interface Put putMPP = toPut(asIfc(mpp));
+    // interface Get getMPP = toGet(mpp);
 endmodule
