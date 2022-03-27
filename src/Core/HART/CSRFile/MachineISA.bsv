@@ -1,46 +1,77 @@
 import PGTypes::*;
-import ReadOnly::*;
 
-interface MachineISA;
-    method Word read;
-    method Action write(Word value);
-endinterface
+typedef Bit#(2) MXL;
+MXL mxl_32bit  = 2'b01;
+MXL mxl_64bit  = 2'b10;
+MXL mxl_128bit = 2'b11;
 
-module mkMachineISARegister(MachineISA);
+typedef struct {
+    Bool extA;      // Atomic extension
+    Bool extB;      // Bit manipulation extension
+    Bool extC;      // Compressed instruction extension
+    Bool extD;      // Double precision floating-point extension
+    Bool extE;      // RV32E base ISA
+    Bool extF;      // Single precision floating-point extension
+    Bool extG;      // ** RESERVED **
+    Bool extH;      // Hypervisor extension
+    Bool extI;      // RV32I/64I/128I base ISA
+    Bool extJ;      // Dynamically translated languaged extension
+    Bool extK;      // ** RESERVED **
+    Bool extL;      // ** RESERVED **
+    Bool extM;      // Integer multiply/divide extension
+    Bool extN;      // User level interrupts extension
+    Bool extO;      // ** RESERVED **
+    Bool extP;      // Packed-SIMD extension
+    Bool extQ;      // Quad precision floating-point extension
+    Bool extR;      // ** RESERVED **
+    Bool extS;      // Supervisor mode implemented
+    Bool extT;      // ** RESERVED **
+    Bool extU;      // User mode implemented
+    Bool extV;      // Vector extension
+    Bool extW;      // ** RESERVED **
+    Bool extX;      // Non-standard extensions present
+    Bool extY;      // ** RESERVED **
+    Bool extZ;      // ** RESERVED **
+} MachineISA deriving(Eq);
+
+instance DefaultValue#(MachineISA);
+    defaultValue = MachineISA {
+        extA: False,
+        extB: False,
+        extC: False,
+        extD: False,
+        extE: False,
+        extF: False,
+        extG: False,
+        extH: False,
+        extI: True,     // RV32I/64I/128I base ISA
+        extJ: False,
+        extK: False,
+        extL: False,
+        extM: False,
+        extN: False,
+        extO: False,
+        extP: False,
+        extQ: False,
+        extR: False,
+        extS: False,
+        extT: False,
+        extU: False,
+        extV: False,
+        extW: False,
+        extX: False,
+        extY: False,
+        extZ: False
+    };
+endinstance
+
+instance Bits#(MachineISA, XLEN);
+    function Bit#(XLEN) pack(MachineISA misa);
 `ifdef RV32
-    ReadOnly#(Bit#(2)) mxl <- mkReadOnly(1);
+        MXL mxl = mxl_32bit;
 `elsif RV64
-    ReadOnly#(Bit#(2)) mxl <- mkReadOnly(2);
+        MXL mxl = mxl_64bit;
 `endif
-
-    ReadOnly#(Bool) extA <- mkReadOnly(False);      // Atomic extension
-    ReadOnly#(Bool) extB <- mkReadOnly(False);      // Bit manipulation extension
-    ReadOnly#(Bool) extC <- mkReadOnly(False);      // Compressed instruction extension
-    ReadOnly#(Bool) extD <- mkReadOnly(False);      // Double precision floating-point extension
-    ReadOnly#(Bool) extE <- mkReadOnly(False);      // RV32E base ISA
-    ReadOnly#(Bool) extF <- mkReadOnly(False);      // Single precision floating-point extension
-    ReadOnly#(Bool) extG <- mkReadOnly(False);      // ** RESERVED **
-    ReadOnly#(Bool) extH <- mkReadOnly(False);      // Hypervisor extension
-    ReadOnly#(Bool) extI <- mkReadOnly(True);       // RV32I/64I/128I base ISA
-    ReadOnly#(Bool) extJ <- mkReadOnly(False);      // Dynamically translated languaged extension
-    ReadOnly#(Bool) extK <- mkReadOnly(False);      // ** RESERVED **
-    ReadOnly#(Bool) extL <- mkReadOnly(False);      // ** RESERVED **
-    ReadOnly#(Bool) extM <- mkReadOnly(False);      // Integer multiply/divide extension
-    ReadOnly#(Bool) extN <- mkReadOnly(False);      // User level interrupts extension
-    ReadOnly#(Bool) extO <- mkReadOnly(False);      // ** RESERVED **
-    ReadOnly#(Bool) extP <- mkReadOnly(False);      // Packed-SIMD extension
-    ReadOnly#(Bool) extQ <- mkReadOnly(False);      // Quad precision floating-point extension
-    ReadOnly#(Bool) extR <- mkReadOnly(False);      // ** RESERVED **
-    ReadOnly#(Bool) extS <- mkReadOnly(False);      // Supervisor mode implemented
-    ReadOnly#(Bool) extT <- mkReadOnly(False);      // ** RESERVED **
-    ReadOnly#(Bool) extU <- mkReadOnly(False);       // User mode implemented
-    ReadOnly#(Bool) extV <- mkReadOnly(False);      // Vector extension
-    ReadOnly#(Bool) extW <- mkReadOnly(False);      // ** RESERVED **
-    ReadOnly#(Bool) extX <- mkReadOnly(False);      // Non-standard extensions present
-    ReadOnly#(Bool) extY <- mkReadOnly(False);      // ** RESERVED **
-    ReadOnly#(Bool) extZ <- mkReadOnly(False);      // ** RESERVED **
-
-    method Word read;
         return {
             mxl,
 `ifdef RV32
@@ -48,35 +79,36 @@ module mkMachineISARegister(MachineISA);
 `elsif RV64
             36'b0,
 `endif            
-            pack(extZ),
-            pack(extY),
-            pack(extX),
-            pack(extW),
-            pack(extV),
-            pack(extU),
-            pack(extT),
-            pack(extS),
-            pack(extR),
-            pack(extQ),
-            pack(extP),
-            pack(extO),
-            pack(extN),
-            pack(extM),
-            pack(extL),
-            pack(extK),
-            pack(extJ),
-            pack(extI),
-            pack(extH),
-            pack(extH),
-            pack(extF),
-            pack(extE),
-            pack(extD),
-            pack(extC),
-            pack(extB),
-            pack(extA)           
+            pack(misa.extZ),
+            pack(misa.extY),
+            pack(misa.extX),
+            pack(misa.extW),
+            pack(misa.extV),
+            pack(misa.extU),
+            pack(misa.extT),
+            pack(misa.extS),
+            pack(misa.extR),
+            pack(misa.extQ),
+            pack(misa.extP),
+            pack(misa.extO),
+            pack(misa.extN),
+            pack(misa.extM),
+            pack(misa.extL),
+            pack(misa.extK),
+            pack(misa.extJ),
+            pack(misa.extI),
+            pack(misa.extH),
+            pack(misa.extH),
+            pack(misa.extF),
+            pack(misa.extE),
+            pack(misa.extD),
+            pack(misa.extC),
+            pack(misa.extB),
+            pack(misa.extA)           
         };
-    endmethod
+    endfunction
 
-    method Action write(Word value);
-    endmethod
-endmodule
+    function MachineISA unpack(Bit#(XLEN) value);
+        return defaultValue;
+    endfunction
+endinstance

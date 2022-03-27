@@ -3,8 +3,8 @@ import PGTypes::*;
 import DebugRegisters::*;
 import Exception::*;
 import MachineInformation::*;
+import MachineISA::*;
 import MachineStatus::*;
-import MachineTraps::*;
 import ReadOnly::*;
 
 import Assert::*;
@@ -35,31 +35,32 @@ interface CSRFile;
 endinterface
 
 module mkCSRFile(CSRFile);
-    MachineInformation  machineInformation  <- mkMachineInformationRegisters(0, 0, 0, 0, 0);
-    MachineStatus       machineStatus       <- mkMachineStatusRegister;
-    MachineTraps        machineTraps        <- mkMachineTrapRegisters;
+    MachineInformation  machineInformation      <- mkMachineInformationRegisters(0, 0, 0, 0, 0);
+
+    Reg#(MachineISA)    misa                    <- mkReg(defaultValue);
+    Reg#(MachineStatus) mstatus                 <- mkReg(defaultValue);
 
     Reg#(Word64)    cycleCounter                <- mkReg(0);
     Reg#(Word64)    timeCounter                 <- mkReg(0);
     Reg#(Word64)    instructionsRetiredCounter  <- mkReg(0);
 
-    Reg#(Word)      mcycle      <- mkReg(0);
-    ReadOnly#(Word) mtimer      <- mkReadOnly(truncate(timeCounter));
-    ReadOnly#(Word) minstret    <- mkReadOnly(truncate(instructionsRetiredCounter));
+    Reg#(Word)      mcycle                      <- mkReg(0);
+    ReadOnly#(Word) mtimer                      <- mkReadOnly(truncate(timeCounter));
+    ReadOnly#(Word) minstret                    <- mkReadOnly(truncate(instructionsRetiredCounter));
 `ifdef RV32
-    ReadOnly#(Word) mcycleh     <- mkReadOnly(truncateLSB(cycleCounter));
-    ReadOnly#(Word) mtimeh      <- mkReadOnly(truncateLSB(timeCounter));
-    ReadOnly#(Word) minstreth   <- mkReadOnly(truncateLSB(instructionsRetiredCounter));
+    ReadOnly#(Word) mcycleh                     <- mkReadOnly(truncateLSB(cycleCounter));
+    ReadOnly#(Word) mtimeh                      <- mkReadOnly(truncateLSB(timeCounter));
+    ReadOnly#(Word) minstreth                   <- mkReadOnly(truncateLSB(instructionsRetiredCounter));
 `endif
-    Reg#(Word)      mcause      <- mkReg(0);
-    Reg#(Word)      mtvec       <- mkReg('hC0DEC0DE);
-    Reg#(Word)      mepc        <- mkReg(0);    // Machine Exception Program Counter
-    Reg#(Word)      mscratch    <- mkReg(0);
-    Reg#(Word)      mip         <- mkReg(0);
-    Reg#(Word)      mie         <- mkReg(0);
-    Reg#(Word)      mtval       <- mkReg(0);
+    Reg#(Word)      mcause                      <- mkReg(0);
+    Reg#(Word)      mtvec                       <- mkReg('hC0DEC0DE);
+    Reg#(Word)      mepc                        <- mkReg(0);    // Machine Exception Program Counter
+    Reg#(Word)      mscratch                    <- mkReg(0);
+    Reg#(Word)      mip                         <- mkReg(0);
+    Reg#(Word)      mie                         <- mkReg(0);
+    Reg#(Word)      mtval                       <- mkReg(0);
 
-    Reg#(Bit#(2))   currentPrivilegeLevel     <- mkReg(priv_MACHINE);
+    Reg#(Bit#(2))   currentPrivilegeLevel       <- mkReg(priv_MACHINE);
 
     function Bool isWARLIgnore(RVCSRIndex index);
         Bool result = False;
@@ -92,14 +93,14 @@ module mkCSRFile(CSRFile);
                 csr_MARCHID:    tagged Valid machineInformation.marchid;
                 csr_MIMPID:     tagged Valid machineInformation.mimpid;
                 csr_MHARTID:    tagged Valid machineInformation.mhartid;
-                csr_MISA:       tagged Valid machineTraps.setup.machineISA.read;
+                csr_MISA:       tagged Valid pack(misa);
 
                 csr_MCAUSE:     tagged Valid mcause;
                 csr_MTVEC:      tagged Valid mtvec;
                 csr_MEPC:       tagged Valid mepc;
                 csr_MTVAL:      tagged Valid mtval;
 
-                csr_MSTATUS:    tagged Valid machineStatus.read;
+                csr_MSTATUS:    tagged Valid pack(mstatus);
                 csr_MCYCLE, csr_CYCLE:     
                     tagged Valid mcycle;
                 csr_MSCRATCH:   tagged Valid mscratch;
@@ -143,7 +144,7 @@ module mkCSRFile(CSRFile);
                 end
 
                 csr_MISA: begin
-                    machineTraps.setup.machineISA.write(value);
+                    misa <= unpack(value);
                     result = True;
                 end
 
@@ -153,7 +154,7 @@ module mkCSRFile(CSRFile);
                 end
 
                 csr_MSTATUS: begin
-                    machineStatus.write(value);
+                    mstatus <= unpack(value);
                     result = True;
                 end
 
@@ -263,5 +264,9 @@ module mkCSRFile(CSRFile);
     endmethod
 
     interface Get getCurrentPrivilegeLevel = toGet(currentPrivilegeLevel);
-    interface Get getMachineModeInterruptsEnabled = machineStatus.getMIE;
+    interface Get getMachineModeInterruptsEnabled;
+        method ActionValue#(Bool) get;
+            return mstatus.mie;
+        endmethod
+    endinterface
 endmodule
