@@ -28,13 +28,13 @@ module mkExceptionController_tb(Empty);
     RVExceptionCause exceptionCause = exception_ILLEGAL_INSTRUCTION;
 
     rule init(state == INIT);
-        let succeeded <- exceptionController.csrFile.writeWithOffset1(csr_TVEC, actualExceptionVector);
+        let succeeded <- exceptionController.csrFile.writeWithOffset1(priv_MACHINE, csr_TVEC, actualExceptionVector);
         dynamicAssert(succeeded == True, "Attempt to write MTVEC in machine mode should succeed.");
         state <= VERIFY_INIT;
     endrule
 
     rule verifyInit(state == VERIFY_INIT);
-        let result = exceptionController.csrFile.readWithOffset2(csr_TVEC);
+        let result = exceptionController.csrFile.readWithOffset2(priv_MACHINE, csr_TVEC);
         dynamicAssert(isValid(result), "Reading MTVEC in machine mode should succeed.");
         dynamicAssert(unJust(result) == actualExceptionVector, "Reading MTVEC should contain value written");
 
@@ -46,22 +46,22 @@ module mkExceptionController_tb(Empty);
             cause: tagged ExceptionCause exceptionCause,
             tval: 0
         };
-        let receivedExceptionVector <- exceptionController.beginException(exceptionProgramCounter, exception);
+        let receivedExceptionVector <- exceptionController.beginTrap(exceptionProgramCounter, exception);
         dynamicAssert(receivedExceptionVector == actualExceptionVector, "Exception Vector isn't correct.");
 
         state <= VERIFY_TEST;
     endrule
 
     rule endException(state == VERIFY_TEST);
-        let mtvec = exceptionController.csrFile.readWithOffset1(csr_TVEC);
+        let mtvec = exceptionController.csrFile.readWithOffset1(priv_MACHINE, csr_TVEC);
         dynamicAssert(isValid(mtvec), "Reading MTVEC in machine mode should succeed.");
         dynamicAssert(unJust(mtvec) == actualExceptionVector, "Reading MTVEC should contain value written");
 
-        let mecpc = exceptionController.csrFile.readWithOffset1(csr_EPC);
+        let mecpc = exceptionController.csrFile.readWithOffset1(priv_MACHINE, csr_EPC);
         dynamicAssert(isValid(mecpc), "Reading MEPC in machine mode should succeed.");
         dynamicAssert(unJust(mecpc) == exceptionProgramCounter, "Reading MEPC should contain value written");
 
-        let mcause = exceptionController.csrFile.readWithOffset1(csr_CAUSE);
+        let mcause = exceptionController.csrFile.readWithOffset1(priv_MACHINE, csr_CAUSE);
         dynamicAssert(isValid(mcause), "Reading MCAUSE in machine mode should succeed.");
 
         state <= SOFTWARE_INTERRUPT_TEST;
@@ -77,9 +77,9 @@ module mkExceptionController_tb(Empty);
         result <- exceptionController.csrFile.write1(csr_MSTATUS, mstatus);
         dynamicAssert(result, "MSTATUS should be writable");
 
-        result <- exceptionController.csrFile.writeWithOffset1(csr_IE, 'h2002);
+        result <- exceptionController.csrFile.writeWithOffset1(priv_MACHINE, csr_IE, 'h2002);
         dynamicAssert(result == True, "Unable to write to MIE");
-        result <- exceptionController.csrFile.writeWithOffset1(csr_IP, 'h2002);
+        result <- exceptionController.csrFile.writeWithOffset1(priv_MACHINE, csr_IP, 'h2002);
         dynamicAssert(result == True, "Unable to write to MIP");
 
         state <= SOFTWARE_INTERRUPT_VERIFY;

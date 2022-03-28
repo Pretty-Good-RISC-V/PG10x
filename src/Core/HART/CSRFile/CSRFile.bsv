@@ -18,14 +18,22 @@ interface CSRFile;
     method Maybe#(Word) read1(RVCSRIndex index);
     method Maybe#(Word) read2(RVCSRIndex index);
 
-    method Maybe#(Word) readWithOffset1(RVCSRIndexOffset offset);
-    method Maybe#(Word) readWithOffset2(RVCSRIndexOffset offset);
+    method Maybe#(Word) readWithOffset1(RVPrivilegeLevel privilegeLevel, RVCSRIndexOffset offset);
+    method Maybe#(Word) readWithOffset2(RVPrivilegeLevel privilegeLevel, RVCSRIndexOffset offset);
  
     method ActionValue#(Bool) write1(RVCSRIndex index, Word value);
     method ActionValue#(Bool) write2(RVCSRIndex index, Word value);
 
-    method ActionValue#(Bool) writeWithOffset1(RVCSRIndexOffset offset, Word value);
-    method ActionValue#(Bool) writeWithOffset2(RVCSRIndexOffset offset, Word value);
+    method ActionValue#(Bool) writeWithOffset1(RVPrivilegeLevel privilegeLevel, RVCSRIndexOffset offset, Word value);
+    method ActionValue#(Bool) writeWithOffset2(RVPrivilegeLevel privilegeLevel, RVCSRIndexOffset offset, Word value);
+
+    // Direct access
+    method MachineStatus getMachineStatus;
+    method Action putMachineStatus(MachineStatus machineStatus);
+
+    method MachineISA getMachineISA;
+    method Word getMachineInterruptDelegation;
+    method Word getMachineExceptionDelegation;
 
     // Special purpose
     method Word64 cycle_counter;
@@ -60,6 +68,9 @@ module mkCSRFile(CSRFile);
     Reg#(Word)      mie                         <- mkReg(0);
     Reg#(Word)      mtval                       <- mkReg(0);
 
+    Reg#(Word)      mideleg                     <- mkReg(0);
+    Reg#(Word)      medeleg                     <- mkReg(0);
+
     Reg#(Bit#(2))   currentPrivilegeLevel       <- mkReg(priv_MACHINE);
 
     function Bool isWARLIgnore(RVCSRIndex index);
@@ -76,9 +87,9 @@ module mkCSRFile(CSRFile);
         return result;
     endfunction
 
-    function RVCSRIndex getIndex(RVCSRIndexOffset offset);
+    function RVCSRIndex getIndex(RVPrivilegeLevel privilegeLevel, RVCSRIndexOffset offset);
         RVCSRIndex index = 0;
-        index[9:8] = currentPrivilegeLevel[1:0];
+        index[9:8] = privilegeLevel[1:0];
         index[7:0] = offset;
         return index;
     endfunction
@@ -99,6 +110,8 @@ module mkCSRFile(CSRFile);
                 csr_MTVEC:      tagged Valid mtvec;
                 csr_MEPC:       tagged Valid mepc;
                 csr_MTVAL:      tagged Valid mtval;
+                csr_MIDELEG:    tagged Valid mideleg;
+                csr_MEDELEG:    tagged Valid medeleg;
 
                 csr_MSTATUS:    tagged Valid pack(mstatus);
                 csr_MCYCLE, csr_CYCLE:     
@@ -207,12 +220,12 @@ module mkCSRFile(CSRFile);
         end
     endmethod
 
-    method Maybe#(Word) readWithOffset1(RVCSRIndexOffset offset);
-        return readInternal(getIndex(offset), 0);
+    method Maybe#(Word) readWithOffset1(RVPrivilegeLevel privilegeLevel, RVCSRIndexOffset offset);
+        return readInternal(getIndex(privilegeLevel, offset), 0);
     endmethod
 
-    method Maybe#(Word) readWithOffset2(RVCSRIndexOffset offset);
-        return readInternal(getIndex(offset), 1);
+    method Maybe#(Word) readWithOffset2(RVPrivilegeLevel privilegeLevel, RVCSRIndexOffset offset);
+        return readInternal(getIndex(privilegeLevel, offset), 1);
     endmethod
 
     method ActionValue#(Bool) write1(RVCSRIndex index, Word value);
@@ -237,13 +250,13 @@ module mkCSRFile(CSRFile);
         return result;
     endmethod
 
-    method ActionValue#(Bool) writeWithOffset1(RVCSRIndexOffset offset, Word value);
-        let result <- writeInternal(getIndex(offset), value, 0);
+    method ActionValue#(Bool) writeWithOffset1(RVPrivilegeLevel privilegeLevel, RVCSRIndexOffset offset, Word value);
+        let result <- writeInternal(getIndex(privilegeLevel, offset), value, 0);
         return result;
     endmethod
 
-    method ActionValue#(Bool) writeWithOffset2(RVCSRIndexOffset offset, Word value);
-        let result <- writeInternal(getIndex(offset), value, 1);
+    method ActionValue#(Bool) writeWithOffset2(RVPrivilegeLevel privilegeLevel, RVCSRIndexOffset offset, Word value);
+        let result <- writeInternal(getIndex(privilegeLevel, offset), value, 1);
         return result;
     endmethod
 
@@ -269,4 +282,24 @@ module mkCSRFile(CSRFile);
             return mstatus.mie;
         endmethod
     endinterface
+
+    method MachineStatus getMachineStatus;
+        return mstatus;
+    endmethod
+
+    method Action putMachineStatus(MachineStatus machineStatus);
+        mstatus <= machineStatus;
+    endmethod
+
+    method MachineISA getMachineISA;
+        return misa;
+    endmethod
+
+    method Word getMachineInterruptDelegation;
+        return mideleg;
+    endmethod
+
+    method Word getMachineExceptionDelegation;
+        return medeleg;
+    endmethod
 endmodule

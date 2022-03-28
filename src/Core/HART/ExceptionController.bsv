@@ -2,6 +2,8 @@ import PGTypes::*;
 
 import CSRFile::*;
 import Exception::*;
+import MachineISA::*;
+import MachineStatus::*;
 
 import Assert::*;
 import GetPut::*;
@@ -11,12 +13,87 @@ export ExceptionController(..), mkExceptionController, CSRFile::*;
 interface ExceptionController;
     interface CSRFile csrFile;
 
-    method ActionValue#(ProgramCounter) beginException(ProgramCounter exceptionProgramCounter, Exception exception);
+    method ActionValue#(ProgramCounter) beginTrap(ProgramCounter exceptionProgramCounter, Exception exception);
+    method ActionValue#(ProgramCounter) endTrap;
+
     method ActionValue#(Maybe#(Bit#(TSub#(XLEN, 1)))) getHighestPriorityInterrupt(Bool clear, Integer portNumber);
 endinterface
 
 module mkExceptionController(ExceptionController);
     CSRFile innerCsrFile <- mkCSRFile;
+
+    // Based on fv_new_priv_on_exception from Flute processor.
+    function RVPrivilegeLevel getTrapPrivilegeLevel(
+        Exception exception,
+        RVPrivilegeLevel currentPrivilegeLevel,
+        MachineStatus mstatus,
+        MachineISA misa,
+        Word mideleg,
+        Word medeleg,
+        Word sideleg,
+        Word sedeleg);
+
+        let trapPrivilegeLevel = priv_MACHINE;
+        let delegated = False;
+
+        if (currentPrivilegeLevel < priv_MACHINE) begin
+            if (misa.extS) begin    // S mode supported?
+                // See if this trap should be delegated to SUPERVISOR mode
+                delegated = case(exception.cause) matches
+                    tagged InterruptCause .cause: begin
+                        return (mideleg[cause] == 0 ? False : True);
+                    end
+
+                    tagged ExceptionCause .cause: begin
+                        return (medeleg[cause] == 0 ? False : True);
+                    end
+                endcase;
+
+                if (delegated) begin
+                    trapPrivilegeLevel = priv_SUPERVISOR;
+
+                    // If the current priv mode is U, and user mode traps are supported,
+	                // then consult sedeleg/sideleg to determine if delegated to USER mode.                    
+                    if (currentPrivilegeLevel == priv_USER && misa.extN) begin
+                        delegated = case(exception.cause) matches
+                            tagged InterruptCause .cause: begin
+                                return (sideleg[cause] == 0 ? False : True);
+                            end
+
+                            tagged ExceptionCause .cause: begin
+                                return (sedeleg[cause] == 0 ? False : True);
+                            end
+                        endcase;
+
+                        if (delegated) begin
+                            trapPrivilegeLevel = priv_USER;
+                        end
+                    end
+                end
+            end else begin // S mode *NOT* supported
+                // If user mode traps are supported, then consult sedeleg/sideleg to determine 
+                // if delegated to USER mode.                    
+
+                if (misa.extN) begin
+                    delegated = case(exception.cause) matches
+                        tagged InterruptCause .cause: begin
+                            return (mideleg[cause] == 0 ? False : True);
+                        end
+
+                        tagged ExceptionCause .cause: begin
+                            return (medeleg[cause] == 0 ? False : True);
+                        end
+                    endcase;
+
+                    if (delegated) begin
+                        trapPrivilegeLevel = priv_USER;
+                    end
+                end
+            end
+        end
+
+        return trapPrivilegeLevel;
+    endfunction
 
     function Integer findHighestSetBit(Word a);
         Integer highestBit = -1;
@@ -27,9 +104,26 @@ module mkExceptionController(ExceptionController);
         return highestBit;
     endfunction
 
-    method ActionValue#(ProgramCounter) beginException(ProgramCounter exceptionProgramCounter, Exception exception);
+    method ActionValue#(ProgramCounter) beginTrap(ProgramCounter exceptionProgramCounter, Exception exception);
         Word cause = 0;
         let curPriv <- innerCsrFile.getCurrentPrivilegeLevel.get;
+
+        // CurPriv => MSTATUS::MPP
+        let mstatus = innerCsrFile.getMachineStatus;
+        let misa = innerCsrFile.getMachineISA;
+        let mideleg = innerCsrFile.getMachineInterruptDelegation;
+        let medeleg = innerCsrFile.getMachineExceptionDelegation;
+
+        let trapPrivilegeLevel = getTrapPrivilegeLevel(
+            exception,
+            curPriv,
+            mstatus,
+            misa,
+            mideleg,
+            medeleg,
+            0,  // sideleg 
+            0   // sedeleg
+        );
 
         case(exception.cause) matches
             tagged ExceptionCause .c: begin
@@ -41,10 +135,6 @@ module mkExceptionController(ExceptionController);
                 cause[valueOf(XLEN)-2:0] = c;
             end
 
-            tagged EnvironmentCallCause .c: begin
-                cause[valueOf(XLEN)-2:0] = exception_ENVIRONMENT_CALL_FROM_U_MODE + extend(curPriv);
-            end
-
             default: begin
                 $display("ERROR: Unexpected exception cause during exception handling");
                 $fatal();
@@ -52,12 +142,20 @@ module mkExceptionController(ExceptionController);
         endcase
 
         // !todo:
-        // xPIE
-        // xPP
-        innerCsrFile.writeWithOffset1(csr_EPC, exceptionProgramCounter);        
-        innerCsrFile.writeWithOffset1(csr_CAUSE, cause);
-        innerCsrFile.writeWithOffset1(csr_TVAL, exception.tval);
-        Word vectorTableBase = unJust(innerCsrFile.readWithOffset1(csr_TVEC));
+        // PC => MEPC
+        innerCsrFile.writeWithOffset1(trapPrivilegeLevel, csr_EPC, exceptionProgramCounter);        
+
+        // CurPriv => MSTATUS::MPP
+        mstatus.mpp = curPriv;
+
+        // MSTATUS::MIE => MSTATUS::MPIE
+        mstatus.mpie = mstatus.mie;
+        innerCsrFile.putMachineStatus(mstatus);
+
+        // cause => CAUSE
+        innerCsrFile.writeWithOffset1(trapPrivilegeLevel, csr_CAUSE, cause);
+        innerCsrFile.writeWithOffset1(trapPrivilegeLevel, csr_TVAL, exception.tval);
+        Word vectorTableBase = unJust(innerCsrFile.readWithOffset1(trapPrivilegeLevel, csr_TVEC));
         let exceptionHandler = vectorTableBase;
 
         // Check and handle a vectored trap handler table
@@ -69,6 +167,10 @@ module mkExceptionController(ExceptionController);
         end
 
         return exceptionHandler;
+    endmethod
+
+    method ActionValue#(ProgramCounter) endTrap;
+        return 0;
     endmethod
 
     interface CSRFile csrFile = innerCsrFile;

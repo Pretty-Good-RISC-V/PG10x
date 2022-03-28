@@ -351,7 +351,9 @@ module mkExecutionUnit#(
                             sys_ECALL: begin
                             if (verbose)
                                     $display("%0d,%0d,%0d,%0x,%0d,execute,ECALL instruction encountered", decodedInstruction.fetchIndex, exceptionController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber);
-                                executedInstruction.exception = tagged Valid createEnvironmentCallException(decodedInstruction.programCounter);
+
+                                let curPriv <- exceptionController.csrFile.getCurrentPrivilegeLevel.get;
+                                executedInstruction.exception = tagged Valid createEnvironmentCallException(curPriv, decodedInstruction.programCounter);
                             end
                             sys_EBREAK: begin
                                 if (verbose)

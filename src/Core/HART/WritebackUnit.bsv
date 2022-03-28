@@ -112,7 +112,7 @@ module mkWritebackUnit#(
                     if (executedInstruction.exception matches tagged Valid .exception) begin
                         pipelineController.flush(0);
 
-                        let exceptionVector <- exceptionController.beginException(executedInstruction.programCounter, exception);
+                        let exceptionVector <- exceptionController.beginTrap(executedInstruction.programCounter, exception);
 
                         if (verbose) begin
                             $display("%0d,%0d,%0d,%0x,%0d,writeback,EXCEPTION:", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, fshow(exception));
