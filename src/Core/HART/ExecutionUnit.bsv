@@ -109,25 +109,32 @@ module mkExecutionUnit#(
                     writeValue = tagged Valid operand;
                 end
                 'b10: begin // CSRRS(I)
-                    if (csrWriteEnabled && !immediateIsZero) begin
+                    if (csrWriteEnabled && !immediateIsZero && operand != 0) begin
                         writeValue = tagged Valid setBits;
                     end
                 end
                 'b11: begin // CSRRC(I)
-                    if (csrWriteEnabled && !immediateIsZero) begin
+                    if (csrWriteEnabled && !immediateIsZero && operand != 0) begin
                         writeValue = tagged Valid clearBits;
                     end
                 end
             endcase
 
             if (writeValue matches tagged Valid .v) begin
-                executedInstruction.csrWriteBack = tagged Valid CSRWriteBack {
-                    rd: csrIndex,
-                    value: unJust(writeValue)
-                };
+                if (trapController.csrFile.isWritable(csrIndex)) begin
+                    executedInstruction.csrWriteBack = tagged Valid CSRWriteBack {
+                        rd: csrIndex,
+                        value: unJust(writeValue)
+                    };
+                    executedInstruction.exception = tagged Invalid;
+                end else begin
+                    $display("ERROR - attempted to write to a read-only CSR");
+                    executedInstruction.exception = tagged Valid createIllegalInstructionException(decodedInstruction.rawInstruction);
+                    executedInstruction.gprWriteBack = tagged Invalid;
+                end
+            end else begin
+                executedInstruction.exception = tagged Invalid;
             end
-
-            executedInstruction.exception = tagged Invalid;
         end
 
         return executedInstruction;
@@ -369,7 +376,7 @@ module mkExecutionUnit#(
                                     executedInstruction.changedProgramCounter = tagged Valid newProgramCounter;
                                     executedInstruction.exception = tagged Invalid;
                                 end else begin
-                                    executedInstruction.exception = tagged Valid createIllegalInstructionException(decodedInstruction.programCounter);
+                                    executedInstruction.exception = tagged Valid createIllegalInstructionException(decodedInstruction.rawInstruction);
                                 end
                             end
                             default begin

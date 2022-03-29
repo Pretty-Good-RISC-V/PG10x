@@ -22,6 +22,8 @@ interface CSRFile;
     method Maybe#(Word) readWithOffset1(RVPrivilegeLevel privilegeLevel, RVCSRIndexOffset offset);
     method Maybe#(Word) readWithOffset2(RVPrivilegeLevel privilegeLevel, RVCSRIndexOffset offset);
  
+    method Bool isWritable(RVCSRIndex index);
+
     method ActionValue#(Bool) write1(RVCSRIndex index, Word value);
     method ActionValue#(Bool) write2(RVCSRIndex index, Word value);
 
@@ -275,6 +277,14 @@ module mkCSRFile(CSRFile);
     
     method Action increment_instructions_retired_counter;
         instructionsRetiredCounter <= instructionsRetiredCounter + 1;
+    endmethod
+
+    method Bool isWritable(RVCSRIndex index);
+        Bool writable = False;
+        if (currentPrivilegeLevel >= index[9:8] && index[11:10] != 'b11) begin
+            writable = True;
+        end
+        return writable;
     endmethod
 
     interface Get getCurrentPrivilegeLevel = toGet(currentPrivilegeLevel);

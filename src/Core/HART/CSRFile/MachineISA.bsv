@@ -56,7 +56,7 @@ instance DefaultValue#(MachineISA);
         extR: False,
         extS: False,
         extT: False,
-        extU: False,
+        extU: True,
         extV: False,
         extW: False,
         extX: False,
