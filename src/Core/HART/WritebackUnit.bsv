@@ -7,7 +7,7 @@ import PGTypes::*;
 
 import CSRFile::*;
 import Exception::*;
-import ExceptionController::*;
+import TrapController::*;
 import ExecutedInstruction::*;
 import GPRFile::*;
 `ifdef ENABLE_INSTRUCTION_LOGGING
@@ -40,7 +40,7 @@ module mkWritebackUnit#(
     PipelineController pipelineController,
     ProgramCounterRedirect programCounterRedirect,
     GPRFile gprFile,
-    ExceptionController exceptionController,
+    TrapController trapController,
     Scoreboard#(4) scoreboard
 )(WritebackUnit);
     Wire#(Word64) cycleCounter <- mkBypassWire;
@@ -103,7 +103,7 @@ module mkWritebackUnit#(
                     dynamicAssert(isValid(executedInstruction.exception) == False, "ERROR: CSR Writeback exists when an exception is present");
                     if (verbose)
                         $display("%0d,%0d,%0d,%0x,%0d,writeback,writing result ($%08x) to CSR register $%0x", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, wb.value, wb.rd);
-                    let writeResult <- exceptionController.csrFile.write1(wb.rd, wb.value);
+                    let writeResult <- trapController.csrFile.write1(wb.rd, wb.value);
                     dynamicAssert(writeResult == True, "ERROR: Failed to write to CSR via writeback");
                 end else begin
                     //
@@ -112,7 +112,7 @@ module mkWritebackUnit#(
                     if (executedInstruction.exception matches tagged Valid .exception) begin
                         pipelineController.flush(0);
 
-                        let exceptionVector <- exceptionController.beginTrap(executedInstruction.programCounter, exception);
+                        let exceptionVector <- trapController.beginTrap(executedInstruction.programCounter, exception);
 
                         if (verbose) begin
                             $display("%0d,%0d,%0d,%0x,%0d,writeback,EXCEPTION:", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, fshow(exception));
@@ -132,7 +132,7 @@ module mkWritebackUnit#(
 
                 if (verbose)
                     $display("%0d,%0d,%0d,%0x,%0d,writeback,---------------------------", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
-                exceptionController.csrFile.increment_instructions_retired_counter;
+                trapController.csrFile.increment_instructions_retired_counter;
                 instructionRetired <= True;
             end
         endmethod

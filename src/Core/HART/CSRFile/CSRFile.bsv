@@ -12,6 +12,7 @@ import GetPut::*;
 
 interface CSRFile;
     interface Get#(RVPrivilegeLevel) getCurrentPrivilegeLevel;
+    interface Put#(RVPrivilegeLevel) putCurrentPrivilegeLevel;
     interface Get#(Bool) getMachineModeInterruptsEnabled;
 
     // Generic read/write support
@@ -71,7 +72,7 @@ module mkCSRFile(CSRFile);
     Reg#(Word)      mideleg                     <- mkReg(0);
     Reg#(Word)      medeleg                     <- mkReg(0);
 
-    Reg#(Bit#(2))   currentPrivilegeLevel       <- mkReg(priv_MACHINE);
+    Reg#(RVPrivilegeLevel)   currentPrivilegeLevel       <- mkReg(priv_MACHINE);
 
     function Bool isWARLIgnore(RVCSRIndex index);
         Bool result = False;
@@ -277,6 +278,8 @@ module mkCSRFile(CSRFile);
     endmethod
 
     interface Get getCurrentPrivilegeLevel = toGet(currentPrivilegeLevel);
+    interface Put putCurrentPrivilegeLevel = toPut(asIfc(currentPrivilegeLevel));
+
     interface Get getMachineModeInterruptsEnabled;
         method ActionValue#(Bool) get;
             return mstatus.mie;

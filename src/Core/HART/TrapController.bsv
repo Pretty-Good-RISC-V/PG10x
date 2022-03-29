@@ -8,18 +8,18 @@ import MachineStatus::*;
 import Assert::*;
 import GetPut::*;
 
-export ExceptionController(..), mkExceptionController, CSRFile::*;
+export TrapController(..), mkTrapController, CSRFile::*;
 
-interface ExceptionController;
+interface TrapController;
     interface CSRFile csrFile;
 
     method ActionValue#(ProgramCounter) beginTrap(ProgramCounter exceptionProgramCounter, Exception exception);
-    method ActionValue#(ProgramCounter) endTrap;
+    method ActionValue#(Maybe#(ProgramCounter)) endTrap;
 
     method ActionValue#(Maybe#(Bit#(TSub#(XLEN, 1)))) getHighestPriorityInterrupt(Bool clear, Integer portNumber);
 endinterface
 
-module mkExceptionController(ExceptionController);
+module mkTrapController(TrapController);
     CSRFile innerCsrFile <- mkCSRFile;
 
     // Based on fv_new_priv_on_exception from Flute processor.
@@ -125,6 +125,8 @@ module mkExceptionController(ExceptionController);
             0   // sedeleg
         );
 
+        $display("Trapping to privilege level: $%0x", trapPrivilegeLevel);
+
         case(exception.cause) matches
             tagged ExceptionCause .c: begin
                 cause[valueOf(XLEN)-2:0] = c;
@@ -141,7 +143,6 @@ module mkExceptionController(ExceptionController);
             end
         endcase
 
-        // !todo:
         // PC => MEPC
         innerCsrFile.writeWithOffset1(trapPrivilegeLevel, csr_EPC, exceptionProgramCounter);        
 
@@ -150,6 +151,7 @@ module mkExceptionController(ExceptionController);
 
         // MSTATUS::MIE => MSTATUS::MPIE
         mstatus.mpie = mstatus.mie;
+        mstatus.mie = False;    // Disable interrupts
         innerCsrFile.putMachineStatus(mstatus);
 
         // cause => CAUSE
@@ -157,6 +159,8 @@ module mkExceptionController(ExceptionController);
         innerCsrFile.writeWithOffset1(trapPrivilegeLevel, csr_TVAL, exception.tval);
         Word vectorTableBase = unJust(innerCsrFile.readWithOffset1(trapPrivilegeLevel, csr_TVEC));
         let exceptionHandler = vectorTableBase;
+
+        innerCsrFile.putCurrentPrivilegeLevel.put(trapPrivilegeLevel);
 
         // Check and handle a vectored trap handler table
         if (exceptionHandler[1:0] == 1) begin
@@ -169,8 +173,26 @@ module mkExceptionController(ExceptionController);
         return exceptionHandler;
     endmethod
 
-    method ActionValue#(ProgramCounter) endTrap;
-        return 0;
+    method ActionValue#(Maybe#(ProgramCounter)) endTrap;
+        Maybe#(ProgramCounter) newProgramCounter = tagged Invalid;
+
+        let curPriv <- innerCsrFile.getCurrentPrivilegeLevel.get;
+
+        let readStatus = innerCsrFile.read1(csr_MSTATUS);
+        if (readStatus matches tagged Valid .value) begin
+            MachineStatus mstatus = unpack(value);
+            let newPrivilegeLevel = mstatus.mpp;
+            mstatus.mie = mstatus.mpie;
+            mstatus.mpie = False;
+
+            // Attempt to update MSTATUS.  The current privilege level may prevent this.
+            let writeSucceeded <- innerCsrFile.write1(csr_MSTATUS, pack(mstatus));
+            if (writeSucceeded) begin
+                innerCsrFile.putCurrentPrivilegeLevel.put(newPrivilegeLevel);
+                newProgramCounter = innerCsrFile.readWithOffset1(curPriv, csr_EPC); 
+            end
+        end
+        return newProgramCounter;
     endmethod
 
     interface CSRFile csrFile = innerCsrFile;

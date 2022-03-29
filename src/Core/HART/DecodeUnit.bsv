@@ -518,6 +518,10 @@ module mkDecodeUnit#(
                             end else
 `endif
                             begin
+                                if (verbose) begin
+                                    let curPriv <- csrFile.getCurrentPrivilegeLevel.get;
+                                    $display("%0d,%0d,%0d,%0x,%0d,decode,CSR ($%0X) failed read (PRIV: $%0x)", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber, csrIndex, curPriv);
+                                end
                                 decodedInstruction.exception = tagged Valid createIllegalInstructionException(decodedInstruction.rawInstruction);
                             end
                         end
