@@ -97,7 +97,10 @@ typedef struct {
     RVCSROperator csrOperator;
 
     // csrIndex - The CSR index corresponding to this instruction.
-    RVCSRIndex csrIndex;
+    Maybe#(RVCSRIndex) csrIndex;
+
+    // csrValue - The CSR value corresponding to this instruction.
+    Word csrValue;
 
     // rd - The *destination* register (if any) corresponding to this instruction.
     Maybe#(RVGPRIndex) rd;
@@ -135,7 +138,8 @@ instance DefaultValue#(DecodedInstruction);
         loadOperator: ?,
         storeOperator: ?,
         csrOperator: ?,
-        csrIndex: ?,
+        csrIndex: tagged Invalid,
+        csrValue: ?,
         branchOperator: ?,
         systemOperator: ?,
         rd: tagged Invalid,

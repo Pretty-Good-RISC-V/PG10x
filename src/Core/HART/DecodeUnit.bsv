@@ -7,10 +7,13 @@
 import PGTypes::*;
 
 import BypassUnit::*;
+import CSRFile::*;
 import EncodedInstruction::*;
+import Exception::*;
 import DecodedInstruction::*;
 import GPRFile::*;
 import PipelineController::*;
+import Scoreboard::*;
 
 import FIFO::*;
 import FIFOF::*;
@@ -29,10 +32,16 @@ interface DecodeUnit;
     interface Put#(Maybe#(GPRBypassValue)) putGPRBypassValue2;
 endinterface
 
+`ifdef ENABLE_RISCOF_TESTS
+RVCSRIndex csr_RISCOF_HALT = 12'h7C0;      // Register, that when written, is used to halt a RISCOF test (and the simulation).
+`endif
+
 module mkDecodeUnit#(
     Integer stageNumber,
     PipelineController pipelineController,
-    GPRFile gprFile
+    GPRFile gprFile,
+    CSRFile csrFile,
+    Scoreboard#(4) scoreboard
 )(DecodeUnit);
     Wire#(Word64) cycleCounter <- mkBypassWire;
     GPRBypassUnit gprBypassUnit1 <- mkGPRBypassUnit(gprFile);
@@ -299,7 +308,7 @@ module mkDecodeUnit#(
                     csr_CSRRW, csr_CSRRS, csr_CSRRC: begin
                         decodedInstruction.opcode = CSR;
                         decodedInstruction.csrOperator = func3;
-                        decodedInstruction.csrIndex = {func7, rs2};
+                        decodedInstruction.csrIndex = tagged Valid ({func7, rs2});
                         decodedInstruction.rd = tagged Valid rd;
                         decodedInstruction.rs1 = tagged Valid rs1;
                     end
@@ -307,7 +316,7 @@ module mkDecodeUnit#(
                     csr_CSRRWI, csr_CSRRSI, csr_CSRRCI: begin
                         decodedInstruction.opcode = CSR;
                         decodedInstruction.csrOperator = func3;
-                        decodedInstruction.csrIndex = {func7, rs2};
+                        decodedInstruction.csrIndex = tagged Valid ({func7, rs2});
                         decodedInstruction.rd = tagged Valid rd;
                         decodedInstruction.immediate = tagged Valid extend(uimm);
                     end
@@ -433,7 +442,9 @@ module mkDecodeUnit#(
         let stallWaitingForOperands2 = tpl_1(bypassTpl2);
         decodedInstruction = tpl_2(bypassTpl2);
 
-        if (stallWaitingForOperands1 || stallWaitingForOperands2) begin
+        let stallWaitingForCSR = scoreboard.search(decodedInstruction.csrIndex);
+
+        if (stallWaitingForCSR || stallWaitingForOperands1 || stallWaitingForOperands2) begin
             if (verbose)
                 $display("%0d,%0d,%0d,%0x,%0d,decode,stall waiting for operands", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber);
         end else begin
@@ -477,7 +488,7 @@ module mkDecodeUnit#(
                 decodedInstruction.predictedNextProgramCounter = encodedInstruction.predictedNextProgramCounter;
 
                 //
-                // Check bypasses
+                // Check GPR bypasses (these may stall if waiting for register values from memory)
                 //
                 let bypassTpl1 <- gprBypassUnit1.processBypass(decodedInstruction);
                 let stallWaitingForOperands1 = tpl_1(bypassTpl1);
@@ -487,11 +498,35 @@ module mkDecodeUnit#(
                 let stallWaitingForOperands2 = tpl_1(bypassTpl2);
                 decodedInstruction = tpl_2(bypassTpl2);
 
-                if (stallWaitingForOperands1 || stallWaitingForOperands2) begin
+                let stallWaitingForCSR = scoreboard.search(decodedInstruction.csrIndex);
+
+                if (stallWaitingForOperands1 || stallWaitingForOperands2 || stallWaitingForCSR) begin
                     if (verbose)
                         $display("%0d,%0d,%0d,%0x,%0d,decode,stall waiting for operands", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber);
                     decodedInstructionWaitingForOperands.enq(decodedInstruction);
                 end else begin
+                    if (decodedInstruction.csrIndex matches tagged Valid .csrIndex) begin
+                        let readResult = csrFile.read1(csrIndex);
+                        if (readResult matches tagged Valid .csrValue) begin
+                            if (verbose)
+                                $display("%0d,%0d,%0d,%0x,%0d,decode,CSR ($%0X) read $%0X", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber, csrIndex, csrValue);
+                            decodedInstruction.csrValue = csrValue;                                
+                        end else begin
+`ifdef ENABLE_RISCOF_TESTS
+                            if (csrIndex == csr_RISCOF_HALT) begin
+                                decodedInstruction.exception = tagged Valid createRISCOFTestHaltException(programCounter);
+                            end else
+`endif
+                            begin
+                                if (verbose) begin
+                                    let curPriv <- csrFile.getCurrentPrivilegeLevel.get;
+                                    $display("%0d,%0d,%0d,%0x,%0d,decode,CSR ($%0X) failed read (PRIV: $%0x)", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber, csrIndex, curPriv);
+                                end
+                                decodedInstruction.exception = tagged Valid createIllegalInstructionException(decodedInstruction.rawInstruction);
+                            end
+                        end
+                    end
+
                     // Send the decode result to the output queue.
                     outputQueue.enq(decodedInstruction);
 

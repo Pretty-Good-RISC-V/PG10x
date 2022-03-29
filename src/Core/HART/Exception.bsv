@@ -9,7 +9,6 @@ import PGTypes::*;
 typedef union tagged {
     RVExceptionCause ExceptionCause;
     RVInterruptCause InterruptCause;
-    Bool EnvironmentCallCause;
 } Cause deriving(Bits, Eq, FShow);
 
 typedef struct {
@@ -52,9 +51,9 @@ function Exception createMisalignedStoreException(Word effectiveAddress);
     };
 endfunction
 
-function Exception createEnvironmentCallException(ProgramCounter programCounter);
+function Exception createEnvironmentCallException(RVPrivilegeLevel currentPrivilegeLevel, ProgramCounter programCounter);
     return Exception {
-        cause: tagged EnvironmentCallCause True,
+        cause: tagged ExceptionCause (exception_ENVIRONMENT_CALL_FROM_U_MODE + extend(currentPrivilegeLevel)),
         tval: programCounter
     };
 endfunction

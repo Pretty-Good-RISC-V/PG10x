@@ -2,13 +2,14 @@ import PGTypes::*;
 
 import Debug::*;
 import DecodeUnit::*;
-import ExceptionController::*;
+import TrapController::*;
 import ExecutionUnit::*;
 import FetchUnit::*;
 import GPRFile::*;
 import MemoryAccessUnit::*;
 import PipelineController::*;
 import ProgramCounterRedirect::*;
+import Scoreboard::*;
 import TileLink::*;
 import WritebackUnit::*;
 
@@ -101,9 +102,14 @@ module mkHART#(
     GPRFile gprFile <- mkGPRFile;
 
     //
-    // Exception controller (and CSRFile)
+    // Trap controller (and CSRFile)
     //
-    ExceptionController exceptionController <- mkExceptionController;
+    TrapController trapController <- mkTrapController;
+
+    //
+    // Scoreboard
+    //
+    Scoreboard#(4) scoreboard <- mkScoreboard;
 
     //
     // Pipeline stage epochs
@@ -139,7 +145,9 @@ module mkHART#(
     DecodeUnit decodeUnit <- mkDecodeUnit(
         2,  // stage number
         pipelineController,
-        gprFile
+        gprFile,
+        trapController.csrFile,
+        scoreboard
     );
 
     mkConnection(toGet(cycleCounter), decodeUnit.putCycleCounter);
@@ -152,7 +160,8 @@ module mkHART#(
         3,  // stage number
         pipelineController,
         programCounterRedirect,
-        exceptionController
+        trapController,
+        scoreboard
     );
 
     mkConnection(toGet(cycleCounter), executionUnit.putCycleCounter);
@@ -180,7 +189,8 @@ module mkHART#(
         pipelineController,
         programCounterRedirect,
         gprFile,
-        exceptionController
+        trapController,
+        scoreboard
     );
 
     mkConnection(toGet(cycleCounter), writebackUnit.putCycleCounter);
@@ -288,7 +298,7 @@ module mkHART#(
     // QUITTING
     //
     rule handleQuittingState(hartState == QUITTING);
-        $display("CPU HALTED. Cycles: %0d - Instructions retired: %0d", exceptionController.csrFile.cycle_counter, exceptionController.csrFile.instructions_retired_counter);
+        $display("CPU HALTED. Cycles: %0d - Instructions retired: %0d", trapController.csrFile.cycle_counter, trapController.csrFile.instructions_retired_counter);
         $finish();
     endrule
 
@@ -302,7 +312,7 @@ module mkHART#(
     (* fire_when_enabled, no_implicit_conditions *)
     rule incrementCycleCounter;
         cycleCounter <= cycleCounter + 1;
-        exceptionController.csrFile.increment_cycle_counter;
+        trapController.csrFile.increment_cycle_counter;
     endrule
 
     method Action start;

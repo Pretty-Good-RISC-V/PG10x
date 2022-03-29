@@ -7,7 +7,7 @@ import PGTypes::*;
 
 import CSRFile::*;
 import Exception::*;
-import ExceptionController::*;
+import TrapController::*;
 import ExecutedInstruction::*;
 import GPRFile::*;
 `ifdef ENABLE_INSTRUCTION_LOGGING
@@ -15,7 +15,9 @@ import InstructionLogger::*;
 `endif
 import PipelineController::*;
 import ProgramCounterRedirect::*;
+import Scoreboard::*;
 
+import Assert::*;
 import DReg::*;
 import FIFO::*;
 import GetPut::*;
@@ -38,7 +40,8 @@ module mkWritebackUnit#(
     PipelineController pipelineController,
     ProgramCounterRedirect programCounterRedirect,
     GPRFile gprFile,
-    ExceptionController exceptionController
+    TrapController trapController,
+    Scoreboard#(4) scoreboard
 )(WritebackUnit);
     Wire#(Word64) cycleCounter <- mkBypassWire;
     Reg#(Bool) instructionRetired <- mkDReg(False);
@@ -65,9 +68,9 @@ module mkWritebackUnit#(
                 if (verbose)
                     $display("%0d,%0d,%0d,%0d,%0d,writeback,stale instruction...popping bubble", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
             end else begin
-                if (executedInstruction.writeBack matches tagged Valid .wb) begin
+                if (executedInstruction.gprWriteBack matches tagged Valid .wb) begin
                     if (verbose)
-                        $display("%0d,%0d,%0d,%0x,%0d,writeback,writing result ($%08x) to register x%0d", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, wb.value, wb.rd);
+                        $display("%0d,%0d,%0d,%0x,%0d,writeback,writing result ($%08x) to GPR register x%0d", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, wb.value, wb.rd);
                     gprFile.write(wb.rd, wb.value);
                 end else begin
                     if (verbose)
@@ -93,31 +96,43 @@ module mkWritebackUnit#(
                     instructionLog.logInstruction(executedInstruction.programCounter, executedInstruction.rawInstruction);
 `endif
 
-                //
-                // Handle any exceptions
-                //
-                if (executedInstruction.exception matches tagged Valid .exception) begin
-                    pipelineController.flush(0);
+                scoreboard.remove;
+                // NOTE: This logic ** ASSUMES ** that if a csrWriteBack exists then there is *NO*
+                // exception present.   This is done to isolate the paths that write to CSRs (exception vs. CSR writeback)
+                if (executedInstruction.csrWriteBack matches tagged Valid .wb) begin
+                    dynamicAssert(isValid(executedInstruction.exception) == False, "ERROR: CSR Writeback exists when an exception is present");
+                    if (verbose)
+                        $display("%0d,%0d,%0d,%0x,%0d,writeback,writing result ($%08x) to CSR register $%0x", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, wb.value, wb.rd);
+                    let writeResult <- trapController.csrFile.write1(wb.rd, wb.value);
+                    dynamicAssert(writeResult == True, "ERROR: Failed to write to CSR via writeback");
+                end else begin
+                    //
+                    // Handle any exceptions
+                    //
+                    if (executedInstruction.exception matches tagged Valid .exception) begin
+                        pipelineController.flush(0);
 
-                    let exceptionVector <- exceptionController.beginException(executedInstruction.programCounter, exception);
+                        let exceptionVector <- trapController.beginTrap(executedInstruction.programCounter, exception);
 
-                    if (verbose) begin
-                        $display("%0d,%0d,%0d,%0x,%0d,writeback,EXCEPTION:", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, fshow(exception));
-                        $display("%0d,%0d,%0d,%0x,%0d,writeback,Jumping to exception handler at $%08x", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, exceptionVector);
-                    end
-                    programCounterRedirect.exception(exceptionVector); 
+                        if (verbose) begin
+                            $display("%0d,%0d,%0d,%0x,%0d,writeback,EXCEPTION:", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, fshow(exception));
+                            $display("%0d,%0d,%0d,%0x,%0d,writeback,Jumping to exception handler at $%08x", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, exceptionVector);
+                        end
+                        programCounterRedirect.exception(exceptionVector);
 
 `ifdef ENABLE_RISCOF_TESTS
-                    if (exception.cause matches tagged ExceptionCause .cause &&& cause == exception_RISCOFTestHaltException) begin
-                        if (verbose)
-                            $display("%0d,%0d,%0d,%0x,%0d,writeback,RISCOF HALT Requested", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
-                        riscofHaltRequested <= True;
-                    end
+                        if (exception.cause matches tagged ExceptionCause .cause &&& cause == exception_RISCOFTestHaltException) begin
+                            if (verbose)
+                                $display("%0d,%0d,%0d,%0x,%0d,writeback,RISCOF HALT Requested", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
+                            riscofHaltRequested <= True;
+                        end
 `endif                    
+                    end
                 end
+
                 if (verbose)
                     $display("%0d,%0d,%0d,%0x,%0d,writeback,---------------------------", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
-                exceptionController.csrFile.increment_instructions_retired_counter;
+                trapController.csrFile.increment_instructions_retired_counter;
                 instructionRetired <= True;
             end
         endmethod

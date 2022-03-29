@@ -1,9 +1,4 @@
 import PGTypes::*;
-import ReadOnly::*;
-
-import GetPut::*;
-
-export MachineStatus(..), mkMachineStatusRegister;
 
 typedef Bit#(2) XLENEncoding;
 XLENEncoding xlen_32  = 2'b01;
@@ -22,123 +17,136 @@ XSState xs_NONE_DIRTY_OR_CLEAN   = 2'b01;
 XSState xs_NONE_DIRTY_SOME_CLEAN = 2'b10;
 XSState xs_SOME_DIRTY            = 2'b11;
 
-interface MachineStatus;
-    method Word read;
-    method Action write(Word newValue);
-
-`ifdef RV32
-    method Word readh;
-    method Action writeh(Word newValue);
-`endif
-
-    interface Get#(Bool) getMIE;
-endinterface
-
-module mkMachineStatusRegister(MachineStatus);
-    ReadOnly#(Bit#(1)) sie          <- mkReadOnly(0);            // Supervisor Interrupt Enable
-    Reg#(Bool) mie                  <- mkReg(False);             // Machine Interrupt Enable
-    ReadOnly#(Bit#(1)) spie         <- mkReadOnly(0);            // Supervisor Mode Interupts Enabled During Trap
-    ReadOnly#(Bit#(1)) ube          <- mkReadOnly(0);            // User Mode Data Accesses are Big Endian
-    Reg#(Bit#(1)) mpie              <- mkReg(0);                 // Machine Mode Interrupts Enabled During Trap
-    ReadOnly#(Bit#(1)) spp          <- mkReadOnly(0);            // Supervisor Previous Privilege Mode
-    ReadOnly#(FSVSState) vs         <- mkReadOnly(fsvs_OFF);     // Vector Extension State
-    ReadOnly#(RVPrivilegeLevel) mpp <- mkReadOnly(priv_MACHINE); // Machine Previous Privilege Level
-    ReadOnly#(FSVSState) fs         <- mkReadOnly(fsvs_OFF);     // Floating Point Status
-    ReadOnly#(XSState) xs           <- mkReadOnly(xs_ALL_OFF);   // User Mode Extension Status
-    ReadOnly#(Bit#(1)) mprv         <- mkReadOnly(0);            // Modify Privilege Mode For Loads/Stores
-    ReadOnly#(Bit#(1)) sum          <- mkReadOnly(0);            // Permit Supervisor User Memory Access
-    ReadOnly#(Bit#(1)) mxr          <- mkReadOnly(0);            // Make Executable Pages Readable
-    ReadOnly#(Bit#(1)) tvm          <- mkReadOnly(0);            // Trap Virtual Memory Management Accesses
-    ReadOnly#(Bit#(1)) tw           <- mkReadOnly(0);            // Timeout-Wait
-    ReadOnly#(Bit#(1)) tsr          <- mkReadOnly(0);            // Trap SRET Instruction
+typedef struct {
+    Bool sie;               // Supervisor Interrupt Enable
+    Bool mie;               // Machine Interrupt Enable
+    Bool spie;              // Supervisor Mode Interupts Enabled During Trap
+    Bool ube;               // User Mode Data Accesses are Big Endian
+    Bool mpie;              // Machine Mode Interrupts Enabled During Trap
+    Bool spp;               // Supervisor Previous Privilege Mode
+    FSVSState vs;           // Vector Extension State
+    RVPrivilegeLevel mpp;   // Machine Previous Privilege Level
+    FSVSState fs;           // Floating Point Status
+    XSState xs;             // User Mode Extension Status
+    Bool mprv;              // Modify Privilege Mode For Loads/Stores
+    Bool sum;               // Permit Supervisor User Memory Access
+    Bool mxr;               // Make Executable Pages Readable
+    Bool tvm;               // Trap Virtual Memory Management Accesses
+    Bool tw;                // Timeout-Wait
+    Bool tsr;               // Trap SRET Instruction
 
 `ifdef RV64
-    ReadOnly#(XLENEncoding) uxl     <- mkReadOnly(0);            // User Mode XLEN value
-    ReadOnly#(XLENEncoding) sxl     <- mkReadOnly(0);            // Supervisor Mode XLEN value
+    XLENEncoding uxl;      // User Mode XLEN value
+    XLENEncoding sxl;      // Supervisor Mode XLEN value
 `endif
-    ReadOnly#(Bit#(1)) sbe          <- mkReadOnly(0);            // Supervisor Mode Data Accesses are Big Endian
-    ReadOnly#(Bit#(1)) mbe          <- mkReadOnly(0);            // Machine Mode Data Accesses are Big Endian
+    Bool sbe;               // Supervisor Mode Data Accesses are Big Endian
+    Bool mbe;               // Machine Mode Data Accesses are Big Endian
+} MachineStatus deriving(Eq);
 
+instance DefaultValue#(MachineStatus);
+    defaultValue = MachineStatus {
+        sie: False,
+        mie: False,
+        spie: False,
+        ube: False,
+        mpie: False,
+        spp: False,
+        vs: fsvs_OFF,
+        mpp: priv_MACHINE,
+        fs: fsvs_OFF,
+        xs: xs_ALL_OFF,
+        mprv: False,
+        sum: False,
+        mxr: False,
+        tvm: False,
+        tw: False,
+        tsr: False,
 `ifdef RV64
-    method Word read;
-        Bit#(1) sd = ((vs | fs | xs) == 0 ? 0 : 1);
+        uxl: xlen_64,
+        sxl: xlen_64,
+`endif
+        sbe: False,
+        mbe: False
+    };
+endinstance
+
+instance Bits#(MachineStatus, XLEN);
+`ifdef RV64
+    function Bit#(XLEN) pack(MachineStatus mstatus);
+        Bit#(1) sd = ((mstatus.vs | mstatus.fs | mstatus.xs) == 0 ? 0 : 1);
         return {
             sd,
             25'b0,
-            mbe,
-            sbe,
-            sxl,
-            uxl,
+            pack(mstatus.mbe),
+            pack(mstatus.sbe),
+            pack(mstatus.sxl),
+            pack(mstatus.uxl),
             9'b0,
-            tsr,
-            tw,
-            tvm,
-            mxr,
-            sum,
-            mprv,
-            xs,
-            fs,
-            mpp,
-            vs,
-            spp,
-            mpie,
-            ube,
-            spie,
+            pack(mstatus.tsr),
+            pack(mstatus.tw),
+            pack(mstatus.tvm),
+            pack(mstatus.mxr),
+            pack(mstatus.sum),
+            pack(mstatus.mprv),
+            pack(mstatus.xs),
+            pack(mstatus.fs),
+            pack(mstatus.mpp),
+            pack(mstatus.vs),
+            pack(mstatus.spp),
+            pack(mstatus.mpie),
+            pack(mstatus.ube),
+            pack(mstatus.spie),
             1'b0,
-            pack(mie),
+            pack(mstatus.mie),
             1'b0,
-            sie,
+            pack(mstatus.sie),
             1'b0
-        };
-    endmethod
-
+        };    
+    endfunction
 `elsif RV32
-    method Word read;
-        Bit#(1) sd = ((vs | fs | xs) == 0 ? 0 : 1);
+    function Bit#(XLEN) pack(MachineStatus mstatus);
+        Bit#(1) sd = ((mstatus.vs | mstatus.fs | mstatus.xs) == 0 ? 0 : 1);
         return {
             sd,
             8'b0,
-            tsr,
-            tw,
-            tvm,
-            mxr,
-            sum,
-            mprv,
-            xs,
-            fs,
-            mpp,
-            vs,
-            spp,
-            mpie,
-            ube,
-            spie,
+            pack(mstatus.tsr),
+            pack(mstatus.tw),
+            pack(mstatus.tvm),
+            pack(mstatus.mxr),
+            pack(mstatus.sum),
+            pack(mstatus.mprv),
+            pack(mstatus.xs),
+            pack(mstatus.fs),
+            pack(mstatus.mpp),
+            pack(mstatus.vs),
+            pack(mstatus.spp),
+            pack(mstatus.mpie),
+            pack(mstatus.ube),
+            pack(mstatus.spie),
             1'b0,
-            pack(mie),
+            pack(mstatus.mie),
             1'b0,
-            sie,
+            pack(mstatus.sie),
             1'b0
         };
-    endmethod
-
-    method Word readh;
-        return {
-            26'b0,
-            mbe,
-            sbe,
-            4'b0
-        };
-    endmethod
+    endfunction
 `endif
 
-    method Action write(Word newValue);
-        mie <= unpack(newValue[3]);
-        mpie <= newValue[7];
-    endmethod
-
-`ifdef RV32
-    method Action writeh(Word newValue);
-    endmethod
+    function MachineStatus unpack(Bit#(XLEN) value);
+        MachineStatus mstatus = defaultValue;
+`ifdef ENABLE_S_MODE
+        mstatus.mpp  = unpack(value[12:11]);
+`else
+        // Supervisor mode not supported, ensure only USER and MACHINE
+        // mode are set in MPP.
+        RVPrivilegeLevel requestedMPP = unpack(value[12:11]);
+        if (requestedMPP == priv_USER || requestedMPP == priv_MACHINE) begin
+            mstatus.mpp = requestedMPP;
+        end
 `endif
+        mstatus.mpie = unpack(value[7]);
+        mstatus.mie  = unpack(value[3]);
 
-    interface Get getMIE = toGet(mie);
-endmodule
+        return mstatus;
+    endfunction
+endinstance
