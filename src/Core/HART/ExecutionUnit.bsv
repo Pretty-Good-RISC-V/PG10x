@@ -68,6 +68,67 @@ module mkExecutionUnit#(
         return (programCounter[1:0] == 0 ? True : False);
     endfunction
 
+    //
+    // ALU
+    //
+    function ActionValue#(ExecutedInstruction) executeALU(
+        DecodedInstruction decodedInstruction,
+        ExecutedInstruction executedInstruction);
+        actionvalue
+            dynamicAssert(isValid(decodedInstruction.rd), "ALU: rd is invalid");
+            dynamicAssert(isValid(decodedInstruction.rs1), "ALU: rs1 is invalid");
+
+            let result = alu.execute(
+                decodedInstruction.aluOperator, 
+                decodedInstruction.rs1Value,
+                fromMaybe(decodedInstruction.rs2Value, decodedInstruction.immediate)
+            );
+
+            if (result matches tagged Valid .rdValue) begin
+                executedInstruction.gprWriteBack = tagged Valid GPRWriteBack {
+                    rd: unJust(decodedInstruction.rd),
+                    value: rdValue
+                };
+                executedInstruction.exception = tagged Invalid;
+            end
+
+            return executedInstruction;
+        endactionvalue
+    endfunction
+
+`ifdef RV64
+    //
+    // ALU32
+    //
+    function ActionValue#(ExecutedInstruction) executeALU32(
+        DecodedInstruction decodedInstruction,
+        ExecutedInstruction executedInstruction);
+        actionvalue
+            dynamicAssert(isValid(decodedInstruction.rd), "ALU: rd is invalid");
+            dynamicAssert(isValid(decodedInstruction.rs1), "ALU: rs1 is invalid");
+
+            let result = alu.execute32(
+                decodedInstruction.aluOperator, 
+                decodedInstruction.rs1Value,
+                fromMaybe(decodedInstruction.rs2Value, decodedInstruction.immediate)
+            );
+
+            if (result matches tagged Valid .rdValue) begin
+                executedInstruction.gprWriteBack = tagged Valid GPRWriteBack {
+                    rd: unJust(decodedInstruction.rd),
+                    value: rdValue
+                };
+                executedInstruction.exception = tagged Invalid;
+            end
+            
+            return executedInstruction;
+        endactionvalue
+    endfunction
+`endif // RV64
+
+    //
+    // BRANCH
+    //
     function Bool isValidBranchOperator(RVBranchOperator operator);
         return ((operator != branch_UNSUPPORTED_010 &&
                 operator != branch_UNSUPPORTED_011) ? True : False);
@@ -85,58 +146,6 @@ module mkExecutionUnit#(
         endcase;
     endfunction
 
-    function ActionValue#(ExecutedInstruction) executeALU(
-        DecodedInstruction decodedInstruction,
-        ExecutedInstruction executedInstruction);
-        actionvalue
-            dynamicAssert(isValid(decodedInstruction.rd), "ALU: rd is invalid");
-            dynamicAssert(isValid(decodedInstruction.rs1), "ALU: rs1 is invalid");
-
-            let result = alu.execute(
-                decodedInstruction.aluOperator, 
-                decodedInstruction.rs1Value,
-                fromMaybe(decodedInstruction.rs2Value, decodedInstruction.immediate)
-            );
-
-            if (isValid(result)) begin
-                executedInstruction.gprWriteBack = tagged Valid GPRWriteBack {
-                    rd: fromMaybe(?, decodedInstruction.rd),
-                    value: fromMaybe(?, result)
-                };
-                executedInstruction.exception = tagged Invalid;
-            end
-
-            return executedInstruction;
-        endactionvalue
-    endfunction
-
-`ifdef RV64
-    function ActionValue#(ExecutedInstruction) executeALU32(
-        DecodedInstruction decodedInstruction,
-        ExecutedInstruction executedInstruction);
-        actionvalue
-            dynamicAssert(isValid(decodedInstruction.rd), "ALU: rd is invalid");
-            dynamicAssert(isValid(decodedInstruction.rs1), "ALU: rs1 is invalid");
-
-            let result = alu.execute32(
-                decodedInstruction.aluOperator, 
-                decodedInstruction.rs1Value,
-                fromMaybe(decodedInstruction.rs2Value, decodedInstruction.immediate)
-            );
-
-            if (isValid(result)) begin
-                executedInstruction.gprWriteBack = tagged Valid GPRWriteBack {
-                    rd: fromMaybe(?, decodedInstruction.rd),
-                    value: fromMaybe(?, result)
-                };
-                executedInstruction.exception = tagged Invalid;
-            end
-            
-            return executedInstruction;
-        endactionvalue
-    endfunction
-`endif // RV64
-
     function ActionValue#(ExecutedInstruction) executeBRANCH(
         DecodedInstruction decodedInstruction,
         ExecutedInstruction executedInstruction);
@@ -146,13 +155,13 @@ module mkExecutionUnit#(
             dynamicAssert(isValid(decodedInstruction.rs2), "BRANCH: rs2 is invalid");
             dynamicAssert(isValid(decodedInstruction.immediate), "BRANCH: immediate is invalid");
 
-            if (isValidBranchOperator(decodedInstruction.branchOperator) &&
-                isValid(decodedInstruction.immediate)) begin
+            if (isValidBranchOperator(decodedInstruction.branchOperator) &&&
+                decodedInstruction.immediate matches tagged Valid .immediate) begin
                 Maybe#(ProgramCounter) nextProgramCounter = tagged Invalid;
                 if (isBranchTaken(decodedInstruction)) begin
                     // Determine branch target address and check
                     // for address misalignment.
-                    let branchTarget = getEffectiveAddress(decodedInstruction.programCounter, unJust(decodedInstruction.immediate));
+                    let branchTarget = getEffectiveAddress(decodedInstruction.programCounter, immediate);
                     // Branch target must be 32 bit aligned.
                     if (isValidInstructionAddress(branchTarget) == False) begin
                         executedInstruction.exception = tagged Valid createMisalignedInstructionException(branchTarget);
@@ -175,6 +184,9 @@ module mkExecutionUnit#(
         endactionvalue
     endfunction
 
+    //
+    // COPY_IMMEDIATE
+    //
     function ActionValue#(ExecutedInstruction) executeCOPY_IMMEDIATE(
         DecodedInstruction decodedInstruction,
         ExecutedInstruction executedInstruction);
@@ -193,10 +205,12 @@ module mkExecutionUnit#(
         endactionvalue
     endfunction
 
+    //
+    // CSR
+    //
     function ActionValue#(ExecutedInstruction) executeCSR(
         DecodedInstruction decodedInstruction,
-        ExecutedInstruction executedInstruction
-    );
+        ExecutedInstruction executedInstruction);
         actionvalue
         if (decodedInstruction.csrOperator[1:0] != 0) begin
             dynamicAssert(isValid(decodedInstruction.rd), "RD is invalid");
@@ -256,20 +270,24 @@ module mkExecutionUnit#(
         endactionvalue
     endfunction
 
+    //
+    // FENCE
+    //
     function ActionValue#(ExecutedInstruction) executeFENCE(
         DecodedInstruction decodedInstruction,
-        ExecutedInstruction executedInstruction
-    );
+        ExecutedInstruction executedInstruction);
         actionvalue
             executedInstruction.exception = tagged Invalid;
             return executedInstruction;
         endactionvalue
     endfunction
 
+    //
+    // JUMP
+    //
     function ActionValue#(ExecutedInstruction) executeJUMP(
         DecodedInstruction decodedInstruction,
-        ExecutedInstruction executedInstruction
-    );
+        ExecutedInstruction executedInstruction);
         actionvalue
             Bool verbose <- $test$plusargs ("verbose");
 
@@ -298,10 +316,12 @@ module mkExecutionUnit#(
         endactionvalue
     endfunction
 
+    //
+    // JUMP_INDIRECT
+    //
     function ActionValue#(ExecutedInstruction) executeJUMP_INDIRECT(
         DecodedInstruction decodedInstruction,
-        ExecutedInstruction executedInstruction
-    );
+        ExecutedInstruction executedInstruction);
         actionvalue
             Bool verbose <- $test$plusargs ("verbose");
             dynamicAssert(isValid(decodedInstruction.rd), "JUMP_INDIRECT: rd is invalid");
@@ -331,10 +351,12 @@ module mkExecutionUnit#(
         endactionvalue
     endfunction
 
+    //
+    // LOAD
+    //
     function ActionValue#(ExecutedInstruction) executeLOAD(
         DecodedInstruction decodedInstruction,
-        ExecutedInstruction executedInstruction
-    );
+        ExecutedInstruction executedInstruction);
         actionvalue
             Bool verbose <- $test$plusargs ("verbose");
 
@@ -365,10 +387,12 @@ module mkExecutionUnit#(
         endactionvalue
     endfunction
 
+    //
+    // STORE
+    //
     function ActionValue#(ExecutedInstruction) executeSTORE(
         DecodedInstruction decodedInstruction,
-        ExecutedInstruction executedInstruction
-    );
+        ExecutedInstruction executedInstruction);
         actionvalue
             Bool verbose <- $test$plusargs ("verbose");
 
@@ -399,11 +423,13 @@ module mkExecutionUnit#(
         endactionvalue
     endfunction
 
+    //
+    // SYSTEM
+    //
     function ActionValue#(ExecutedInstruction) executeSYSTEM(
         DecodedInstruction decodedInstruction,
         ExecutedInstruction executedInstruction,
-        PipelineEpoch currentEpoch
-    );
+        PipelineEpoch currentEpoch);
         actionvalue
             Bool verbose <- $test$plusargs ("verbose");
             case(decodedInstruction.systemOperator)

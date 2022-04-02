@@ -24,8 +24,8 @@ module mkGPRBypassUnit#(
         Bool gprUsed = False;
         Bool stallWaitingForOperands = False;
         if (decodedInstruction.rs1 matches tagged Valid .rs1 &&& gprBypassValue[1] matches tagged Valid .bypass &&& bypass.rd == rs1) begin
-            if (isValid(bypass.value)) begin
-                decodedInstruction.rs1Value = unJust(bypass.value);
+            if (bypass.value matches tagged Valid .rs1value) begin
+                decodedInstruction.rs1Value = rs1value;
                 // $display("%0d,%0d,%0d,%0x,%0d,decode,Bypassed value available for RS1: %0d (from execution)", 
                 //     fetchIndex, 
                 //     cycleCounter, 
@@ -51,8 +51,8 @@ module mkGPRBypassUnit#(
 
         if (!gprUsed) begin
             if (decodedInstruction.rs2 matches tagged Valid .rs2 &&& gprBypassValue[1] matches tagged Valid .bypass &&& bypass.rd == rs2) begin
-                if (isValid(bypass.value)) begin
-                    decodedInstruction.rs2Value = unJust(bypass.value);
+                if (bypass.value matches tagged Valid .rs2value) begin
+                    decodedInstruction.rs2Value = rs2value;
                     // $display("%0d,%0d,%0d,%0x,%0d,decode,Bypassed value available for RS2: %0d (from execution)", 
                     //     fetchIndex, 
                     //     cycleCounter, 
