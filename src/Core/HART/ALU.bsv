@@ -5,6 +5,7 @@
 // reponsible for mathematical operations inside the CPU.
 //
 import PGTypes::*;
+import IntMulDiv::*;
 
 interface ALU;
     method Maybe#(Word) execute(RVALUOperator operator, Word operand1, Word operand2);
@@ -26,6 +27,9 @@ module mkALU(ALU);
     endfunction
 
     method Maybe#(Word) execute(RVALUOperator operator, Word operand1, Word operand2);
+        Int#(XLEN) operand1s = unpack(operand1);
+        Int#(XLEN) operand2s = unpack(operand2);
+
         return case(operator)
             alu_ADD:    tagged Valid (operand1 + operand2);
             alu_SUB:    tagged Valid (operand1 - operand2);
@@ -43,7 +47,36 @@ module mkALU(ALU);
             alu_SRA:    tagged Valid signedShiftRight(operand1, operand2[5:0]);
             alu_SRL:    tagged Valid (operand1 >> operand2[5:0]);
 `endif
-            default: tagged Invalid;
+
+            alu_REM:    tagged Valid pack(operand1s % operand2s);
+            alu_REMU:   tagged Valid (operand1 % operand2);
+            alu_MUL:    tagged Valid (operand1 * operand2);
+`ifdef RV32
+            alu_MULH:   begin
+                Int#(64) o1s = extend(operand1s);
+                Int#(64) o2s = extend(operand2s);
+                Int#(64) product = o1s * o2s;
+                return tagged Valid pack(product)[63:32];
+            end
+
+            alu_MULHU: begin
+                Word64 o1s = extend(operand1);    // unsigned
+                Word64 o2s = extend(operand2);    // unsigned
+                Word64 product = o1s * o2s;
+                return tagged Valid pack(product)[63:32];
+            end
+
+            alu_MULHSU: begin
+                Int#(64) o1s = extend(operand1s);           // signed
+                Int#(64) o2s = unpack(extend(operand2));    // unsigned
+                Int#(64) product = o1s * o2s;
+                return tagged Valid pack(product)[63:32];
+            end
+`endif
+            alu_DIV:    tagged Valid pack(operand1s / operand2s);
+            alu_DIVU:   tagged Valid (operand1 / operand2);
+
+            default:    tagged Invalid;
         endcase;
     endmethod
 

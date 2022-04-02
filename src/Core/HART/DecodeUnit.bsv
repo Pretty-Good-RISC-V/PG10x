@@ -247,13 +247,11 @@ module mkDecodeUnit#(
             end
 
             2'b01: begin    // OP
-                if (func7 == 7'b0000000 || (func7 == 7'b0100000 && (func3 == 3'b000 || func3 == 3'b101))) begin
-                    decodedInstruction.aluOperator = {func7, func3};
-                    decodedInstruction.opcode = ALU;
-                    decodedInstruction.rd = tagged Valid rd;
-                    decodedInstruction.rs1 = tagged Valid rs1;
-                    decodedInstruction.rs2 = tagged Valid rs2;            
-                end
+                decodedInstruction.aluOperator = {func7, func3};
+                decodedInstruction.opcode = ALU;
+                decodedInstruction.rd = tagged Valid rd;
+                decodedInstruction.rs1 = tagged Valid rs1;
+                decodedInstruction.rs2 = tagged Valid rs2;            
             end
 
             2'b10: begin    // OP-FP

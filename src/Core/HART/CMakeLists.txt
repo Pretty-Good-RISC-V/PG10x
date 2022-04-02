@@ -1,3 +1,5 @@
+find_package(IntMulDiv)
+
 add_subdirectory(CSRFile)
 add_subdirectory(InstructionLogger)
 
@@ -9,6 +11,7 @@ target_link_libraries(HART INTERFACE
     Common::Common
     CSRFile::CSRFile
     TileLink::TileLink
+    IntMulDiv::IntMulDiv
 )
 
 if (ENABLE_INSTRUCTION_LOGGING)
@@ -35,6 +38,7 @@ foreach(TEST_FILE ${TEST_FILES})
         Common::Common
         CSRFile::CSRFile
         TileLink::TileLink
+        IntMulDiv::IntMulDiv
     )
     add_test(
         NAME ${TEST_TARGET}

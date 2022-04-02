@@ -48,7 +48,7 @@ instance DefaultValue#(MachineISA);
         extJ: False,
         extK: False,
         extL: False,
-        extM: False,
+        extM: True,
         extN: False,
         extO: False,
         extP: False,
