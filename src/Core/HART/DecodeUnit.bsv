@@ -227,10 +227,10 @@ module mkDecodeUnit#(
                 if (func3[1:0] == 2'b01) begin
 `ifdef RV32
                     if (func7 == 7'b0000000 || func7 == 7'b0100000) begin
-                        decodedInstruction.aluOperator = extend({func7, func3});
+                        decodedInstruction.aluOperator = {1'b0, func7, func3};
 `elsif RV64
                     if (func7[6:1] == 6'b000000 || func7[6:1] == 6'b010000) begin
-                        decodedInstruction.aluOperator = extend({func7[6:1], 1'b0, func3});
+                        decodedInstruction.aluOperator = {1'b0, func7[6:1], 1'b0, func3};
 `endif
                         decodedInstruction.opcode = ALU;
                         decodedInstruction.rd = tagged Valid rd;
@@ -238,7 +238,7 @@ module mkDecodeUnit#(
                         decodedInstruction.immediate = tagged Valid extend(shamt);
                     end
                 end else begin
-                    decodedInstruction.aluOperator = extend(func3);
+                    decodedInstruction.aluOperator = {1'b0, 7'b0, func3};
                     decodedInstruction.opcode = ALU;
                     decodedInstruction.rd = tagged Valid rd;
                     decodedInstruction.rs1 = tagged Valid rs1;
@@ -248,7 +248,7 @@ module mkDecodeUnit#(
 
             2'b01: begin    // OP
                 if (func7 == 7'b0000000 || (func7 == 7'b0100000 && (func3 == 3'b000 || func3 == 3'b101))) begin
-                    decodedInstruction.aluOperator = {func7, func3};
+                    decodedInstruction.aluOperator = {1'b0, func7, func3};
                     decodedInstruction.opcode = ALU;
                     decodedInstruction.rd = tagged Valid rd;
                     decodedInstruction.rs1 = tagged Valid rs1;
@@ -370,21 +370,21 @@ module mkDecodeUnit#(
             2'b00: begin    // OP-IMM-32
                 if (func3[1:0] == 2'b01) begin
                     if (func7 == 7'b0000000 || func7 == 7'b0100000) begin
-                        decodedInstruction.aluOperator = extend({func7, func3});
-                        decodedInstruction.opcode = ALU32;
+                        decodedInstruction.aluOperator = {1'b1, func7, func3};
+                        decodedInstruction.opcode = ALU;
                         decodedInstruction.immediate = tagged Valid extend(instruction[24:20]);
                     end
                 end else begin
-                    decodedInstruction.aluOperator = extend(func3);
-                    decodedInstruction.opcode = ALU32;
+                    decodedInstruction.aluOperator = {1'b1, 7'b0, func3};
+                    decodedInstruction.opcode = ALU;
                     decodedInstruction.immediate = tagged Valid immediate31_20;
                 end
             end
 
             2'b01: begin    // OP-32
                 if (func7 == 7'b0000000 || (func7 == 7'b0100000 && (func3 == 3'b000 || func3 == 3'b101))) begin
-                    decodedInstruction.aluOperator = extend({func7, func3});
-                    decodedInstruction.opcode = ALU32;
+                    decodedInstruction.aluOperator = {1'b1, func7, func3};
+                    decodedInstruction.opcode = ALU;
                     decodedInstruction.rs2 = tagged Valid rs2;
                 end
             end

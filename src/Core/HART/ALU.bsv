@@ -8,9 +8,6 @@ import PGTypes::*;
 
 interface ALU;
     method Maybe#(Word) execute(RVALUOperator operator, Word operand1, Word operand2);
-`ifdef RV64
-    method Maybe#(Word) execute32(RVALUOperator operator, Word operand1, Word operand2);
-`endif
 endinterface
 
 (* synthesize *)
@@ -42,36 +39,29 @@ module mkALU(ALU);
             alu_SLL:    tagged Valid (operand1 << operand2[5:0]);
             alu_SRA:    tagged Valid signedShiftRight(operand1, operand2[5:0]);
             alu_SRL:    tagged Valid (operand1 >> operand2[5:0]);
-`endif
-            default: tagged Invalid;
-        endcase;
-    endmethod
 
-`ifdef RV64
-    method Maybe#(Word) execute32(RVALUOperator operator, Word operand1, Word operand2);
-        return case(operator)
-            alu_ADD: begin
+            alu_ADD32: begin
                 let result = operand1[31:0] + operand2[31:0];
                 return tagged Valid signExtend(result[31:0]);
             end
-            alu_SUB: begin
+            alu_SUB32: begin
                 let result = (operand1[31:0] - operand2[31:0]);
                 return tagged Valid signExtend(result[31:0]);
             end
-            alu_SLL: begin
+            alu_SLL32: begin
                 let result = (operand1[31:0] << operand2[4:0]);
                 return tagged Valid signExtend(result[31:0]);
             end
-            alu_SRA: begin
+            alu_SRA32: begin
                 let result = signedShiftRight(operand1[31:0], operand2[4:0]);
                 return tagged Valid signExtend(result[31:0]);
             end
-            alu_SRL: begin
+            alu_SRL32: begin
                 let result = (operand1[31:0] >> operand2[4:0]);
                 return tagged Valid signExtend(result[31:0]);
             end
+`endif
             default: tagged Invalid;
         endcase;
     endmethod
-`endif
 endmodule

@@ -53,6 +53,7 @@ module mkExecutionUnit#(
         ExecutedInstruction executedInstruction = newExecutedInstruction(decodedInstruction.programCounter, decodedInstruction.rawInstruction);
         executedInstruction.fetchIndex = decodedInstruction.fetchIndex;
         executedInstruction.pipelineEpoch = decodedInstruction.pipelineEpoch;
+        executedInstruction.predictedNextProgramCounter = decodedInstruction.predictedNextProgramCounter;
 
         // If there's an exception in the incoming deccoded instruction, pass it to
         // the executed instruction, otherwise, keep the illegal instruction exception
@@ -71,60 +72,26 @@ module mkExecutionUnit#(
     //
     // ALU
     //
-    function ActionValue#(ExecutedInstruction) executeALU(
-        DecodedInstruction decodedInstruction,
-        ExecutedInstruction executedInstruction);
-        actionvalue
-            dynamicAssert(isValid(decodedInstruction.rd), "ALU: rd is invalid");
-            dynamicAssert(isValid(decodedInstruction.rs1), "ALU: rs1 is invalid");
+    function ExecutedInstruction executeALU(DecodedInstruction decodedInstruction, ExecutedInstruction executedInstruction);
+        // dynamicAssert(isValid(decodedInstruction.rd), "ALU: rd is invalid");
+        // dynamicAssert(isValid(decodedInstruction.rs1), "ALU: rs1 is invalid");
 
-            let result = alu.execute(
-                decodedInstruction.aluOperator, 
-                decodedInstruction.rs1Value,
-                fromMaybe(decodedInstruction.rs2Value, decodedInstruction.immediate)
-            );
+        let result = alu.execute(
+            decodedInstruction.aluOperator, 
+            decodedInstruction.rs1Value,
+            fromMaybe(decodedInstruction.rs2Value, decodedInstruction.immediate)
+        );
 
-            if (result matches tagged Valid .rdValue) begin
-                executedInstruction.gprWriteBack = tagged Valid GPRWriteBack {
-                    rd: unJust(decodedInstruction.rd),
-                    value: rdValue
-                };
-                executedInstruction.exception = tagged Invalid;
-            end
+        if (result matches tagged Valid .rdValue) begin
+            executedInstruction.gprWriteBack = tagged Valid GPRWriteBack {
+                rd: unJust(decodedInstruction.rd),
+                value: rdValue
+            };
+            executedInstruction.exception = tagged Invalid;
+        end
 
-            return executedInstruction;
-        endactionvalue
+        return executedInstruction;
     endfunction
-
-`ifdef RV64
-    //
-    // ALU32
-    //
-    function ActionValue#(ExecutedInstruction) executeALU32(
-        DecodedInstruction decodedInstruction,
-        ExecutedInstruction executedInstruction);
-        actionvalue
-            dynamicAssert(isValid(decodedInstruction.rd), "ALU: rd is invalid");
-            dynamicAssert(isValid(decodedInstruction.rs1), "ALU: rs1 is invalid");
-
-            let result = alu.execute32(
-                decodedInstruction.aluOperator, 
-                decodedInstruction.rs1Value,
-                fromMaybe(decodedInstruction.rs2Value, decodedInstruction.immediate)
-            );
-
-            if (result matches tagged Valid .rdValue) begin
-                executedInstruction.gprWriteBack = tagged Valid GPRWriteBack {
-                    rd: unJust(decodedInstruction.rd),
-                    value: rdValue
-                };
-                executedInstruction.exception = tagged Invalid;
-            end
-            
-            return executedInstruction;
-        endactionvalue
-    endfunction
-`endif // RV64
 
     //
     // BRANCH
@@ -146,75 +113,64 @@ module mkExecutionUnit#(
         endcase;
     endfunction
 
-    function ActionValue#(ExecutedInstruction) executeBRANCH(
-        DecodedInstruction decodedInstruction,
-        ExecutedInstruction executedInstruction);
-        actionvalue
-            dynamicAssert(isValid(decodedInstruction.rd) == False, "BRANCH: rd SHOULD BE invalid");
-            dynamicAssert(isValid(decodedInstruction.rs1), "BRANCH: rs1 is invalid");
-            dynamicAssert(isValid(decodedInstruction.rs2), "BRANCH: rs2 is invalid");
-            dynamicAssert(isValid(decodedInstruction.immediate), "BRANCH: immediate is invalid");
+    function ExecutedInstruction executeBRANCH(DecodedInstruction decodedInstruction, ExecutedInstruction executedInstruction);
+        // dynamicAssert(isValid(decodedInstruction.rd) == False, "BRANCH: rd SHOULD BE invalid");
+        // dynamicAssert(isValid(decodedInstruction.rs1), "BRANCH: rs1 is invalid");
+        // dynamicAssert(isValid(decodedInstruction.rs2), "BRANCH: rs2 is invalid");
+        // dynamicAssert(isValid(decodedInstruction.immediate), "BRANCH: immediate is invalid");
 
-            if (isValidBranchOperator(decodedInstruction.branchOperator) &&&
-                decodedInstruction.immediate matches tagged Valid .immediate) begin
-                Maybe#(ProgramCounter) nextProgramCounter = tagged Invalid;
-                if (isBranchTaken(decodedInstruction)) begin
-                    // Determine branch target address and check
-                    // for address misalignment.
-                    let branchTarget = getEffectiveAddress(decodedInstruction.programCounter, immediate);
-                    // Branch target must be 32 bit aligned.
-                    if (isValidInstructionAddress(branchTarget) == False) begin
-                        executedInstruction.exception = tagged Valid createMisalignedInstructionException(branchTarget);
-                    end else begin
-                        // Target address aligned
-                        executedInstruction.exception = tagged Invalid;
-                        nextProgramCounter = tagged Valid branchTarget;
-                    end
+        if (isValidBranchOperator(decodedInstruction.branchOperator) &&&
+            decodedInstruction.immediate matches tagged Valid .immediate) begin
+            Maybe#(ProgramCounter) nextProgramCounter = tagged Invalid;
+            if (isBranchTaken(decodedInstruction)) begin
+                // Determine branch target address and check
+                // for address misalignment.
+                let branchTarget = getEffectiveAddress(decodedInstruction.programCounter, immediate);
+                // Branch target must be 32 bit aligned.
+                if (isValidInstructionAddress(branchTarget) == False) begin
+                    executedInstruction.exception = tagged Valid createMisalignedInstructionException(branchTarget);
                 end else begin
+                    // Target address aligned
                     executedInstruction.exception = tagged Invalid;
-                    nextProgramCounter = tagged Valid (decodedInstruction.programCounter + 4);
+                    nextProgramCounter = tagged Valid branchTarget;
                 end
-
-                if (nextProgramCounter matches tagged Valid .npc &&& npc != decodedInstruction.predictedNextProgramCounter) begin
-                    executedInstruction.changedProgramCounter = tagged Valid npc;
-                end
+            end else begin
+                executedInstruction.exception = tagged Invalid;
+                nextProgramCounter = tagged Valid (decodedInstruction.programCounter + 4);
             end
 
-            return executedInstruction;
-        endactionvalue
+            if (nextProgramCounter matches tagged Valid .npc &&& npc != decodedInstruction.predictedNextProgramCounter) begin
+                executedInstruction.changedProgramCounter = tagged Valid npc;
+            end
+        end
+
+        return executedInstruction;
     endfunction
 
     //
     // COPY_IMMEDIATE
     //
-    function ActionValue#(ExecutedInstruction) executeCOPY_IMMEDIATE(
-        DecodedInstruction decodedInstruction,
-        ExecutedInstruction executedInstruction);
-        actionvalue
-            dynamicAssert(isValid(decodedInstruction.rd), "COPY_IMMEDIATE: rd is invalid");
-            dynamicAssert(isValid(decodedInstruction.rs1) == False, "COPY_IMMEDIATE: rs1 SHOULD BE invalid");
-            dynamicAssert(isValid(decodedInstruction.rs2) == False, "COPY_IMMEDIATE: rs2 SHOULD BE invalid");
-            dynamicAssert(isValid(decodedInstruction.immediate), "COPY_IMMEDIATE: immediate is invalid");
-            executedInstruction.gprWriteBack = tagged Valid GPRWriteBack {
-                rd: fromMaybe(?, decodedInstruction.rd),
-                value: fromMaybe(?, decodedInstruction.immediate)
-            };
-            executedInstruction.exception = tagged Invalid;
+    function ExecutedInstruction executeCOPY_IMMEDIATE(DecodedInstruction decodedInstruction, ExecutedInstruction executedInstruction);
+        // dynamicAssert(isValid(decodedInstruction.rd), "COPY_IMMEDIATE: rd is invalid");
+        // dynamicAssert(isValid(decodedInstruction.rs1) == False, "COPY_IMMEDIATE: rs1 SHOULD BE invalid");
+        // dynamicAssert(isValid(decodedInstruction.rs2) == False, "COPY_IMMEDIATE: rs2 SHOULD BE invalid");
+        // dynamicAssert(isValid(decodedInstruction.immediate), "COPY_IMMEDIATE: immediate is invalid");
+        executedInstruction.gprWriteBack = tagged Valid GPRWriteBack {
+            rd: fromMaybe(?, decodedInstruction.rd),
+            value: fromMaybe(?, decodedInstruction.immediate)
+        };
+        executedInstruction.exception = tagged Invalid;
 
-            return executedInstruction;
-        endactionvalue
+        return executedInstruction;
     endfunction
 
     //
     // CSR
     //
-    function ActionValue#(ExecutedInstruction) executeCSR(
-        DecodedInstruction decodedInstruction,
-        ExecutedInstruction executedInstruction);
-        actionvalue
+    function ExecutedInstruction executeCSR(DecodedInstruction decodedInstruction, ExecutedInstruction executedInstruction);
         if (decodedInstruction.csrOperator[1:0] != 0) begin
-            dynamicAssert(isValid(decodedInstruction.rd), "RD is invalid");
-            dynamicAssert(isValid(decodedInstruction.csrIndex), "CSRIndex is invalid");
+            // dynamicAssert(isValid(decodedInstruction.rd), "RD is invalid");
+            // dynamicAssert(isValid(decodedInstruction.csrIndex), "CSRIndex is invalid");
 
             let operand = fromMaybe(decodedInstruction.rs1Value, decodedInstruction.immediate);
             let csrIndex = unJust(decodedInstruction.csrIndex);
@@ -257,7 +213,7 @@ module mkExecutionUnit#(
                     };
                     executedInstruction.exception = tagged Invalid;
                 end else begin
-                    $display("ERROR - attempted to write to a read-only CSR");
+                    // $display("ERROR - attempted to write to a read-only CSR");
                     executedInstruction.exception = tagged Valid createIllegalInstructionException(decodedInstruction.rawInstruction);
                     executedInstruction.gprWriteBack = tagged Invalid;
                 end
@@ -267,187 +223,156 @@ module mkExecutionUnit#(
         end
 
         return executedInstruction;
-        endactionvalue
     endfunction
 
     //
     // FENCE
     //
-    function ActionValue#(ExecutedInstruction) executeFENCE(
+    function ExecutedInstruction executeFENCE(
         DecodedInstruction decodedInstruction,
         ExecutedInstruction executedInstruction);
-        actionvalue
-            executedInstruction.exception = tagged Invalid;
-            return executedInstruction;
-        endactionvalue
+
+        executedInstruction.exception = tagged Invalid;
+        return executedInstruction;
     endfunction
 
     //
     // JUMP
     //
-    function ActionValue#(ExecutedInstruction) executeJUMP(
-        DecodedInstruction decodedInstruction,
-        ExecutedInstruction executedInstruction);
-        actionvalue
-            Bool verbose <- $test$plusargs ("verbose");
+    function ExecutedInstruction executeJUMP(DecodedInstruction decodedInstruction, ExecutedInstruction executedInstruction);
+        // dynamicAssert(isValid(decodedInstruction.rd), "JUMP: rd is invalid");
+        // dynamicAssert(isValid(decodedInstruction.rs1) == False, "JUMP: rs1 SHOULD BE invalid");
+        // dynamicAssert(isValid(decodedInstruction.rs2) == False, "JUMP: rs2 SHOULD BE invalid");
+        // dynamicAssert(isValid(decodedInstruction.immediate), "JUMP: immediate is invalid");
 
-            dynamicAssert(isValid(decodedInstruction.rd), "JUMP: rd is invalid");
-            dynamicAssert(isValid(decodedInstruction.rs1) == False, "JUMP: rs1 SHOULD BE invalid");
-            dynamicAssert(isValid(decodedInstruction.rs2) == False, "JUMP: rs2 SHOULD BE invalid");
-            dynamicAssert(isValid(decodedInstruction.immediate), "JUMP: immediate is invalid");
+        let immediate = unJust(decodedInstruction.immediate);
+        let jumpTarget = getEffectiveAddress(decodedInstruction.programCounter, immediate);
 
-            let immediate = unJust(decodedInstruction.immediate);
-            let jumpTarget = getEffectiveAddress(decodedInstruction.programCounter, immediate);
+        // if (verbose)
+        //     $display("JUMP: RS1: $%0x - Offset: $%0x - JumpTarget: $%0x", decodedInstruction.rs1Value, immediate, jumpTarget);
 
-            if (verbose)
-                $display("JUMP: RS1: $%0x - Offset: $%0x - JumpTarget: $%0x", decodedInstruction.rs1Value, immediate, jumpTarget);
-
-            if (isValidInstructionAddress(jumpTarget) == False) begin
-                executedInstruction.exception = tagged Valid createMisalignedInstructionException(jumpTarget);
-            end else begin
-                executedInstruction.changedProgramCounter = tagged Valid jumpTarget;
-                executedInstruction.gprWriteBack = tagged Valid GPRWriteBack {
-                    rd: fromMaybe(?, decodedInstruction.rd),
-                    value: (decodedInstruction.programCounter + 4)
-                };
-                executedInstruction.exception = tagged Invalid;
-            end
-            return executedInstruction;
-        endactionvalue
+        if (isValidInstructionAddress(jumpTarget) == False) begin
+            executedInstruction.exception = tagged Valid createMisalignedInstructionException(jumpTarget);
+        end else begin
+            executedInstruction.changedProgramCounter = tagged Valid jumpTarget;
+            executedInstruction.gprWriteBack = tagged Valid GPRWriteBack {
+                rd: fromMaybe(?, decodedInstruction.rd),
+                value: (decodedInstruction.programCounter + 4)
+            };
+            executedInstruction.exception = tagged Invalid;
+        end
+        return executedInstruction;
     endfunction
 
     //
     // JUMP_INDIRECT
     //
-    function ActionValue#(ExecutedInstruction) executeJUMP_INDIRECT(
-        DecodedInstruction decodedInstruction,
-        ExecutedInstruction executedInstruction);
-        actionvalue
-            Bool verbose <- $test$plusargs ("verbose");
-            dynamicAssert(isValid(decodedInstruction.rd), "JUMP_INDIRECT: rd is invalid");
-            dynamicAssert(isValid(decodedInstruction.rs1), "JUMP_INDIRECT: rs1 is invalid");
-            dynamicAssert(isValid(decodedInstruction.rs2) == False, "JUMP_INDIRECT: rs2 SHOULD BE invalid");
-            dynamicAssert(isValid(decodedInstruction.immediate), "JUMP_INDIRECT: immediate is invalid");
+    function ExecutedInstruction executeJUMP_INDIRECT(DecodedInstruction decodedInstruction, ExecutedInstruction executedInstruction);
+        // dynamicAssert(isValid(decodedInstruction.rd), "JUMP_INDIRECT: rd is invalid");
+        // dynamicAssert(isValid(decodedInstruction.rs1), "JUMP_INDIRECT: rs1 is invalid");
+        // dynamicAssert(isValid(decodedInstruction.rs2) == False, "JUMP_INDIRECT: rs2 SHOULD BE invalid");
+        // dynamicAssert(isValid(decodedInstruction.immediate), "JUMP_INDIRECT: immediate is invalid");
             
-            let immediate = unJust(decodedInstruction.immediate);
-            let jumpTarget = getEffectiveAddress(decodedInstruction.rs1Value, immediate);
-            jumpTarget[0] = 0;
+        let immediate = unJust(decodedInstruction.immediate);
+        let jumpTarget = getEffectiveAddress(decodedInstruction.rs1Value, immediate);
+        jumpTarget[0] = 0;
 
-            if (verbose)
-                $display("JUMP_INDIRECT: RS1: $%0x - Offset: $%0x - JumpTarget: $%0x", decodedInstruction.rs1Value, immediate, jumpTarget);
+        // if (verbose)
+        //     $display("JUMP_INDIRECT: RS1: $%0x - Offset: $%0x - JumpTarget: $%0x", decodedInstruction.rs1Value, immediate, jumpTarget);
 
-            if (isValidInstructionAddress(jumpTarget) == False) begin
-                executedInstruction.exception = tagged Valid createMisalignedInstructionException(jumpTarget);
-            end else begin
-                executedInstruction.changedProgramCounter = tagged Valid jumpTarget;
-                executedInstruction.gprWriteBack = tagged Valid GPRWriteBack {
-                    rd: fromMaybe(?, decodedInstruction.rd),
-                    value: (decodedInstruction.programCounter + 4)
-                };
-                executedInstruction.exception = tagged Invalid;
-            end
+        if (isValidInstructionAddress(jumpTarget) == False) begin
+            executedInstruction.exception = tagged Valid createMisalignedInstructionException(jumpTarget);
+        end else begin
+            executedInstruction.changedProgramCounter = tagged Valid jumpTarget;
+            executedInstruction.gprWriteBack = tagged Valid GPRWriteBack {
+                rd: fromMaybe(?, decodedInstruction.rd),
+                value: (decodedInstruction.programCounter + 4)
+            };
+            executedInstruction.exception = tagged Invalid;
+        end
 
-            return executedInstruction;
-        endactionvalue
+        return executedInstruction;
     endfunction
 
     //
     // LOAD
     //
-    function ActionValue#(ExecutedInstruction) executeLOAD(
-        DecodedInstruction decodedInstruction,
-        ExecutedInstruction executedInstruction);
-        actionvalue
-            Bool verbose <- $test$plusargs ("verbose");
+    function ExecutedInstruction executeLOAD(DecodedInstruction decodedInstruction, ExecutedInstruction executedInstruction);
+        // dynamicAssert(isValid(decodedInstruction.rd), "LOAD: rd is invalid");
+        // dynamicAssert(isValid(decodedInstruction.rs1), "LOAD: rs1 is invalid");
+        // dynamicAssert(isValid(decodedInstruction.rs2) == False, "LOAD: rs2 SHOULD BE invalid");
+        // dynamicAssert(isValid(decodedInstruction.immediate), "LOAD: immediate is invalid");
 
-            // The actual memory request is handled in the Memory Access stage.
-            dynamicAssert(isValid(decodedInstruction.rd), "LOAD: rd is invalid");
-            dynamicAssert(isValid(decodedInstruction.rs1), "LOAD: rs1 is invalid");
-            dynamicAssert(isValid(decodedInstruction.rs2) == False, "LOAD: rs2 SHOULD BE invalid");
-            dynamicAssert(isValid(decodedInstruction.immediate), "LOAD: immediate is invalid");
+        let effectiveAddress = getEffectiveAddress(decodedInstruction.rs1Value, unJust(decodedInstruction.immediate));
+        let rd = unJust(decodedInstruction.rd);
 
-            let effectiveAddress = getEffectiveAddress(decodedInstruction.rs1Value, unJust(decodedInstruction.immediate));
-            let rd = unJust(decodedInstruction.rd);
+        let result = getLoadRequest(
+            decodedInstruction.loadOperator,
+            rd,
+            effectiveAddress
+        );
 
-            let result = getLoadRequest(
-                decodedInstruction.loadOperator,
-                rd,
-                effectiveAddress
-            );
-
-            if (verbose)
-                $display("LEA: $%0x - $%0x", effectiveAddress, decodedInstruction.loadOperator);
-            if (isSuccess(result)) begin
-                executedInstruction.loadRequest = tagged Valid result.Success;
-                executedInstruction.exception = tagged Invalid;
-            end else begin
-                executedInstruction.exception = tagged Valid result.Error;
-            end
-            return executedInstruction;
-        endactionvalue
+        // if (verbose)
+        //     $display("LEA: $%0x - $%0x", effectiveAddress, decodedInstruction.loadOperator);
+        if (isSuccess(result)) begin
+            executedInstruction.loadRequest = tagged Valid result.Success;
+            executedInstruction.exception = tagged Invalid;
+        end else begin
+            executedInstruction.exception = tagged Valid result.Error;
+        end
+        return executedInstruction;
     endfunction
 
     //
     // STORE
     //
-    function ActionValue#(ExecutedInstruction) executeSTORE(
-        DecodedInstruction decodedInstruction,
-        ExecutedInstruction executedInstruction);
-        actionvalue
-            Bool verbose <- $test$plusargs ("verbose");
+    function ExecutedInstruction executeSTORE(DecodedInstruction decodedInstruction, ExecutedInstruction executedInstruction);
+        // dynamicAssert(isValid(decodedInstruction.rd) == False, "STORE: rd is valid");
+        // dynamicAssert(isValid(decodedInstruction.rs1), "STORE: rs1 is invalid");
+        // dynamicAssert(isValid(decodedInstruction.rs2), "STORE: rs2 is invalid");
+        // dynamicAssert(isValid(decodedInstruction.immediate), "STORE: immediate is invalid");
 
-            // The actual memory request is handled in the Memory Access stage.
-            dynamicAssert(isValid(decodedInstruction.rd) == False, "STORE: rd is valid");
-            dynamicAssert(isValid(decodedInstruction.rs1), "STORE: rs1 is invalid");
-            dynamicAssert(isValid(decodedInstruction.rs2), "STORE: rs2 is invalid");
-            dynamicAssert(isValid(decodedInstruction.immediate), "STORE: immediate is invalid");
+        let effectiveAddress = getEffectiveAddress(decodedInstruction.rs1Value, unJust(decodedInstruction.immediate));
 
-            let effectiveAddress = getEffectiveAddress(decodedInstruction.rs1Value, unJust(decodedInstruction.immediate));
+        // if (verbose)
+        //     $display("Store effective address: $%x", effectiveAddress);
 
-            if (verbose)
-                $display("Store effective address: $%x", effectiveAddress);
+        let result = getStoreRequest(
+            decodedInstruction.storeOperator,
+            effectiveAddress,
+            decodedInstruction.rs2Value
+        );
 
-            let result = getStoreRequest(
-                decodedInstruction.storeOperator,
-                effectiveAddress,
-                decodedInstruction.rs2Value
-            );
-
-            if (isSuccess(result)) begin
-                executedInstruction.storeRequest = tagged Valid result.Success;
-                executedInstruction.exception = tagged Invalid;
-            end else begin
-                executedInstruction.exception = tagged Valid result.Error;
-            end 
-            return executedInstruction;
-        endactionvalue
+        if (isSuccess(result)) begin
+            executedInstruction.storeRequest = tagged Valid result.Success;
+            executedInstruction.exception = tagged Invalid;
+        end else begin
+            executedInstruction.exception = tagged Valid result.Error;
+        end 
+        return executedInstruction;
     endfunction
 
     //
     // SYSTEM
     //
-    function ActionValue#(ExecutedInstruction) executeSYSTEM(
-        DecodedInstruction decodedInstruction,
-        ExecutedInstruction executedInstruction,
-        PipelineEpoch currentEpoch);
+    function ActionValue#(ExecutedInstruction) executeSYSTEM(DecodedInstruction decodedInstruction, ExecutedInstruction executedInstruction);
         actionvalue
-            Bool verbose <- $test$plusargs ("verbose");
             case(decodedInstruction.systemOperator)
                 sys_ECALL: begin
-                    if (verbose)
-                        $display("%0d,%0d,%0d,%0x,%0d,execute,ECALL instruction encountered", decodedInstruction.fetchIndex, trapController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber);
+                    // if (verbose)
+                    //     $display("%0d,%0d,%0d,%0x,%0d,execute,ECALL instruction encountered", decodedInstruction.fetchIndex, trapController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber);
 
                     let curPriv <- trapController.csrFile.getCurrentPrivilegeLevel.get;
                     executedInstruction.exception = tagged Valid createEnvironmentCallException(curPriv, decodedInstruction.programCounter);
                 end
                 sys_EBREAK: begin
-                    if (verbose)
-                        $display("%0d,%0d,%0d,%0x,%0d,execute,EBREAK instruction encountered", decodedInstruction.fetchIndex, trapController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber);
+                    // if (verbose)
+                    //     $display("%0d,%0d,%0d,%0x,%0d,execute,EBREAK instruction encountered", decodedInstruction.fetchIndex, trapController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber);
                     executedInstruction.exception = tagged Valid createBreakpointException(decodedInstruction.programCounter);
                 end
                 sys_MRET: begin
-                    if (verbose)
-                        $display("%0d,%0d,%0d,%0x,%0d,execute,MRET instruction", decodedInstruction.fetchIndex, trapController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber);
+                    // if (verbose)
+                    //     $display("%0d,%0d,%0d,%0x,%0d,execute,MRET instruction", decodedInstruction.fetchIndex, trapController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber);
                     
                     let newProgramCounterReadStatus <- trapController.endTrap;
                     if (newProgramCounterReadStatus matches tagged Valid .newProgramCounter) begin
@@ -465,11 +390,56 @@ module mkExecutionUnit#(
         endactionvalue
     endfunction
 
+    function Action finalizeInstruction(ExecutedInstruction executedInstruction);
+        action
+            let fetchIndex = executedInstruction.fetchIndex;
+            let currentEpoch = pipelineController.stageEpoch(stageNumber, 1);
+
+            // If the program counter was changed, see if it matches a predicted branch/jump.
+            // If not, redirect the program counter to the mispredicted target address.
+            if (executedInstruction.changedProgramCounter matches tagged Valid .targetAddress &&& targetAddress != executedInstruction.predictedNextProgramCounter) begin
+                // Bump the current instruction epoch
+                pipelineController.flush(1);
+
+                executedInstruction.pipelineEpoch = ~executedInstruction.pipelineEpoch;
+
+                // if (verbose)
+                //     $display("%0d,%0d,%0d,%0x,%0d,execute,branch/jump to: $%08x", fetchIndex, cycleCounter, currentEpoch, executedInstruction.programCounter, stageNumber, targetAddress);
+                programCounterRedirect.branch(targetAddress);
+            end
+
+            // if (executedInstruction.exception matches tagged Valid .exception) begin
+            //     if (verbose) begin
+            //         $display("%0d,%0d,%0d,%0x,%0d,execute,EXCEPTION:", fetchIndex, cycleCounter, currentEpoch, executedInstruction.programCounter, stageNumber, fshow(exception));
+            //     end
+            // end
+
+            // If writeback data exists, that needs to be written into the previous pipeline 
+            // stages using operand forwarding.
+            if (executedInstruction.gprWriteBack matches tagged Valid .wb) begin
+                gprBypassValue.wset(tagged Valid GPRBypassValue {
+                    rd: wb.rd,
+                    value: tagged Valid wb.value
+                });
+                // if (verbose) begin
+                //     $display("%0d,%0d,%0d,%0x,%0d,execute, (GPR WB: x%0d = %08x)", fetchIndex, cycleCounter, currentEpoch, executedInstruction.programCounter, stageNumber, wb.rd, wb.value);
+                // end
+            end
+
+            // if (verbose &&& executedInstruction.csrWriteBack matches tagged Valid .wb) begin
+            //     $display("%0d,%0d,%0d,%0x,%0d,execute, (CSR WB: $%0x = $%08x)", fetchIndex, cycleCounter, currentEpoch, executedInstruction.programCounter, stageNumber, wb.rd, wb.value);
+            // end
+
+            // if (verbose)
+            //     $display("%0d,%0d,%0d,%0x,%0d,execute,complete", fetchIndex, cycleCounter, currentEpoch, executedInstruction.programCounter, stageNumber);
+
+            outputQueue.enq(executedInstruction);
+        endaction
+    endfunction
+
     function ActionValue#(ExecutedInstruction) executeInstruction(
-        DecodedInstruction decodedInstruction,
-        PipelineEpoch currentEpoch);
+        DecodedInstruction decodedInstruction);
         actionvalue
-            Bool verbose <- $test$plusargs ("verbose");
             let executedInstruction = newExecutedInstructionFromDecodedInstruction(decodedInstruction);
 
             // Check for an existing pending interrupt.
@@ -478,19 +448,16 @@ module mkExecutionUnit#(
                 executedInstruction.exception = tagged Valid createInterruptException(decodedInstruction.programCounter, extend(highest));
             end else begin
                 case(decodedInstruction.opcode)
-                    ALU:            executedInstruction <- executeALU(decodedInstruction, executedInstruction);
-`ifdef RV64
-                    ALU32:          executedInstruction <- executeALU32(decodedInstruction, executedInstruction);
-`endif
-                    BRANCH:         executedInstruction <- executeBRANCH(decodedInstruction, executedInstruction);
-                    COPY_IMMEDIATE: executedInstruction <- executeCOPY_IMMEDIATE(decodedInstruction, executedInstruction);
-                    CSR:            executedInstruction <- executeCSR(decodedInstruction, executedInstruction);
-                    FENCE:          executedInstruction <- executeFENCE(decodedInstruction, executedInstruction);
-                    JUMP:           executedInstruction <- executeJUMP(decodedInstruction, executedInstruction);
-                    JUMP_INDIRECT:  executedInstruction <- executeJUMP_INDIRECT(decodedInstruction, executedInstruction);
-                    LOAD:           executedInstruction <- executeLOAD(decodedInstruction, executedInstruction);
-                    STORE:          executedInstruction <- executeSTORE(decodedInstruction, executedInstruction);
-                    SYSTEM:         executedInstruction <- executeSYSTEM(decodedInstruction, executedInstruction, currentEpoch);
+                    ALU:            executedInstruction = executeALU(decodedInstruction, executedInstruction);
+                    BRANCH:         executedInstruction = executeBRANCH(decodedInstruction, executedInstruction);
+                    COPY_IMMEDIATE: executedInstruction = executeCOPY_IMMEDIATE(decodedInstruction, executedInstruction);
+                    CSR:            executedInstruction = executeCSR(decodedInstruction, executedInstruction);
+                    FENCE:          executedInstruction = executeFENCE(decodedInstruction, executedInstruction);
+                    JUMP:           executedInstruction = executeJUMP(decodedInstruction, executedInstruction);
+                    JUMP_INDIRECT:  executedInstruction = executeJUMP_INDIRECT(decodedInstruction, executedInstruction);
+                    LOAD:           executedInstruction = executeLOAD(decodedInstruction, executedInstruction);
+                    STORE:          executedInstruction = executeSTORE(decodedInstruction, executedInstruction);
+                    SYSTEM:         executedInstruction <- executeSYSTEM(decodedInstruction, executedInstruction);
                 endcase
             end
 
@@ -522,51 +489,11 @@ module mkExecutionUnit#(
                     $display("%0d,%0d,%0d,%0x,%0d,execute,RS2: ", fetchIndex, trapController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber, (isValid(decodedInstruction.rs2) ? $format("x%0d = %0d ($%0x)", unJust(decodedInstruction.rs2), decodedInstruction.rs2Value, decodedInstruction.rs2Value) : $format("INVALID")));
                 end
 
-                let executedInstruction <- executeInstruction(decodedInstruction, currentEpoch);
+                let executedInstruction <- executeInstruction(decodedInstruction);
 
-                // If the program counter was changed, see if it matches a predicted branch/jump.
-                // If not, redirect the program counter to the mispredicted target address.
-                if (executedInstruction.changedProgramCounter matches tagged Valid .targetAddress &&& targetAddress != decodedInstruction.predictedNextProgramCounter) begin
-                    // Bump the current instruction epoch
-                    pipelineController.flush(1);
-
-                    executedInstruction.pipelineEpoch = ~executedInstruction.pipelineEpoch;
-
-                    if (verbose)
-                        $display("%0d,%0d,%0d,%0x,%0d,execute,branch/jump to: $%08x", fetchIndex, cycleCounter, currentEpoch, decodedInstruction.programCounter, stageNumber, targetAddress);
-                    programCounterRedirect.branch(targetAddress);
-                end
-
-                if (executedInstruction.exception matches tagged Valid .exception) begin
-                    if (verbose) begin
-                        $display("%0d,%0d,%0d,%0x,%0d,execute,EXCEPTION:", fetchIndex, cycleCounter, currentEpoch, decodedInstruction.programCounter, stageNumber, fshow(exception));
-                    end
-                end
-
-                // If writeback data exists, that needs to be written into the previous pipeline 
-                // stages using operand forwarding.
-                if (executedInstruction.gprWriteBack matches tagged Valid .wb) begin
-                    gprBypassValue.wset(tagged Valid GPRBypassValue {
-                        rd: wb.rd,
-                        value: tagged Valid wb.value
-                    });
-                    if (verbose) begin
-                        $display("%0d,%0d,%0d,%0x,%0d,execute, (GPR WB: x%0d = %08x)", fetchIndex, cycleCounter, currentEpoch, decodedInstruction.programCounter, stageNumber, wb.rd, wb.value);
-                    end
-                end
-
-                if (executedInstruction.csrWriteBack matches tagged Valid .wb) begin
-                    if (verbose) begin
-                        $display("%0d,%0d,%0d,%0x,%0d,execute, (CSR WB: $%0x = $%08x)", fetchIndex, cycleCounter, currentEpoch, decodedInstruction.programCounter, stageNumber, wb.rd, wb.value);
-                    end
-                end
-
-                if (verbose)
-                    $display("%0d,%0d,%0d,%0x,%0d,execute,complete", fetchIndex, cycleCounter, currentEpoch, decodedInstruction.programCounter, stageNumber);
+                finalizeInstruction(executedInstruction);
 
                 scoreboardValue = decodedInstruction.csrIndex;
-
-                outputQueue.enq(executedInstruction);
             end
 
             scoreboard.insert(scoreboardValue);

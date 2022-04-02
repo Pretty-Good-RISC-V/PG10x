@@ -40,6 +40,10 @@ typedef struct {
     // programCounter - The program counter corresponding to this instruction.
     ProgramCounter programCounter;
 
+    // predictedNextProgramCounter - Contains the *predicted* program counter following this
+    //                               instruction.
+    ProgramCounter predictedNextProgramCounter;
+
     // rawInstruction - The raw instruction bits
     Word32 rawInstruction;
 
@@ -70,6 +74,7 @@ instance DefaultValue#(ExecutedInstruction);
         programCounter: ?,
         rawInstruction: ?,
         changedProgramCounter: tagged Invalid,
+        predictedNextProgramCounter: ?,
         loadRequest: tagged Invalid,
         storeRequest: tagged Invalid,
         exception: tagged Invalid,

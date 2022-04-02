@@ -10,10 +10,6 @@ import DefaultValue::*;
 typedef enum {
     // Arithmetic Logic Unit (ALU) operation.
     ALU,
-`ifdef RV64
-    // Arithmetic Logic Unit (ALU) operations (32 bit on 64bit ISA)
-    ALU32,
-`endif
 
     // Conditional branch.
     BRANCH,
