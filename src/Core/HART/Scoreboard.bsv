@@ -10,8 +10,8 @@ import PGTypes::*;
 import Vector::*;
 
 interface Scoreboard#(numeric type size);
-    method Action insert(Maybe#(RVCSRIndex) dst);
-    method Bool search(Maybe#(RVCSRIndex) s1);
+    method Action insertCSR(Maybe#(RVCSRIndex) dst);
+    method Bool searchCSR(Maybe#(RVCSRIndex) s1);
     method Action remove;
     method Bit#(TAdd#(TLog#(size),1)) size;
 endinterface
@@ -26,13 +26,13 @@ module mkScoreboard(Scoreboard#(size));
         return (isValid(dst) && ((isValid(src1) && unJust(dst)==unJust(src1))));
     endfunction
 
-    method Action insert(Maybe#(RVCSRIndex) r) if (count[1] != fromInteger(valueOf(size)));
+    method Action insertCSR(Maybe#(RVCSRIndex) r) if (count[1] != fromInteger(valueOf(size)));
         entries[iidx][1]._write(r);
         iidx <= iidx == fromInteger(valueOf(size)) - 1 ? 0 : iidx + 1;
         count[1] <= count[1] + 1;
     endmethod
 
-    method Bool search(Maybe#(RVCSRIndex) s1);
+    method Bool searchCSR(Maybe#(RVCSRIndex) s1);
         Bit#(size) r = 0;
         for (Integer i = 0; i < valueOf(size); i = i + 1) begin
             r[i] = pack(dataHazard(s1, entries[i][1]._read()));

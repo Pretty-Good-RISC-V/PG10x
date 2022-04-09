@@ -30,7 +30,11 @@ interface FetchUnit;
     interface Put#(Word64) putCycleCounter;
     interface Get#(EncodedInstruction) getEncodedInstruction;
     interface StdTileLinkClient instructionMemoryClient;
+
     interface Put#(Bool) putFetchEnabled;
+    interface Put#(Bool) putSingleStepping;
+
+    method Action step;
 endinterface
 
 module mkFetchUnit#(
@@ -57,6 +61,8 @@ module mkFetchUnit#(
 `else
     BranchPredictor branchPredictor <- mkBackwardBranchTakenPredictor;
 `endif
+
+    Reg#(Bool) singleStepping <- mkReg(False);
 
     (* fire_when_enabled *)
     rule sendFetchRequest(fetchEnabled == True && !waitingForMemoryResponse);
@@ -101,6 +107,10 @@ module mkFetchUnit#(
 
         waitingForMemoryResponse <= True;
         fetchCounter <= fetchCounter + 1;
+
+        if (singleStepping) begin
+            fetchEnabled <= False;
+        end
     endrule
 
     (* fire_when_enabled *)
@@ -154,5 +164,11 @@ module mkFetchUnit#(
     interface Put putCycleCounter = toPut(asIfc(cycleCounter));
     interface Get getEncodedInstruction = toGet(outputQueue);
     interface TileLinkLiteWordClient instructionMemoryClient = toGPClient(instructionMemoryRequests, instructionMemoryResponses);
+
     interface Put putFetchEnabled = toPut(asIfc(fetchEnabled));
+    interface Put putSingleStepping = toPut(asIfc(singleStepping));
+
+    method Action step if(fetchEnabled == False);
+        fetchEnabled <= True;
+    endmethod
 endmodule

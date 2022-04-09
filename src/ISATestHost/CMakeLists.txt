@@ -14,6 +14,12 @@ if (ENABLE_ISA_TESTS)
     )
 endif()
 
+if (ENABLE_PIPELINING)
+    target_compile_definitions(ISATestHost PUBLIC
+        ENABLE_PIPELINING
+    )
+endif()
+
 target_link_libraries(ISATestHost 
     Core::Core
     Crossbar::Crossbar

@@ -7,7 +7,6 @@
 `include "PGLib.bsh"
 
 import ALU::*;
-import BypassUnit::*;
 import DecodedInstruction::*;
 import Exception::*;
 import TrapController::*;
@@ -30,7 +29,9 @@ interface ExecutionUnit;
     interface Put#(DecodedInstruction) putDecodedInstruction;
     interface Get#(ExecutedInstruction) getExecutedInstruction;
 
-    interface Get#(Maybe#(GPRBypassValue)) getGPRBypassValue;
+    interface Get#(RVGPRIndex) getExecutionDestination;
+    interface Get#(Word)       getExecutionResult;
+    interface Get#(RVGPRIndex) getLoadDestination;
 
     interface Put#(Bool) putHalt;
 endinterface
@@ -44,7 +45,11 @@ module mkExecutionUnit#(
 )(ExecutionUnit);
     Wire#(Word64) cycleCounter <- mkBypassWire;
     FIFO#(ExecutedInstruction) outputQueue <- mkPipelineFIFO;
-    RWire#(Maybe#(GPRBypassValue)) gprBypassValue <- mkRWire();
+
+    RWire#(RVGPRIndex) executionDestination <- mkRWire;
+    RWire#(Word) executionResult <- mkRWire;
+    RWire#(RVGPRIndex) loadDestination <- mkRWire;
+
     Reg#(Bool) halt <- mkReg(False);
 
     ALU alu <- mkALU;
@@ -326,16 +331,16 @@ module mkExecutionUnit#(
     //
     // STORE
     //
-    function ExecutedInstruction executeSTORE(DecodedInstruction decodedInstruction, ExecutedInstruction executedInstruction);
-        // dynamicAssert(isValid(decodedInstruction.rd) == False, "STORE: rd is valid");
-        // dynamicAssert(isValid(decodedInstruction.rs1), "STORE: rs1 is invalid");
-        // dynamicAssert(isValid(decodedInstruction.rs2), "STORE: rs2 is invalid");
-        // dynamicAssert(isValid(decodedInstruction.immediate), "STORE: immediate is invalid");
+    function ActionValue#(ExecutedInstruction) executeSTORE(DecodedInstruction decodedInstruction, ExecutedInstruction executedInstruction);
+        actionvalue
+        dynamicAssert(isValid(decodedInstruction.rd) == False, "STORE: rd is valid");
+        dynamicAssert(isValid(decodedInstruction.rs1), "STORE: rs1 is invalid");
+        dynamicAssert(isValid(decodedInstruction.rs2), "STORE: rs2 is invalid");
+        dynamicAssert(isValid(decodedInstruction.immediate), "STORE: immediate is invalid");
 
         let effectiveAddress = getEffectiveAddress(decodedInstruction.rs1Value, unJust(decodedInstruction.immediate));
 
-        // if (verbose)
-        //     $display("Store effective address: $%x", effectiveAddress);
+        $display("Store effective address: $%x", effectiveAddress);
 
         let result = getStoreRequest(
             decodedInstruction.storeOperator,
@@ -350,6 +355,7 @@ module mkExecutionUnit#(
             executedInstruction.exception = tagged Valid result.Error;
         end 
         return executedInstruction;
+        endactionvalue
     endfunction
 
     //
@@ -417,13 +423,19 @@ module mkExecutionUnit#(
             // If writeback data exists, that needs to be written into the previous pipeline 
             // stages using operand forwarding.
             if (executedInstruction.gprWriteBack matches tagged Valid .wb) begin
-                gprBypassValue.wset(tagged Valid GPRBypassValue {
-                    rd: wb.rd,
-                    value: tagged Valid wb.value
-                });
+                executionDestination.wset(wb.rd);
+                executionResult.wset(wb.value);
+
+                $display("%0d,XXX,%0d,%0x,XXX,execute,Setting NORMAL GPR writeback index to $%0d = $%0x", fetchIndex, currentEpoch, executedInstruction.programCounter, wb.rd, wb.value);
+
                 // if (verbose) begin
                 //     $display("%0d,%0d,%0d,%0x,%0d,execute, (GPR WB: x%0d = %08x)", fetchIndex, cycleCounter, currentEpoch, executedInstruction.programCounter, stageNumber, wb.rd, wb.value);
                 // end
+            end
+
+            if (executedInstruction.loadRequest matches tagged Valid .lr) begin
+                $display("%0d,XXX,%0d,%0x,XXX,execute,Setting LOAD GPR writeback index to $%0d", fetchIndex, currentEpoch, executedInstruction.programCounter, lr.rd);
+                loadDestination.wset(lr.rd);
             end
 
             // if (verbose &&& executedInstruction.csrWriteBack matches tagged Valid .wb) begin
@@ -456,7 +468,7 @@ module mkExecutionUnit#(
                     JUMP:           executedInstruction = executeJUMP(decodedInstruction, executedInstruction);
                     JUMP_INDIRECT:  executedInstruction = executeJUMP_INDIRECT(decodedInstruction, executedInstruction);
                     LOAD:           executedInstruction = executeLOAD(decodedInstruction, executedInstruction);
-                    STORE:          executedInstruction = executeSTORE(decodedInstruction, executedInstruction);
+                    STORE:          executedInstruction <- executeSTORE(decodedInstruction, executedInstruction);
                     SYSTEM:         executedInstruction <- executeSYSTEM(decodedInstruction, executedInstruction);
                 endcase
             end
@@ -470,7 +482,7 @@ module mkExecutionUnit#(
             Bool verbose <- $test$plusargs ("verbose");
             let fetchIndex = decodedInstruction.fetchIndex;
             let stageEpoch = pipelineController.stageEpoch(stageNumber, 1);
-            Maybe#(RVCSRIndex) scoreboardValue = tagged Invalid;
+            Maybe#(RVCSRIndex) csrScoreboardValue = tagged Invalid;
 
             if (!pipelineController.isCurrentEpoch(stageNumber, 1, decodedInstruction.pipelineEpoch)) begin
                 if (verbose)
@@ -487,21 +499,26 @@ module mkExecutionUnit#(
                     $display("%0d,%0d,%0d,%0x,%0d,execute,executing instruction: ", fetchIndex, trapController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber, fshow(decodedInstruction.opcode));
                     $display("%0d,%0d,%0d,%0x,%0d,execute,RS1: ", fetchIndex, trapController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber, (isValid(decodedInstruction.rs1) ? $format("x%0d = %0d ($%0x)", unJust(decodedInstruction.rs1), decodedInstruction.rs1Value, decodedInstruction.rs1Value) : $format("INVALID")));
                     $display("%0d,%0d,%0d,%0x,%0d,execute,RS2: ", fetchIndex, trapController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber, (isValid(decodedInstruction.rs2) ? $format("x%0d = %0d ($%0x)", unJust(decodedInstruction.rs2), decodedInstruction.rs2Value, decodedInstruction.rs2Value) : $format("INVALID")));
+                    $display("%0d,%0d,%0d,%0x,%0d,execute,RD : ", fetchIndex, trapController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber, (isValid(decodedInstruction.rd) ? $format("x%0d", unJust(decodedInstruction.rd)) : $format("INVALID")));
                 end
 
                 let executedInstruction <- executeInstruction(decodedInstruction);
 
                 finalizeInstruction(executedInstruction);
 
-                scoreboardValue = decodedInstruction.csrIndex;
+                //csrScoreboardValue = decodedInstruction.csrIndex;
             end
 
-            scoreboard.insert(scoreboardValue);
+            scoreboard.insertCSR(csrScoreboardValue);
         endmethod
     endinterface
 
     interface Put putCycleCounter = toPut(asIfc(cycleCounter));
     interface Get getExecutedInstruction = toGet(outputQueue);
-    interface Get getGPRBypassValue = toGet(gprBypassValue);
+    
+    interface Get getExecutionDestination = toGet(executionDestination);
+    interface Get getExecutionResult = toGet(executionResult);
+    interface Get getLoadDestination = toGet(loadDestination);
+
     interface Put putHalt = toPut(asIfc(halt));
 endmodule

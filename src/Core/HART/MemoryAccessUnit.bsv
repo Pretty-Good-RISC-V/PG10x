@@ -8,7 +8,6 @@
 //
 import PGTypes::*;
 
-import BypassUnit::*;
 import EncodedInstruction::*;
 import Exception::*;
 import ExecutedInstruction::*;
@@ -22,7 +21,13 @@ import FIFO::*;
 import GetPut::*;
 import SpecialFIFOs::*;
 
-export MemoryAccessUnit(..), mkMemoryAccessUnit;
+export MemoryAccessUnit(..), mkMemoryAccessUnit, MemoryAccess(..);
+
+typedef struct {
+    VirtualAddress address;
+    Word value;
+    Bool isStore;
+} MemoryAccess deriving(Bits, Eq, FShow);
 
 interface MemoryAccessUnit;
     interface Put#(Word64) putCycleCounter;
@@ -32,7 +37,8 @@ interface MemoryAccessUnit;
 
     interface StdTileLinkClient dataMemoryClient;
 
-    interface Get#(Maybe#(GPRBypassValue)) getGPRBypassValue;
+    interface Get#(Word) getLoadResult;
+    interface Get#(Maybe#(MemoryAccess)) getMemoryAccess;
 
 `ifdef ENABLE_ISA_TESTS
     interface Put#(Maybe#(Word)) putToHostAddress;
@@ -45,6 +51,7 @@ module mkMemoryAccessUnit#(
 )(MemoryAccessUnit);
     Wire#(Word64) cycleCounter <- mkBypassWire;
     FIFO#(ExecutedInstruction) outputQueue <- mkPipelineFIFO;
+    RWire#(MemoryAccess) memoryAccess <- mkRWire;
 
 `ifdef ENABLE_ISA_TESTS
     Reg#(Maybe#(Word)) toHostAddress <- mkReg(tagged Invalid);
@@ -55,7 +62,7 @@ module mkMemoryAccessUnit#(
     FIFO#(StdTileLinkRequest) dataMemoryRequests <- mkFIFO;
     FIFO#(StdTileLinkResponse) dataMemoryResponses <- mkFIFO;
 
-    RWire#(Maybe#(GPRBypassValue)) gprBypassValue <- mkRWire();
+    RWire#(Word) loadResult <- mkRWire();
 
     rule handleMemoryResponse(waitingForMemoryResponse == True);
         Bool verbose <- $test$plusargs ("verbose");
@@ -83,6 +90,12 @@ module mkMemoryAccessUnit#(
                 if (verbose)
                     $display("[****:****:memory] Store completed");
             end
+
+            memoryAccess.wset(MemoryAccess {
+                address: storeAddress,
+                value: storeRequest.tlRequest.a_data,
+                isStore: True
+            });
         end else if (executedInstruction.loadRequest matches tagged Valid .loadRequest) begin
             let loadAddress = loadRequest.tlRequest.a_address;
             Word value = ?;
@@ -144,15 +157,15 @@ module mkMemoryAccessUnit#(
                     rd: rd,
                     value: value
                 };
+
+                memoryAccess.wset(MemoryAccess {
+                    address: loadAddress,
+                    value: value,
+                    isStore: False
+                });
             end
 
-            // Set the bypass to the value read.  Note: even if an exception 
-            // was encountered, this still needs to be done otherwise other
-            // stages will stall forever.
-            gprBypassValue.wset(tagged Valid GPRBypassValue{
-                rd: rd,
-                value: tagged Valid value
-            });
+            loadResult.wset(value);
         end
 
         outputQueue.enq(executedInstruction);
@@ -183,13 +196,6 @@ module mkMemoryAccessUnit#(
                             stageEpoch, 
                             executedInstruction.programCounter, 
                             stageNumber);
-
-                    // Set the bypass value but mark the value as invalid since
-                    // the other side of the bypass has to wait for the load to complete.
-                    gprBypassValue.wset(tagged Valid GPRBypassValue{
-                        rd: loadRequest.rd,
-                        value: tagged Invalid
-                    });
 
                     // NOTE: Alignment checks were already performed during the execution stage.
                     dataMemoryRequests.enq(loadRequest.tlRequest);
@@ -233,7 +239,14 @@ module mkMemoryAccessUnit#(
     interface Put putCycleCounter = toPut(asIfc(cycleCounter));
     interface Get getExecutedInstruction = toGet(outputQueue);
     interface TileLinkLiteWordClient dataMemoryClient = toGPClient(dataMemoryRequests, dataMemoryResponses);
-    interface Get getGPRBypassValue = toGet(gprBypassValue);
+    interface Get getLoadResult = toGet(loadResult);
+
+    interface Get getMemoryAccess;
+        method ActionValue#(Maybe#(MemoryAccess)) get;
+            return memoryAccess.wget;
+        endmethod
+    endinterface
+
 `ifdef ENABLE_ISA_TESTS
     interface Put putToHostAddress = toPut(asIfc(toHostAddress));
 `endif

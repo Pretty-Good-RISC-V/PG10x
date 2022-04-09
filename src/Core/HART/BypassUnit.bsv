@@ -4,45 +4,40 @@ import GPRFile::*;
 
 import GetPut::*;
 
-typedef struct {
-    RVGPRIndex rd;
-    Maybe#(Word) value;
-} GPRBypassValue deriving(Bits, Eq);
-
 interface GPRBypassUnit;
     method ActionValue#(Tuple2#(Bool, DecodedInstruction)) processBypass(DecodedInstruction decodedInstruction);
 
-    interface Put#(Maybe#(GPRBypassValue)) putGPRBypassValue;
+    interface Put#(RVGPRIndex) putGPRBypassIndex;
+    interface Put#(Word) putGPRBypassValue;
 endinterface
 
 module mkGPRBypassUnit#(
     GPRFile gprFile
 )(GPRBypassUnit);
-    Reg#(Maybe#(GPRBypassValue)) gprBypassValue[2] <- mkCReg(2, tagged Invalid);
+    RWire#(RVGPRIndex) gprBypassIndex <- mkRWire; // CReg(2, tagged Invalid);
+    RWire#(Word) gprBypassValue <- mkRWire;
 
     method ActionValue#(Tuple2#(Bool, DecodedInstruction)) processBypass(DecodedInstruction decodedInstruction);
         Bool gprUsed = False;
         Bool stallWaitingForOperands = False;
-        if (decodedInstruction.rs1 matches tagged Valid .rs1 &&& gprBypassValue[1] matches tagged Valid .bypass &&& bypass.rd == rs1) begin
-            if (bypass.value matches tagged Valid .rs1value) begin
+        $display("RS1: ", fshow(decodedInstruction.rs1));
+        $display("RS2: ", fshow(decodedInstruction.rs2));
+
+//        $display("BYPASS: gprBypassIndex: ", fshow(gprBypassIndex));
+        if (gprBypassValue.wget matches tagged Valid .value) begin
+            $display("BYPASS: gprBypassValue: $%0x", value);
+        end else begin
+            $display("BYPASS: gprBypassValue: tagged Invalid");
+        end
+
+        if (decodedInstruction.rs1 matches tagged Valid .rs1 &&& gprBypassIndex.wget() matches tagged Valid .bypassrd &&& bypassrd == rs1) begin
+            if (gprBypassValue.wget matches tagged Valid .rs1value) begin
                 decodedInstruction.rs1Value = rs1value;
-                // $display("%0d,%0d,%0d,%0x,%0d,decode,Bypassed value available for RS1: %0d (from execution)", 
-                //     fetchIndex, 
-                //     cycleCounter, 
-                //     stageEpoch, 
-                //     programCounter, 
-                //     stageNumber,
-                //     rs1);
-                gprBypassValue[1] <= tagged Invalid;
+//                gprBypassIndex[1] <= tagged Invalid;
+//                gprBypassValue[1] <= tagged Invalid;
                 gprUsed = True;
+                $display("BYPASS: found match for RS1.");
             end else begin
-                // $display("%0d,%0d,%0d,%0x,%0d,decode,Need to stall waiting for RS1: %0d (from execution)", 
-                //     fetchIndex, 
-                //     cycleCounter, 
-                //     stageEpoch, 
-                //     programCounter, 
-                //     stageNumber,
-                //     rs1);
                 stallWaitingForOperands = True;
             end
         end else begin
@@ -50,25 +45,13 @@ module mkGPRBypassUnit#(
         end
 
         if (!gprUsed) begin
-            if (decodedInstruction.rs2 matches tagged Valid .rs2 &&& gprBypassValue[1] matches tagged Valid .bypass &&& bypass.rd == rs2) begin
-                if (bypass.value matches tagged Valid .rs2value) begin
+            if (decodedInstruction.rs2 matches tagged Valid .rs2 &&& gprBypassIndex.wget() matches tagged Valid .bypassrd &&& bypassrd == rs2) begin
+                if (gprBypassValue.wget matches tagged Valid .rs2value) begin
                     decodedInstruction.rs2Value = rs2value;
-                    // $display("%0d,%0d,%0d,%0x,%0d,decode,Bypassed value available for RS2: %0d (from execution)", 
-                    //     fetchIndex, 
-                    //     cycleCounter, 
-                    //     stageEpoch, 
-                    //     programCounter, 
-                    //     stageNumber,
-                    //     rs2);
-                    gprBypassValue[1] <= tagged Invalid;
+//                    gprBypassIndex[1] <= tagged Invalid;
+//                    gprBypassValue[1] <= tagged Invalid;
+                    $display("BYPASS: found match for RS2.");
                 end else begin
-                    // $display("%0d,%0d,%0d,%0x,%0d,decode,Need to stall waiting for RS2: %0d (from execution)", 
-                    //     fetchIndex, 
-                    //     cycleCounter, 
-                    //     stageEpoch, 
-                    //     programCounter, 
-                    //     stageNumber,
-                    //     rs2);
                     stallWaitingForOperands = True;
                 end
             end else begin
@@ -79,5 +62,6 @@ module mkGPRBypassUnit#(
         return tuple2(stallWaitingForOperands, decodedInstruction);
     endmethod
 
-    interface Put putGPRBypassValue = toPut(asIfc(gprBypassValue[0]));
+    interface Put putGPRBypassIndex = toPut(asIfc(gprBypassIndex));
+    interface Put putGPRBypassValue = toPut(asIfc(gprBypassValue));
 endmodule

@@ -30,6 +30,14 @@
         "BASE_ISA": {
           "type": "STRING",
           "value": "RV32"
+        },
+        "ENABLE_INSTRUCTION_LOGGING": {
+          "type": "BOOL",
+          "value": "ON"
+        },
+        "ENABLE_PIPELINING": {
+          "type": "BOOL",
+          "value": "ON"
         }
       }
     },
@@ -43,6 +51,10 @@
           "value": "ON"
         },
         "ENABLE_INSTRUCTION_LOGGING": {
+          "type": "BOOL",
+          "value": "ON"
+        },
+        "ENABLE_PIPELINING": {
           "type": "BOOL",
           "value": "ON"
         }

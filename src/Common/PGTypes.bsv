@@ -13,6 +13,7 @@ typedef Bit#(XLEN) UnsignedInt;
 typedef Int#(XLEN) SignedInt;
 
 typedef Word ProgramCounter;
+typedef Word VirtualAddress;
 
 typedef Bit#(4) TileId;
 typedef Word FabricAddress;

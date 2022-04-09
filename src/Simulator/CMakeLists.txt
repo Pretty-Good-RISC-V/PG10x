@@ -29,9 +29,9 @@ if (NOT ENABLE_BRANCH_PREDICTION)
     )
 endif()
 
-if (NOT ENABLE_PIPELINING)
+if (ENABLE_PIPELINING)
     target_compile_definitions(Simulator PUBLIC
-        DISABLE_PIPELINING
+        ENABLE_PIPELINING
     )
 endif()
 

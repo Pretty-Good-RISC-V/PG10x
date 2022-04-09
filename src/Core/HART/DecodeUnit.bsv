@@ -6,7 +6,7 @@
 //
 import PGTypes::*;
 
-import BypassUnit::*;
+import BypassController::*;
 import CSRFile::*;
 import EncodedInstruction::*;
 import Exception::*;
@@ -28,8 +28,11 @@ interface DecodeUnit;
     interface Put#(EncodedInstruction) putEncodedInstruction;
     interface Get#(DecodedInstruction) getDecodedInstruction;
 
-    interface Put#(Maybe#(GPRBypassValue)) putGPRBypassValue1;
-    interface Put#(Maybe#(GPRBypassValue)) putGPRBypassValue2;
+    // Bypasses
+    interface Put#(RVGPRIndex) putExecutionDestination;
+    interface Put#(Word)       putExecutionResult;
+    interface Put#(RVGPRIndex) putLoadDestination;
+    interface Put#(Word)       putLoadResult;
 endinterface
 
 `ifdef ENABLE_RISCOF_TESTS
@@ -44,8 +47,8 @@ module mkDecodeUnit#(
     Scoreboard#(4) scoreboard
 )(DecodeUnit);
     Wire#(Word64) cycleCounter <- mkBypassWire;
-    GPRBypassUnit gprBypassUnit1 <- mkGPRBypassUnit(gprFile);
-    GPRBypassUnit gprBypassUnit2 <- mkGPRBypassUnit(gprFile);
+
+    BypassController bypassController <- mkBypassController;
 
     function Bool isValidLoadInstruction(Bit#(3) func3);
 `ifdef RV32
@@ -434,21 +437,55 @@ module mkDecodeUnit#(
         //
         // Check bypasses
         //
-        let bypassTpl1 <- gprBypassUnit1.processBypass(decodedInstruction);
-        let stallWaitingForOperands1 = tpl_1(bypassTpl1);
-        decodedInstruction = tpl_2(bypassTpl1);
+        let bypassResult <- bypassController.check(decodedInstruction.rs1, decodedInstruction.rs2);
+        let stallWaitingForCSR = scoreboard.searchCSR(decodedInstruction.csrIndex);
 
-        let bypassTpl2 <- gprBypassUnit2.processBypass(decodedInstruction);
-        let stallWaitingForOperands2 = tpl_1(bypassTpl2);
-        decodedInstruction = tpl_2(bypassTpl2);
-
-        let stallWaitingForCSR = scoreboard.search(decodedInstruction.csrIndex);
-
-        if (stallWaitingForCSR || stallWaitingForOperands1 || stallWaitingForOperands2) begin
-            if (verbose)
-                $display("%0d,%0d,%0d,%0x,%0d,decode,stall waiting for operands", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber);
+        if (bypassResult.stallRequired || stallWaitingForCSR) begin
+            if (verbose) begin
+                if (bypassResult.stallRequired)
+                    $display("%0d,%0d,%0d,%0x,%0d,decode,stall waiting for bypass", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber);
+                if (stallWaitingForCSR)
+                    $display("%0d,%0d,%0d,%0x,%0d,decode,stall waiting for CSR", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber);
+            end
         end else begin
             decodedInstructionWaitingForOperands.deq;
+
+            //
+            // Load RS1 and RS2 either from bypasses or the register file.
+            //
+            if (bypassResult.rs1Value matches tagged Valid .rs1Value) begin
+                decodedInstruction.rs1Value = rs1Value;
+            end else begin
+                decodedInstruction.rs1Value = gprFile.read1(fromMaybe(0, decodedInstruction.rs1));
+            end
+
+            if (bypassResult.rs2Value matches tagged Valid .rs2Value) begin
+                decodedInstruction.rs2Value = rs2Value;
+            end else begin
+                decodedInstruction.rs2Value = gprFile.read2(fromMaybe(0, decodedInstruction.rs2));
+            end
+
+            if (decodedInstruction.csrIndex matches tagged Valid .csrIndex) begin
+                let readResult = csrFile.read1(csrIndex);
+                if (readResult matches tagged Valid .csrValue) begin
+                    if (verbose)
+                        $display("%0d,%0d,%0d,%0x,%0d,decode,CSR ($%0X) read $%0X", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber, csrIndex, csrValue);
+                    decodedInstruction.csrValue = csrValue;                                
+                end else begin
+`ifdef ENABLE_RISCOF_TESTS
+                    if (csrIndex == csr_RISCOF_HALT) begin
+                        decodedInstruction.exception = tagged Valid createRISCOFTestHaltException(programCounter);
+                    end else
+`endif
+                    begin
+                        if (verbose) begin
+                            let curPriv <- csrFile.getCurrentPrivilegeLevel.get;
+                            $display("%0d,%0d,%0d,%0x,%0d,decode,CSR ($%0X) failed read (PRIV: $%0x)", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber, csrIndex, curPriv);
+                        end
+                        decodedInstruction.exception = tagged Valid createIllegalInstructionException(decodedInstruction.rawInstruction);
+                    end
+                end
+            end
 
             // Send the decode result to the output queue.
             outputQueue.enq(decodedInstruction);
@@ -490,21 +527,33 @@ module mkDecodeUnit#(
                 //
                 // Check GPR bypasses (these may stall if waiting for register values from memory)
                 //
-                let bypassTpl1 <- gprBypassUnit1.processBypass(decodedInstruction);
-                let stallWaitingForOperands1 = tpl_1(bypassTpl1);
-                decodedInstruction = tpl_2(bypassTpl1);
+                let bypassResult <- bypassController.check(decodedInstruction.rs1, decodedInstruction.rs2);
+                let stallWaitingForCSR = scoreboard.searchCSR(decodedInstruction.csrIndex);
 
-                let bypassTpl2 <- gprBypassUnit2.processBypass(decodedInstruction);
-                let stallWaitingForOperands2 = tpl_1(bypassTpl2);
-                decodedInstruction = tpl_2(bypassTpl2);
-
-                let stallWaitingForCSR = scoreboard.search(decodedInstruction.csrIndex);
-
-                if (stallWaitingForOperands1 || stallWaitingForOperands2 || stallWaitingForCSR) begin
-                    if (verbose)
-                        $display("%0d,%0d,%0d,%0x,%0d,decode,stall waiting for operands", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber);
+                if (bypassResult.stallRequired || stallWaitingForCSR) begin
+                    if (verbose) begin
+                        if (bypassResult.stallRequired)
+                            $display("%0d,%0d,%0d,%0x,%0d,decode,stall waiting for bypass", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber);
+                        if (stallWaitingForCSR)
+                            $display("%0d,%0d,%0d,%0x,%0d,decode,stall waiting for CSR", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber);
+                    end
                     decodedInstructionWaitingForOperands.enq(decodedInstruction);
                 end else begin
+                    //
+                    // Load RS1 and RS2 either from bypasses or the register file.
+                    //
+                    if (bypassResult.rs1Value matches tagged Valid .rs1Value) begin
+                        decodedInstruction.rs1Value = rs1Value;
+                    end else begin
+                        decodedInstruction.rs1Value = gprFile.read1(fromMaybe(0, decodedInstruction.rs1));
+                    end
+
+                    if (bypassResult.rs2Value matches tagged Valid .rs2Value) begin
+                        decodedInstruction.rs2Value = rs2Value;
+                    end else begin
+                        decodedInstruction.rs2Value = gprFile.read2(fromMaybe(0, decodedInstruction.rs2));
+                    end
+
                     if (decodedInstruction.csrIndex matches tagged Valid .csrIndex) begin
                         let readResult = csrFile.read1(csrIndex);
                         if (readResult matches tagged Valid .csrValue) begin
@@ -539,6 +588,9 @@ module mkDecodeUnit#(
 
     interface Put putCycleCounter = toPut(asIfc(cycleCounter));
     interface Get getDecodedInstruction = toGet(outputQueue);
-    interface Put putGPRBypassValue1 = gprBypassUnit1.putGPRBypassValue;
-    interface Put putGPRBypassValue2 = gprBypassUnit2.putGPRBypassValue;
+
+    interface Put putExecutionDestination = bypassController.putExecutionDestination;
+    interface Put putExecutionResult = bypassController.putExecutionResult;
+    interface Put putLoadDestination = bypassController.putLoadDestination;
+    interface Put putLoadResult = bypassController.putLoadResult;
 endmodule

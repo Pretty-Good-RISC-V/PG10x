@@ -21,7 +21,6 @@ import Assert::*;
 import DReg::*;
 import FIFO::*;
 import GetPut::*;
-import SpecialFIFOs::*;
 
 export WritebackUnit(..), mkWritebackUnit;
 
@@ -51,7 +50,7 @@ module mkWritebackUnit#(
 `endif
 
 `ifdef ENABLE_INSTRUCTION_LOGGING
-    InstructionLog instructionLog<- mkInstructionLog;
+    InstructionLog instructionLog <- mkInstructionLog;
 `endif
 
     interface Put putExecutedInstruction;
@@ -66,12 +65,14 @@ module mkWritebackUnit#(
 
             if (!pipelineController.isCurrentEpoch(stageNumber, 0, executedInstruction.pipelineEpoch)) begin
                 if (verbose)
-                    $display("%0d,%0d,%0d,%0d,%0d,writeback,stale instruction...popping bubble", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
+                    $display("%0d,%0d,%0d,%0x,%0d,writeback,stale instruction...popping bubble", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
+                scoreboard.remove;
             end else begin
                 if (executedInstruction.gprWriteBack matches tagged Valid .wb) begin
                     if (verbose)
                         $display("%0d,%0d,%0d,%0x,%0d,writeback,writing result ($%08x) to GPR register x%0d", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, wb.value, wb.rd);
                     gprFile.write(wb.rd, wb.value);
+                    
                 end else begin
                     if (verbose)
                         $display("%0d,%0d,%0d,%0x,%0d,writeback,NO-OP", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);

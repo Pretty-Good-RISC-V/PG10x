@@ -3,10 +3,7 @@ find_package(RVCommon)
 
 add_subdirectory(Common)
 add_subdirectory(Core)
-
-if(ENABLE_ISA_TESTS)
-    add_subdirectory(ISATestHost)
-endif()
+add_subdirectory(ISATestHost)
 
 if (NOT ENABLE_SOC_VERILOG_OUTPUT)
     add_subdirectory(Simulator)
