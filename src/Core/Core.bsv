@@ -24,10 +24,6 @@ interface Core;
 
     interface Get#(Maybe#(MemoryAccess)) getMemoryAccess;
 
-`ifdef ENABLE_ISA_TESTS
-    interface Put#(Maybe#(Word)) putToHostAddress;
-`endif
-
 `ifdef ENABLE_RISCOF_TESTS
     interface Get#(Bool) getRISCOFHaltRequested;
 `endif
@@ -40,9 +36,6 @@ module mkCore#(
     //
     // HART
     //
-`ifdef ENABLE_ISA_TESTS
-    ReadOnly#(Maybe#(Word)) toHostAddress <- mkReadOnly(tagged Valid 'h8000_1000);
-`endif
     HART hart <- mkHART(initialProgramCounter);
 
     FIFO#(StdTileLinkRequest) instructionMemoryRequests <- mkFIFO;
@@ -93,12 +86,7 @@ module mkCore#(
 
     interface Get getMemoryAccess = hart.getMemoryAccess;
 
-`ifdef ENABLE_ISA_TESTS
-    interface Put putToHostAddress = hart.putToHostAddress;
-`endif
-
 `ifdef ENABLE_RISCOF_TESTS
     interface Get getRISCOFHaltRequested = hart.getRISCOFHaltRequested;
 `endif
-
 endmodule

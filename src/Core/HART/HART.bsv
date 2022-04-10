@@ -52,10 +52,6 @@ interface HART;
 
     interface Get#(Maybe#(MemoryAccess)) getMemoryAccess;
 
-`ifdef ENABLE_ISA_TESTS
-    interface Put#(Maybe#(Word)) putToHostAddress;
-`endif
-
 `ifdef ENABLE_RISCOF_TESTS
     interface Get#(Bool) getRISCOFHaltRequested;
 `endif
@@ -79,10 +75,6 @@ module mkHART#(
     ProgramCounter initialProgramCounter
 )(HART);
     Reg#(Bool) pipeliningEnabled <- mkReg(True);
-
-`ifdef ENABLE_ISA_TESTS
-    Reg#(Maybe#(Word)) toHostAddress <- mkReg(tagged Invalid);
-`endif
 
     //
     // HARTState
@@ -368,10 +360,6 @@ module mkHART#(
     endinterface
 
     interface Get getMemoryAccess = memoryAccessUnit.getMemoryAccess;
-
-`ifdef ENABLE_ISA_TESTS
-    interface Put putToHostAddress = memoryAccessUnit.putToHostAddress;
-`endif
 
 `ifdef ENABLE_RISCOF_TESTS
     interface Get getRISCOFHaltRequested = writebackUnit.getRISCOFHaltRequested;

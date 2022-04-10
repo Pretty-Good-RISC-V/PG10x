@@ -39,10 +39,6 @@ interface MemoryAccessUnit;
 
     interface Get#(Word) getLoadResult;
     interface Get#(Maybe#(MemoryAccess)) getMemoryAccess;
-
-`ifdef ENABLE_ISA_TESTS
-    interface Put#(Maybe#(Word)) putToHostAddress;
-`endif
 endinterface
 
 module mkMemoryAccessUnit#(
@@ -53,9 +49,6 @@ module mkMemoryAccessUnit#(
     FIFO#(ExecutedInstruction) outputQueue <- mkPipelineFIFO;
     RWire#(MemoryAccess) memoryAccess <- mkRWire;
 
-`ifdef ENABLE_ISA_TESTS
-    Reg#(Maybe#(Word)) toHostAddress <- mkReg(tagged Invalid);
-`endif
     Reg#(Bool) waitingForMemoryResponse <- mkReg(False);
 
     Reg#(ExecutedInstruction) instructionWaitingForMemoryOperation <- mkRegU;
@@ -214,15 +207,6 @@ module mkMemoryAccessUnit#(
                 end else if (executedInstruction.storeRequest matches tagged Valid .storeRequest) begin
                     if (verbose)
                         $display("%0d,%0d,%0d,%0x,%0d,memory access,Storing to $%0x", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, storeRequest.tlRequest.a_address);
-`ifdef ENABLE_ISA_TESTS
-                    if (toHostAddress matches tagged Valid .tha &&& tha == storeRequest.tlRequest.a_address) begin
-                        let test_num = (storeRequest.tlRequest.a_data >> 1);
-                        if (test_num == 0) $display ("    PASS");
-                        else               $display ("    FAIL <test_%0d>", test_num);
-
-                        $finish();
-                    end
-`endif
                     dataMemoryRequests.enq(storeRequest.tlRequest);
                     instructionWaitingForMemoryOperation <= executedInstruction;
                     waitingForMemoryResponse <= True;
@@ -246,8 +230,4 @@ module mkMemoryAccessUnit#(
             return memoryAccess.wget;
         endmethod
     endinterface
-
-`ifdef ENABLE_ISA_TESTS
-    interface Put putToHostAddress = toPut(asIfc(toHostAddress));
-`endif
 endmodule

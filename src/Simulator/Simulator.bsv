@@ -13,9 +13,6 @@ import RegFile::*;
 
 (* synthesize *)
 module mkSimulator(Empty);
-`ifdef ENABLE_ISA_TESTS
-    ReadOnly#(Maybe#(Word)) toHostAddress <- mkReadOnly(tagged Valid 'h8000_1000);
-`endif
     Reg#(Bool) initialized <- mkReg(False);
 
 `ifdef ENABLE_PIPELINING
@@ -35,9 +32,6 @@ module mkSimulator(Empty);
     ProgramCounter initialProgramCounter = socMap.ram0Base;
     Core core <- mkCore(initialProgramCounter);
 
-`ifdef ENABLE_ISA_TESTS
-    mkConnection(toGet(toHostAddress), core.putToHostAddress);
-`endif
     mkConnection(toGet(pipeliningEnabled), core.putPipeliningEnabled);
 
     // Core -> Crossbar

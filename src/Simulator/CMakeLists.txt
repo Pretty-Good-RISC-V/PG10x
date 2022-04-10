@@ -34,9 +34,3 @@ if (ENABLE_PIPELINING)
         ENABLE_PIPELINING
     )
 endif()
-
-if (ENABLE_ISA_TESTS)
-    target_compile_definitions(Simulator PUBLIC
-        ENABLE_ISA_TESTS
-    )
-endif()
