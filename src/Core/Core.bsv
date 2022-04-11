@@ -1,4 +1,5 @@
 import PGTypes::*;
+import InstructionCaches::*;
 import Debug::*;
 import HART::*;
 import ReadOnly::*;
@@ -38,13 +39,21 @@ module mkCore#(
     //
     HART hart <- mkHART(initialProgramCounter);
 
+    //
+    // Instruction Cache
+    //
+    InstructionCache icache <- mkSingleLineInstructionCache;
+
     FIFO#(StdTileLinkRequest) instructionMemoryRequests <- mkFIFO;
     FIFO#(StdTileLinkResponse) instructionMemoryResponses <- mkFIFO;
 
     FIFO#(StdTileLinkRequest) dataMemoryRequests <- mkFIFO;
     FIFO#(StdTileLinkResponse) dataMemoryResponses <- mkFIFO;
 
-    mkConnection(toGPServer(instructionMemoryRequests, instructionMemoryResponses), hart.instructionMemoryClient);
+    mkConnection(toGPServer(instructionMemoryRequests, instructionMemoryResponses), icache.systemMemoryClient);
+    mkConnection(hart.getInstructionMemoryRequest, icache.putInstructionCacheRequest);
+    mkConnection(icache.getInstructionCacheResponse, hart.putInstructionMemoryResponse);
+
     mkConnection(toGPServer(dataMemoryRequests, dataMemoryResponses), hart.dataMemoryClient);
 
     FIFO#(StdTileLinkRequest) systemBusRequests <- mkFIFO;

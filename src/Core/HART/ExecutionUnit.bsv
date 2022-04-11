@@ -31,7 +31,7 @@ interface ExecutionUnit;
 
     interface Get#(RVGPRIndex) getExecutionDestination;
     interface Get#(Word)       getExecutionResult;
-    interface Get#(RVGPRIndex) getLoadDestination;
+    interface Get#(Maybe#(RVGPRIndex)) getLoadDestination;
 
     interface Put#(Bool) putHalt;
 endinterface
@@ -46,8 +46,9 @@ module mkExecutionUnit#(
     Wire#(Word64) cycleCounter <- mkBypassWire;
     FIFO#(ExecutedInstruction) outputQueue <- mkPipelineFIFO;
 
-    RWire#(RVGPRIndex) executionDestination <- mkRWire;
-    RWire#(Word) executionResult <- mkRWire;
+    FIFO#(RVGPRIndex) executionDestinationQueue <- mkBypassFIFO;
+    FIFO#(Word) executionResultQueue <- mkBypassFIFO;
+
     RWire#(RVGPRIndex) loadDestination <- mkRWire;
 
     Reg#(Bool) halt <- mkReg(False);
@@ -423,8 +424,8 @@ module mkExecutionUnit#(
             // If writeback data exists, that needs to be written into the previous pipeline 
             // stages using operand forwarding.
             if (executedInstruction.gprWriteBack matches tagged Valid .wb) begin
-                executionDestination.wset(wb.rd);
-                executionResult.wset(wb.value);
+                executionDestinationQueue.enq(wb.rd);
+                executionResultQueue.enq(wb.value);
 
                 $display("%0d,XXX,%0d,%0x,XXX,execute,Setting NORMAL GPR writeback index to $%0d = $%0x", fetchIndex, currentEpoch, executedInstruction.programCounter, wb.rd, wb.value);
 
@@ -516,9 +517,14 @@ module mkExecutionUnit#(
     interface Put putCycleCounter = toPut(asIfc(cycleCounter));
     interface Get getExecutedInstruction = toGet(outputQueue);
     
-    interface Get getExecutionDestination = toGet(executionDestination);
-    interface Get getExecutionResult = toGet(executionResult);
-    interface Get getLoadDestination = toGet(loadDestination);
+    interface Get getExecutionDestination = toGet(executionDestinationQueue);
+    interface Get getExecutionResult = toGet(executionResultQueue);
+
+    interface Get getLoadDestination;
+        method ActionValue#(Maybe#(RVGPRIndex)) get;
+            return loadDestination.wget;
+        endmethod
+    endinterface
 
     interface Put putHalt = toPut(asIfc(halt));
 endmodule

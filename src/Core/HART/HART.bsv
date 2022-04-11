@@ -43,7 +43,9 @@ interface HART;
     method Action start;
     method HARTState getState;
 
-    interface StdTileLinkClient instructionMemoryClient;
+//    interface StdTileLinkClient instructionMemoryClient;
+    interface Get#(Maybe#(StdTileLinkRequest)) getInstructionMemoryRequest;
+    interface Put#(StdTileLinkResponse) putInstructionMemoryResponse;
     interface StdTileLinkClient dataMemoryClient;
 
     interface Put#(Bool) putPipeliningEnabled;
@@ -327,7 +329,10 @@ module mkHART#(
         return hartState;
     endmethod
 
-    interface TileLinkLiteWordClient instructionMemoryClient = fetchUnit.instructionMemoryClient;
+    interface Get getInstructionMemoryRequest = fetchUnit.getInstructionMemoryRequest;
+    interface Put putInstructionMemoryResponse = fetchUnit.putInstructionMemoryResponse;
+
+//    interface TileLinkLiteWordClient instructionMemoryClient = fetchUnit.instructionMemoryClient;
     interface TileLinkLiteWordClient dataMemoryClient = memoryAccessUnit.dataMemoryClient;
     interface Put putPipeliningEnabled = toPut(asIfc(pipeliningEnabled));
 

@@ -31,8 +31,8 @@ interface DecodeUnit;
     // Bypasses
     interface Put#(RVGPRIndex) putExecutionDestination;
     interface Put#(Word)       putExecutionResult;
-    interface Put#(RVGPRIndex) putLoadDestination;
-    interface Put#(Word)       putLoadResult;
+    interface Put#(Maybe#(RVGPRIndex)) putLoadDestination;
+    interface Put#(Maybe#(Word))       putLoadResult;
 endinterface
 
 `ifdef ENABLE_RISCOF_TESTS
@@ -544,12 +544,14 @@ module mkDecodeUnit#(
                     //
                     if (bypassResult.rs1Value matches tagged Valid .rs1Value) begin
                         decodedInstruction.rs1Value = rs1Value;
+                        $display("*** READ RS1 (x%0d) = $%0x from bypass", decodedInstruction.rs1, rs1Value);
                     end else begin
                         decodedInstruction.rs1Value = gprFile.read1(fromMaybe(0, decodedInstruction.rs1));
                     end
 
                     if (bypassResult.rs2Value matches tagged Valid .rs2Value) begin
                         decodedInstruction.rs2Value = rs2Value;
+                        $display("*** READ RS2 (x%0d) = $%0x from bypass", decodedInstruction.rs2, rs2Value);
                     end else begin
                         decodedInstruction.rs2Value = gprFile.read2(fromMaybe(0, decodedInstruction.rs2));
                     end

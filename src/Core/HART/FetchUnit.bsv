@@ -29,7 +29,10 @@ typedef struct {
 interface FetchUnit;
     interface Put#(Word64) putCycleCounter;
     interface Get#(EncodedInstruction) getEncodedInstruction;
-    interface StdTileLinkClient instructionMemoryClient;
+//    interface StdTileLinkClient instructionMemoryClient;
+
+    interface Get#(Maybe#(StdTileLinkRequest)) getInstructionMemoryRequest;
+    interface Put#(StdTileLinkResponse) putInstructionMemoryResponse;
 
     interface Put#(Bool) putFetchEnabled;
     interface Put#(Bool) putSingleStepping;
@@ -51,8 +54,10 @@ module mkFetchUnit#(
 
     FIFO#(FetchInfo) fetchInfoQueue <- mkPipelineFIFO; // holds the fetch info for the current instruction request
 
-    FIFO#(StdTileLinkRequest) instructionMemoryRequests <- mkFIFO;
+//    FIFO#(StdTileLinkRequest) instructionMemoryRequests <- mkFIFO;
     FIFO#(StdTileLinkResponse) instructionMemoryResponses <- mkFIFO;
+
+    RWire#(StdTileLinkRequest) instructionMemoryRequest <- mkRWire;
 
     FIFO#(EncodedInstruction) outputQueue <- mkPipelineFIFO;
 
@@ -88,7 +93,8 @@ module mkFetchUnit#(
         if (verbose)
             $display("%0d,%0d,%0d,%0x,%0d,fetch send,fetch address: $%08x", fetchCounter, cycleCounter, fetchEpoch, fetchProgramCounter, stageNumber, fetchProgramCounter);
 
-        instructionMemoryRequests.enq(TileLinkLiteWordRequest {
+        //instructionMemoryRequests.enq(TileLinkLiteWordRequest {
+        instructionMemoryRequest.wset(TileLinkLiteWordRequest {
             a_opcode: a_GET,
             a_param: 0,
             a_size: 2, // Log2(sizeof(Word32))
@@ -163,7 +169,17 @@ module mkFetchUnit#(
 
     interface Put putCycleCounter = toPut(asIfc(cycleCounter));
     interface Get getEncodedInstruction = toGet(outputQueue);
-    interface TileLinkLiteWordClient instructionMemoryClient = toGPClient(instructionMemoryRequests, instructionMemoryResponses);
+//    interface TileLinkLiteWordClient instructionMemoryClient = toGPClient(instructionMemoryRequests, instructionMemoryResponses);
+
+
+    interface Get getInstructionMemoryRequest;
+        method ActionValue#(Maybe#(StdTileLinkRequest)) get;
+            return instructionMemoryRequest.wget();
+        endmethod
+    endinterface
+
+    interface Put putInstructionMemoryResponse = toPut(asIfc(instructionMemoryResponses));
+
 
     interface Put putFetchEnabled = toPut(asIfc(fetchEnabled));
     interface Put putSingleStepping = toPut(asIfc(singleStepping));

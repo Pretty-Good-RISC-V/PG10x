@@ -16,20 +16,16 @@ interface BypassController;
     interface Put#(RVGPRIndex) putExecutionDestination;
     interface Put#(Word)       putExecutionResult;
 
-    interface Put#(RVGPRIndex) putLoadDestination;
-    interface Put#(Word)       putLoadResult;
+    interface Put#(Maybe#(RVGPRIndex)) putLoadDestination;
+    interface Put#(Maybe#(Word))       putLoadResult;
 endinterface
 
 module mkBypassController(BypassController);
-    RWire#(RVGPRIndex) executionDestination <- mkRWire;
-    RWire#(Word) executionResult <- mkRWire;
+    Reg#(RVGPRIndex) executionDestination[2] <- mkCReg(2, 0);
+    Reg#(Word) executionResult[2] <- mkCReg(2, 0);
 
-    // loadDestination is a register because it needs to hold onto the
-    // destination register until the load completes (which may be many cycles)
-    Reg#(Maybe#(RVGPRIndex)) loadDestination <- mkReg(tagged Invalid);
-
-    // loadResult is a wire since it will be written once the load completes
-    RWire#(Word) loadResult <- mkRWire;
+    Reg#(Maybe#(RVGPRIndex)) loadDestination[2] <- mkCReg(2, tagged Invalid);
+    Reg#(Maybe#(Word)) loadResult[2] <- mkCReg(2, tagged Invalid);
 
     method ActionValue#(BypassResult) check(Maybe#(RVGPRIndex) instructionRS1, Maybe#(RVGPRIndex) instructionRS2);
         let bypassResult = BypassResult {
@@ -38,35 +34,30 @@ module mkBypassController(BypassController);
             rs2Value: tagged Invalid
         };
 
-        if (executionDestination.wget() matches tagged Valid .rd) begin
-            let rdValueResult = executionResult.wget();
-            dynamicAssert(isValid(rdValueResult), "BypassController - execution result expected to be valid if execution destination exists");
-            let rdValue = unJust(rdValueResult);
+        $display("bypass - RS1: ", fshow(instructionRS1));
+        $display("bypass - RS2: ", fshow(instructionRS2));
+        $display("bypass - executionDestination: ", fshow(executionDestination[1]));
+        $display("bypass - executionResult     : ", fshow(executionResult[1]));
 
-            // Check if either RS1 or RS2 are driven from RD
-            if (instructionRS1 matches tagged Valid .rs1 &&& rs1 == rd) begin
-                bypassResult.rs1Value = tagged Valid rdValue;
-            end else if (instructionRS2 matches tagged Valid .rs2 &&& rs2 == rd) begin
-                bypassResult.rs2Value = tagged Valid rdValue;
-            end
+        let rd = executionDestination[1];
+        let rdValue = executionResult[1];
+
+        // Check if either RS1 or RS2 are driven from RD
+        if (instructionRS1 matches tagged Valid .rs1 &&& rs1 == rd) begin
+            bypassResult.rs1Value = tagged Valid rdValue;
+        end else if (instructionRS2 matches tagged Valid .rs2 &&& rs2 == rd) begin
+            bypassResult.rs2Value = tagged Valid rdValue;
         end
+
+        // !todo - missing load handling
 
         return bypassResult;
     endmethod
 
-    interface Put putExecutionDestination = toPut(asIfc(executionDestination));
-    interface Put putExecutionResult = toPut(asIfc(executionResult));
+    interface Put putExecutionDestination = toPut(asIfc(executionDestination[0]));
+    interface Put putExecutionResult = toPut(asIfc(executionResult[0]));
 
-    interface Put putLoadDestination;
-        method Action put(RVGPRIndex gprIndex);
-            loadDestination <= tagged Valid gprIndex;
-        endmethod
-    endinterface
+    interface Put putLoadDestination = toPut(asIfc(loadDestination[0]));
+    interface Put putLoadResult = toPut(asIfc(loadResult[0]));
 
-    interface Put putLoadResult;
-        method Action put(Word result);
-            loadResult.wset(result);
-            loadDestination <= tagged Invalid;
-        endmethod
-    endinterface
 endmodule

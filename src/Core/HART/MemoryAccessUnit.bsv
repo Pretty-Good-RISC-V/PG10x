@@ -37,7 +37,7 @@ interface MemoryAccessUnit;
 
     interface StdTileLinkClient dataMemoryClient;
 
-    interface Get#(Word) getLoadResult;
+    interface Get#(Maybe#(Word)) getLoadResult;
     interface Get#(Maybe#(MemoryAccess)) getMemoryAccess;
 endinterface
 
@@ -223,7 +223,11 @@ module mkMemoryAccessUnit#(
     interface Put putCycleCounter = toPut(asIfc(cycleCounter));
     interface Get getExecutedInstruction = toGet(outputQueue);
     interface TileLinkLiteWordClient dataMemoryClient = toGPClient(dataMemoryRequests, dataMemoryResponses);
-    interface Get getLoadResult = toGet(loadResult);
+    interface Get getLoadResult;
+        method ActionValue#(Maybe#(Word)) get;
+            return loadResult.wget;
+        endmethod
+    endinterface
 
     interface Get getMemoryAccess;
         method ActionValue#(Maybe#(MemoryAccess)) get;

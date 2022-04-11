@@ -1,10 +1,7 @@
 import PGTypes::*;
-import Crossbar::*;
 import DebugModule::*;
 import ProgramMemoryTile::*;
 import ReadOnly::*;
-import SoCAddressMap::*;
-import ISATestHostSocMap::*;
 
 import Connectable::*;
 import Core::*;
@@ -22,27 +19,19 @@ module mkISATestHost(Empty);
 `else
     ReadOnly#(Bool) pipeliningEnabled <- mkReadOnly(False);
 `endif
-    SoCAddressMap socMap <- mkISATestHostSoCMap;
 
     // RAM
-    ProgramMemoryTile ram <- mkProgramMemoryTile(socMap.ram0Id);
-
-    // Crossbar
-    Crossbar crossbar <- mkCrossbar(socMap);
+    ProgramMemoryTile ram <- mkProgramMemoryTile(0);
 
     // Core
-    ProgramCounter initialProgramCounter = socMap.ram0Base;
+    ProgramCounter initialProgramCounter = 'h8000_0000;
     Core core <- mkCore(initialProgramCounter);
-//    mkConnection(toGet(toHostAddress), core.putToHostAddress);
+
     mkConnection(toGet(pipeliningEnabled), core.putPipeliningEnabled);
     mkConnection(core.getMemoryAccess, toPut(asIfc(memoryAccess)));
 
-    // Core -> Crossbar
-    mkConnection(crossbar.systemMemoryBusServer, core.systemMemoryBusClient);
+    mkConnection(ram.portA, core.systemMemoryBusClient);
 
-    // Crossbar -> RAM
-    mkConnection(ram.portA, crossbar.ram0Client);
-    
     (* fire_when_enabled *)
     rule initialization(initialized == False && core.getState == RESET);
         initialized <= True;
