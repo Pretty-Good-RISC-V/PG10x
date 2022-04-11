@@ -37,7 +37,7 @@ interface MemoryAccessUnit;
 
     interface StdTileLinkClient dataMemoryClient;
 
-    interface Get#(Maybe#(Word)) getLoadResult;
+    interface Get#(Word) getLoadResult;
     interface Get#(Maybe#(MemoryAccess)) getMemoryAccess;
 endinterface
 
@@ -55,7 +55,7 @@ module mkMemoryAccessUnit#(
     FIFO#(StdTileLinkRequest) dataMemoryRequests <- mkFIFO;
     FIFO#(StdTileLinkResponse) dataMemoryResponses <- mkFIFO;
 
-    RWire#(Word) loadResult <- mkRWire();
+    FIFO#(Word) loadResultQueue <- mkBypassFIFO;
 
     rule handleMemoryResponse(waitingForMemoryResponse == True);
         Bool verbose <- $test$plusargs ("verbose");
@@ -158,7 +158,7 @@ module mkMemoryAccessUnit#(
                 });
             end
 
-            loadResult.wset(value);
+            loadResultQueue.enq(value);
         end
 
         outputQueue.enq(executedInstruction);
@@ -223,11 +223,7 @@ module mkMemoryAccessUnit#(
     interface Put putCycleCounter = toPut(asIfc(cycleCounter));
     interface Get getExecutedInstruction = toGet(outputQueue);
     interface TileLinkLiteWordClient dataMemoryClient = toGPClient(dataMemoryRequests, dataMemoryResponses);
-    interface Get getLoadResult;
-        method ActionValue#(Maybe#(Word)) get;
-            return loadResult.wget;
-        endmethod
-    endinterface
+    interface Get getLoadResult = toGet(loadResultQueue);
 
     interface Get getMemoryAccess;
         method ActionValue#(Maybe#(MemoryAccess)) get;

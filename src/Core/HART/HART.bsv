@@ -181,6 +181,8 @@ module mkHART#(
 
     mkConnection(toGet(cycleCounter), memoryAccessUnit.putCycleCounter);
     mkConnection(executionUnit.getExecutedInstruction, memoryAccessUnit.putExecutedInstruction);
+
+    // Bypasses from the memory unit to the decode unit
     mkConnection(memoryAccessUnit.getLoadResult, decodeUnit.putLoadResult);
 
     // 

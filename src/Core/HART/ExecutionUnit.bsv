@@ -31,7 +31,8 @@ interface ExecutionUnit;
 
     interface Get#(RVGPRIndex) getExecutionDestination;
     interface Get#(Word)       getExecutionResult;
-    interface Get#(Maybe#(RVGPRIndex)) getLoadDestination;
+
+    interface Get#(RVGPRIndex) getLoadDestination;
 
     interface Put#(Bool) putHalt;
 endinterface
@@ -48,8 +49,7 @@ module mkExecutionUnit#(
 
     FIFO#(RVGPRIndex) executionDestinationQueue <- mkBypassFIFO;
     FIFO#(Word) executionResultQueue <- mkBypassFIFO;
-
-    RWire#(RVGPRIndex) loadDestination <- mkRWire;
+    FIFO#(RVGPRIndex) loadDestinationQueue <- mkBypassFIFO;
 
     Reg#(Bool) halt <- mkReg(False);
 
@@ -397,7 +397,7 @@ module mkExecutionUnit#(
         endactionvalue
     endfunction
 
-    function Action finalizeInstruction(ExecutedInstruction executedInstruction);
+    function Action finalizeInstruction(ExecutedInstruction executedInstruction, Bool verbose);
         action
             let fetchIndex = executedInstruction.fetchIndex;
             let currentEpoch = pipelineController.stageEpoch(stageNumber, 1);
@@ -410,42 +410,29 @@ module mkExecutionUnit#(
 
                 executedInstruction.pipelineEpoch = ~executedInstruction.pipelineEpoch;
 
-                // if (verbose)
-                //     $display("%0d,%0d,%0d,%0x,%0d,execute,branch/jump to: $%08x", fetchIndex, cycleCounter, currentEpoch, executedInstruction.programCounter, stageNumber, targetAddress);
+                if (verbose)
+                    $display("%0d,%0d,%0d,%0x,%0d,execute,branch/jump to: $%08x", fetchIndex, cycleCounter, currentEpoch, executedInstruction.programCounter, stageNumber, targetAddress);
                 programCounterRedirect.branch(targetAddress);
             end
 
-            // if (executedInstruction.exception matches tagged Valid .exception) begin
-            //     if (verbose) begin
-            //         $display("%0d,%0d,%0d,%0x,%0d,execute,EXCEPTION:", fetchIndex, cycleCounter, currentEpoch, executedInstruction.programCounter, stageNumber, fshow(exception));
-            //     end
-            // end
+            if (executedInstruction.exception matches tagged Valid .exception) begin
+                if (verbose) begin
+                    $display("%0d,%0d,%0d,%0x,%0d,execute,EXCEPTION:", fetchIndex, cycleCounter, currentEpoch, executedInstruction.programCounter, stageNumber, fshow(exception));
+                end
+            end
 
             // If writeback data exists, that needs to be written into the previous pipeline 
             // stages using operand forwarding.
             if (executedInstruction.gprWriteBack matches tagged Valid .wb) begin
+                $display("%0d,%0d,%0d,%0x,%0d,execute,Setting NORMAL GPR writeback index to $%0d = $%0x", fetchIndex, cycleCounter, currentEpoch, executedInstruction.programCounter, stageNumber, wb.rd, wb.value);
                 executionDestinationQueue.enq(wb.rd);
                 executionResultQueue.enq(wb.value);
-
-                $display("%0d,XXX,%0d,%0x,XXX,execute,Setting NORMAL GPR writeback index to $%0d = $%0x", fetchIndex, currentEpoch, executedInstruction.programCounter, wb.rd, wb.value);
-
-                // if (verbose) begin
-                //     $display("%0d,%0d,%0d,%0x,%0d,execute, (GPR WB: x%0d = %08x)", fetchIndex, cycleCounter, currentEpoch, executedInstruction.programCounter, stageNumber, wb.rd, wb.value);
-                // end
             end
 
             if (executedInstruction.loadRequest matches tagged Valid .lr) begin
-                $display("%0d,XXX,%0d,%0x,XXX,execute,Setting LOAD GPR writeback index to $%0d", fetchIndex, currentEpoch, executedInstruction.programCounter, lr.rd);
-                loadDestination.wset(lr.rd);
+                $display("%0d,%0d,%0d,%0x,%0d,execute,Setting LOAD GPR writeback index to $%0d", fetchIndex, cycleCounter, currentEpoch, executedInstruction.programCounter, stageNumber, lr.rd);
+                loadDestinationQueue.enq(lr.rd);
             end
-
-            // if (verbose &&& executedInstruction.csrWriteBack matches tagged Valid .wb) begin
-            //     $display("%0d,%0d,%0d,%0x,%0d,execute, (CSR WB: $%0x = $%08x)", fetchIndex, cycleCounter, currentEpoch, executedInstruction.programCounter, stageNumber, wb.rd, wb.value);
-            // end
-
-            // if (verbose)
-            //     $display("%0d,%0d,%0d,%0x,%0d,execute,complete", fetchIndex, cycleCounter, currentEpoch, executedInstruction.programCounter, stageNumber);
-
             outputQueue.enq(executedInstruction);
         endaction
     endfunction
@@ -505,11 +492,9 @@ module mkExecutionUnit#(
 
                 let executedInstruction <- executeInstruction(decodedInstruction);
 
-                finalizeInstruction(executedInstruction);
-
-                //csrScoreboardValue = decodedInstruction.csrIndex;
-            end
-
+                finalizeInstruction(executedInstruction, verbose);
+                 csrScoreboardValue = decodedInstruction.csrIndex;
+           end
             scoreboard.insertCSR(csrScoreboardValue);
         endmethod
     endinterface
@@ -520,11 +505,7 @@ module mkExecutionUnit#(
     interface Get getExecutionDestination = toGet(executionDestinationQueue);
     interface Get getExecutionResult = toGet(executionResultQueue);
 
-    interface Get getLoadDestination;
-        method ActionValue#(Maybe#(RVGPRIndex)) get;
-            return loadDestination.wget;
-        endmethod
-    endinterface
+    interface Get getLoadDestination = toGet(loadDestinationQueue);
 
     interface Put putHalt = toPut(asIfc(halt));
 endmodule

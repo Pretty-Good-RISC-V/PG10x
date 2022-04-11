@@ -16,16 +16,16 @@ interface BypassController;
     interface Put#(RVGPRIndex) putExecutionDestination;
     interface Put#(Word)       putExecutionResult;
 
-    interface Put#(Maybe#(RVGPRIndex)) putLoadDestination;
-    interface Put#(Maybe#(Word))       putLoadResult;
+    interface Put#(RVGPRIndex) putLoadDestination;
+    interface Put#(Word)       putLoadResult;
 endinterface
 
 module mkBypassController(BypassController);
     Reg#(RVGPRIndex) executionDestination[2] <- mkCReg(2, 0);
     Reg#(Word) executionResult[2] <- mkCReg(2, 0);
 
-    Reg#(Maybe#(RVGPRIndex)) loadDestination[2] <- mkCReg(2, tagged Invalid);
-    Reg#(Maybe#(Word)) loadResult[2] <- mkCReg(2, tagged Invalid);
+    Reg#(RVGPRIndex) loadDestination[2] <- mkCReg(2, 0);
+    Reg#(Word) loadResult[2] <- mkCReg(2, 0);
 
     method ActionValue#(BypassResult) check(Maybe#(RVGPRIndex) instructionRS1, Maybe#(RVGPRIndex) instructionRS2);
         let bypassResult = BypassResult {
@@ -36,17 +36,18 @@ module mkBypassController(BypassController);
 
         $display("bypass - RS1: ", fshow(instructionRS1));
         $display("bypass - RS2: ", fshow(instructionRS2));
+
         $display("bypass - executionDestination: ", fshow(executionDestination[1]));
         $display("bypass - executionResult     : ", fshow(executionResult[1]));
 
-        let rd = executionDestination[1];
-        let rdValue = executionResult[1];
+        $display("bypass - loadDestination: ", fshow(loadDestination[1]));
+        $display("bypass - loadResult     : ", fshow(loadResult[1]));
 
         // Check if either RS1 or RS2 are driven from RD
-        if (instructionRS1 matches tagged Valid .rs1 &&& rs1 == rd) begin
-            bypassResult.rs1Value = tagged Valid rdValue;
-        end else if (instructionRS2 matches tagged Valid .rs2 &&& rs2 == rd) begin
-            bypassResult.rs2Value = tagged Valid rdValue;
+        if (instructionRS1 matches tagged Valid .rs1 &&& rs1 == executionDestination[1]) begin
+            bypassResult.rs1Value = tagged Valid (rs1 == 0 ? 0 : executionResult[1]);
+        end else if (instructionRS2 matches tagged Valid .rs2 &&& rs2 == executionDestination[1]) begin
+            bypassResult.rs2Value = tagged Valid (rs2 == 0 ? 0 : executionResult[1]);
         end
 
         // !todo - missing load handling
@@ -59,5 +60,4 @@ module mkBypassController(BypassController);
 
     interface Put putLoadDestination = toPut(asIfc(loadDestination[0]));
     interface Put putLoadResult = toPut(asIfc(loadResult[0]));
-
 endmodule
