@@ -46,7 +46,9 @@ module mkBypassController(BypassController);
         // Check if either RS1 or RS2 are driven from RD
         if (instructionRS1 matches tagged Valid .rs1 &&& rs1 == executionDestination[1]) begin
             bypassResult.rs1Value = tagged Valid (rs1 == 0 ? 0 : executionResult[1]);
-        end else if (instructionRS2 matches tagged Valid .rs2 &&& rs2 == executionDestination[1]) begin
+        end 
+        
+        if (instructionRS2 matches tagged Valid .rs2 &&& rs2 == executionDestination[1]) begin
             bypassResult.rs2Value = tagged Valid (rs2 == 0 ? 0 : executionResult[1]);
         end
 

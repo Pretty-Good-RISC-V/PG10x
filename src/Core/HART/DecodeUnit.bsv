@@ -450,7 +450,7 @@ module mkDecodeUnit#(
                 end else begin
 `ifdef ENABLE_RISCOF_TESTS
                     if (csrIndex == csr_RISCOF_HALT) begin
-                        decodedInstruction.exception = tagged Valid createRISCOFTestHaltException(programCounter);
+                        decodedInstruction.exception = tagged Valid createRISCOFTestHaltException(decodedInstruction.programCounter);
                     end else
 `endif
                     begin
