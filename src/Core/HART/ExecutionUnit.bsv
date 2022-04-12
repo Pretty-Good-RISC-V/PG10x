@@ -475,7 +475,11 @@ module mkExecutionUnit#(
             if (!pipelineController.isCurrentEpoch(stageNumber, 1, decodedInstruction.pipelineEpoch)) begin
                 if (verbose)
                     $display("%0d,%0d,%0d,%0x,%0d,execute,stale instruction (%0d != %0d)...adding bubble to pipeline", fetchIndex, trapController.csrFile.cycle_counter, decodedInstruction.pipelineEpoch, decodedInstruction.programCounter, stageNumber, decodedInstruction.pipelineEpoch, stageEpoch);
-                outputQueue.enq(newExecutedInstructionFromDecodedInstruction(decodedInstruction));
+
+                let bubbleInstruction = newExecutedInstruction(decodedInstruction.programCounter, decodedInstruction.rawInstruction);
+                bubbleInstruction.exception = tagged Invalid;
+
+                outputQueue.enq(bubbleInstruction);
             end else if (isValid(decodedInstruction.exception)) begin
                 if (verbose)
                     $display("%0d,%0d,%0d,%0x,%0d,execute,EXCEPTION - decoded instruction had exception - propagating", fetchIndex, trapController.csrFile.cycle_counter, decodedInstruction.pipelineEpoch, decodedInstruction.programCounter, stageNumber);

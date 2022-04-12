@@ -39,7 +39,7 @@ foreach(ISA_TEST_BINARY ${ISA_TEST_BINARIES})
         --isa "${BASE_ISA}" 
         --spike 
         --check 
-        --max-cycles 30000 
+        --max-cycles 80000 
         --log "${CMAKE_CURRENT_BINARY_DIR}/${TEST_NAME}" 
         "${ISA_TEST_BINARY}"
     )

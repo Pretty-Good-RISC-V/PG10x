@@ -169,53 +169,40 @@ module mkMemoryAccessUnit#(
             Bool verbose <- $test$plusargs ("verbose");
             let fetchIndex = executedInstruction.fetchIndex;
             let stageEpoch = pipelineController.stageEpoch(stageNumber, 1);
-            if (!pipelineController.isCurrentEpoch(stageNumber, 1, executedInstruction.pipelineEpoch)) begin
+            if(executedInstruction.loadRequest matches tagged Valid .loadRequest) begin
                 if (verbose)
-                    $display("%0d,%0d,%0d,%0d,memory access,stale instruction (%0d != %0d)...propagating bubble", 
+                    $display("%0d,%0d,%0d,%0x,%0d,memory access,LOAD", 
                         fetchIndex, 
                         cycleCounter, 
-                        executedInstruction.pipelineEpoch, 
+                        stageEpoch, 
+                        executedInstruction.programCounter, 
+                        stageNumber);
+
+                // NOTE: Alignment checks were already performed during the execution stage.
+                dataMemoryRequests.enq(loadRequest.tlRequest);
+
+                if (verbose)
+                    $display("%0d,%0d,%0d,%0x,%0d,memory access,Loading from $%08x with size: %d", 
+                        fetchIndex, 
+                        cycleCounter, 
+                        stageEpoch, 
                         executedInstruction.programCounter, 
                         stageNumber, 
-                        executedInstruction.pipelineEpoch, 
-                        stageEpoch);
-                outputQueue.enq(executedInstruction);
-            end else begin
-                if(executedInstruction.loadRequest matches tagged Valid .loadRequest) begin
-                    if (verbose)
-                        $display("%0d,%0d,%0d,%0x,%0d,memory access,LOAD", 
-                            fetchIndex, 
-                            cycleCounter, 
-                            stageEpoch, 
-                            executedInstruction.programCounter, 
-                            stageNumber);
-
-                    // NOTE: Alignment checks were already performed during the execution stage.
-                    dataMemoryRequests.enq(loadRequest.tlRequest);
-
-                    if (verbose)
-                        $display("%0d,%0d,%0d,%0x,%0d,memory access,Loading from $%08x with size: %d", 
-                            fetchIndex, 
-                            cycleCounter, 
-                            stageEpoch, 
-                            executedInstruction.programCounter, 
-                            stageNumber, 
-                            loadRequest.tlRequest.a_address, 
-                            loadRequest.tlRequest.a_size);
-                        instructionWaitingForMemoryOperation <= executedInstruction;
-                    waitingForMemoryResponse <= True;
-                end else if (executedInstruction.storeRequest matches tagged Valid .storeRequest) begin
-                    if (verbose)
-                        $display("%0d,%0d,%0d,%0x,%0d,memory access,Storing to $%0x", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, storeRequest.tlRequest.a_address);
-                    dataMemoryRequests.enq(storeRequest.tlRequest);
+                        loadRequest.tlRequest.a_address, 
+                        loadRequest.tlRequest.a_size);
                     instructionWaitingForMemoryOperation <= executedInstruction;
-                    waitingForMemoryResponse <= True;
-                end else begin
-                    // Not a LOAD/STORE
-                    if (verbose)
-                        $display("%0d,%0d,%0d,%0x,%0d,memory access,NO-OP", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
-                    outputQueue.enq(executedInstruction);
-                end
+                waitingForMemoryResponse <= True;
+            end else if (executedInstruction.storeRequest matches tagged Valid .storeRequest) begin
+                if (verbose)
+                    $display("%0d,%0d,%0d,%0x,%0d,memory access,Storing to $%0x", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, storeRequest.tlRequest.a_address);
+                dataMemoryRequests.enq(storeRequest.tlRequest);
+                instructionWaitingForMemoryOperation <= executedInstruction;
+                waitingForMemoryResponse <= True;
+            end else begin
+                // Not a LOAD/STORE
+                if (verbose)
+                    $display("%0d,%0d,%0d,%0x,%0d,memory access,NO-OP", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
+                outputQueue.enq(executedInstruction);
             end
         endmethod
     endinterface

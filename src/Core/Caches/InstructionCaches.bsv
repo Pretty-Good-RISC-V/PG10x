@@ -72,24 +72,33 @@ module mkSingleLineInstructionCache(InstructionCache);
     rule handleFillResponse(filling == True && fillRequested == True);
         let response <- pop(systemMemoryResponses);
 
-        dynamicAssert(response.d_opcode == d_ACCESS_ACK_DATA, "");
-        dynamicAssert(response.d_size == 2, "");
-        dynamicAssert(response.d_denied == False, "");
-        dynamicAssert(response.d_corrupt == False, "");
+        if (response.d_denied || response.d_corrupt) begin
+            dynamicAssert(response.d_opcode == d_ACCESS_ACK, "");
+            let dr = delayedResponse;
+            dr.d_opcode = d_ACCESS_ACK;
+            dr.d_data = 0;
+            dr.d_denied = response.d_denied;
+            dr.d_corrupt = response.d_corrupt;
 
-        line[fillOffset] <= response.d_data[31:0];
+            instructionCacheResponses.enq(dr);
 
-        let lt = unJust(lineTag);
-        Word address = {lt[valueOf(XLEN) - 1:6], fillOffset[3:0], 2'b0};
+            lineTag <= tagged Invalid;
+            filling <= False;
+            fillRequested <= False;
+        end else begin
+            line[fillOffset] <= response.d_data[31:0];
 
-        $display("Cache fill received for $%0x = $%0x", address, response.d_data[31:0]);
+            let lt = unJust(lineTag);
+            Word address = {lt[valueOf(XLEN) - 1:6], fillOffset[3:0], 2'b0};
 
-        fillOffset <= fillOffset + 1;
-        fillRequested <= False;
+            $display("Cache fill received for $%0x = $%0x", address, response.d_data[31:0]);
+
+            fillOffset <= fillOffset + 1;
+            fillRequested <= False;
+        end
     endrule
 
     rule handleInstructionCacheRequests(filling == False);
-//        let request = instructionCacheRequests.first;
         if (instructionCacheRequest.wget matches tagged Valid .request) begin
             let response = StdTileLinkResponse {
                 d_opcode: d_ACCESS_ACK,
