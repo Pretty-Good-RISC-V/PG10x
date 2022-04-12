@@ -1,6 +1,8 @@
 find_package(SmokeTests)
 
-file(GLOB TEST_SOURCES "${SMOKETESTS_SOURCE_DIR}/src/*.S")
+set(TEST_SOURCES
+    "${SMOKETESTS_SOURCE_DIR}/src/pipelinechecks.S" # Pipeline Checks
+)
 
 foreach(TEST_SOURCE "${TEST_SOURCES}")
     get_filename_component(TEST_NAME "${TEST_SOURCE}" NAME_WLE)

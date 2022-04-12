@@ -91,3 +91,12 @@ function ExecutedInstruction newExecutedInstruction(ProgramCounter programCounte
 
     return executedInstruction;
 endfunction
+
+function ExecutedInstruction newNOOPExecutedInstruction(ProgramCounter programCounter);
+    ExecutedInstruction executedInstruction = defaultValue;
+    executedInstruction.programCounter = programCounter;
+    executedInstruction.rawInstruction = 0;
+    executedInstruction.exception = tagged Invalid;
+
+    return executedInstruction;
+endfunction

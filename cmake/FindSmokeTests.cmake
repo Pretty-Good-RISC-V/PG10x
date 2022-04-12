@@ -3,11 +3,11 @@ include(ExternalProject)
 message("Ensuring SmokeTests is available")
 ExternalProject_Add(
     smoketests
-#    SOURCE_DIR "${CMAKE_SOURCE_DIR}/../SmokeTests"
     GIT_REPOSITORY "https://github.com/Pretty-Good-RISC-V/SmokeTests.git"
     GIT_TAG "main"
     INSTALL_COMMAND ""
 )
+
 message("Ensuring SmokeTests is available...complete")
 
 ExternalProject_Get_Property(smoketests SOURCE_DIR)
