@@ -19,7 +19,6 @@ module mkSingleLineInstructionCache(InstructionCache);
     Vector#(16, Reg#(Word32)) line <- replicateM(mkRegU);
     Reg#(Maybe#(Word)) lineTag <- mkReg(tagged Invalid);
 
-//    FIFO#(StdTileLinkRequest) instructionCacheRequests <- mkFIFO;
     RWire#(StdTileLinkRequest) instructionCacheRequest <- mkRWire;
     FIFO#(StdTileLinkResponse) instructionCacheResponses <- mkFIFO;
 
@@ -63,7 +62,7 @@ module mkSingleLineInstructionCache(InstructionCache);
 
             let response = delayedResponse;
             response.d_opcode = d_ACCESS_ACK_DATA;
-            response.d_data = line[delayedResponseOffset];
+            response.d_data = extend(line[delayedResponseOffset]);
             response.d_denied = False;
 
             instructionCacheResponses.enq(response);
@@ -116,7 +115,7 @@ module mkSingleLineInstructionCache(InstructionCache);
                     //instructionCacheRequests.deq;
 
                     response.d_opcode = d_ACCESS_ACK_DATA;
-                    response.d_data = line[offset];
+                    response.d_data = extend(line[offset]);
                     response.d_denied = False;
 
                     instructionCacheResponses.enq(response);                
