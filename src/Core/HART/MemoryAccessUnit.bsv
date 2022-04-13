@@ -42,9 +42,7 @@ interface MemoryAccessUnit;
     interface Get#(Maybe#(MemoryAccess)) getMemoryAccess;
 endinterface
 
-module mkMemoryAccessUnit#(
-    PipelineController pipelineController
-)(MemoryAccessUnit);
+module mkMemoryAccessUnit(MemoryAccessUnit);
     Wire#(Word64) cycleCounter <- mkBypassWire;
     FIFO#(ExecutedInstruction) outputQueue <- mkPipelineFIFO;
     RWire#(MemoryAccess) memoryAccess <- mkRWire;
@@ -168,13 +166,11 @@ module mkMemoryAccessUnit#(
         method Action put(ExecutedInstruction executedInstruction) if (waitingForMemoryResponse == False);
             Bool verbose <- $test$plusargs ("verbose");
             let fetchIndex = executedInstruction.fetchIndex;
-            let stageEpoch = pipelineController.stageEpoch(valueOf(MemoryAccessStageNumber), 1);
             if(executedInstruction.loadRequest matches tagged Valid .loadRequest) begin
                 if (verbose)
-                    $display("%0d,%0d,%0d,%0x,%0d,memory access,LOAD", 
+                    $display("%0d,%0d,XXX,%0x,%0d,memory access,LOAD", 
                         fetchIndex, 
                         cycleCounter, 
-                        stageEpoch, 
                         executedInstruction.programCounter, 
                         valueOf(MemoryAccessStageNumber));
 
@@ -182,10 +178,9 @@ module mkMemoryAccessUnit#(
                 dataMemoryRequests.enq(loadRequest.tlRequest);
 
                 if (verbose)
-                    $display("%0d,%0d,%0d,%0x,%0d,memory access,Loading from $%08x with size: %d", 
+                    $display("%0d,%0d,XXX,%0x,%0d,memory access,Loading from $%08x with size: %d", 
                         fetchIndex, 
                         cycleCounter, 
-                        stageEpoch, 
                         executedInstruction.programCounter, 
                         valueOf(MemoryAccessStageNumber), 
                         loadRequest.tlRequest.a_address, 
@@ -194,14 +189,24 @@ module mkMemoryAccessUnit#(
                 waitingForMemoryResponse <= True;
             end else if (executedInstruction.storeRequest matches tagged Valid .storeRequest) begin
                 if (verbose)
-                    $display("%0d,%0d,%0d,%0x,%0d,memory access,Storing to $%0x", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, valueOf(MemoryAccessStageNumber), storeRequest.tlRequest.a_address);
+                    $display("%0d,%0d,XXX,%0x,%0d,memory access,Storing to $%0x", 
+                        fetchIndex, 
+                        cycleCounter, 
+                        executedInstruction.programCounter, 
+                        valueOf(MemoryAccessStageNumber), 
+                        storeRequest.tlRequest.a_address);
+
                 dataMemoryRequests.enq(storeRequest.tlRequest);
                 instructionWaitingForMemoryOperation <= executedInstruction;
                 waitingForMemoryResponse <= True;
             end else begin
                 // Not a LOAD/STORE
                 if (verbose)
-                    $display("%0d,%0d,%0d,%0x,%0d,memory access,NO-OP", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, valueOf(MemoryAccessStageNumber));
+                    $display("%0d,%0d,XXX,%0x,%0d,memory access,NO-OP", 
+                        fetchIndex, 
+                        cycleCounter, 
+                        executedInstruction.programCounter, 
+                        valueOf(MemoryAccessStageNumber));
                 outputQueue.enq(executedInstruction);
             end
         endmethod

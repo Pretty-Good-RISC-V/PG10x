@@ -163,9 +163,7 @@ module mkHART#(
     //
     // Stage 4 - Memory access
     //
-    MemoryAccessUnit memoryAccessUnit <- mkMemoryAccessUnit(
-        pipelineController
-    );
+    MemoryAccessUnit memoryAccessUnit <- mkMemoryAccessUnit;
 
     mkConnection(toGet(cycleCounter), memoryAccessUnit.putCycleCounter);
     mkConnection(executionUnit.getExecutedInstruction, memoryAccessUnit.putExecutedInstruction);
