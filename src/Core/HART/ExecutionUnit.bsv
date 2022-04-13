@@ -14,6 +14,7 @@ import ExecutedInstruction::*;
 import LoadStore::*;
 import PipelineController::*;
 import Scoreboard::*;
+import StageNumbers::*;
 
 import Assert::*;
 import FIFO::*;
@@ -39,7 +40,6 @@ interface ExecutionUnit;
 endinterface
 
 module mkExecutionUnit#(
-    Integer stageNumber,
     PipelineController pipelineController,
     TrapController trapController,
     Scoreboard#(4) scoreboard
@@ -368,19 +368,19 @@ module mkExecutionUnit#(
             case(decodedInstruction.systemOperator)
                 sys_ECALL: begin
                     // if (verbose)
-                    //     $display("%0d,%0d,%0d,%0x,%0d,execute,ECALL instruction encountered", decodedInstruction.fetchIndex, trapController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber);
+                    //     $display("%0d,%0d,%0d,%0x,%0d,execute,ECALL instruction encountered", decodedInstruction.fetchIndex, trapController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, valueOf(ExecutionStageNumber));
 
                     let curPriv <- trapController.csrFile.getCurrentPrivilegeLevel.get;
                     executedInstruction.exception = tagged Valid createEnvironmentCallException(curPriv, decodedInstruction.programCounter);
                 end
                 sys_EBREAK: begin
                     // if (verbose)
-                    //     $display("%0d,%0d,%0d,%0x,%0d,execute,EBREAK instruction encountered", decodedInstruction.fetchIndex, trapController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber);
+                    //     $display("%0d,%0d,%0d,%0x,%0d,execute,EBREAK instruction encountered", decodedInstruction.fetchIndex, trapController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, valueOf(ExecutionStageNumber));
                     executedInstruction.exception = tagged Valid createBreakpointException(decodedInstruction.programCounter);
                 end
                 sys_MRET: begin
                     // if (verbose)
-                    //     $display("%0d,%0d,%0d,%0x,%0d,execute,MRET instruction", decodedInstruction.fetchIndex, trapController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber);
+                    //     $display("%0d,%0d,%0d,%0x,%0d,execute,MRET instruction", decodedInstruction.fetchIndex, trapController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, valueOf(ExecutionStageNumber));
                     
                     let newProgramCounterReadStatus <- trapController.endTrap;
                     if (newProgramCounterReadStatus matches tagged Valid .newProgramCounter) begin
@@ -401,7 +401,7 @@ module mkExecutionUnit#(
     function Action finalizeInstruction(ExecutedInstruction executedInstruction, Bool verbose);
         action
             let fetchIndex = executedInstruction.fetchIndex;
-            let currentEpoch = pipelineController.stageEpoch(stageNumber, 1);
+            let currentEpoch = pipelineController.stageEpoch(valueOf(ExecutionStageNumber), 1);
 
             // If the program counter was changed, see if it matches a predicted branch/jump.
             // If not, redirect the program counter to the mispredicted target address.
@@ -412,27 +412,27 @@ module mkExecutionUnit#(
                 executedInstruction.pipelineEpoch = ~executedInstruction.pipelineEpoch;
 
                 if (verbose)
-                    $display("%0d,%0d,%0d,%0x,%0d,execute,branch/jump to: $%08x", fetchIndex, cycleCounter, currentEpoch, executedInstruction.programCounter, stageNumber, targetAddress);
+                    $display("%0d,%0d,%0d,%0x,%0d,execute,branch/jump to: $%08x", fetchIndex, cycleCounter, currentEpoch, executedInstruction.programCounter, valueOf(ExecutionStageNumber), targetAddress);
                 
                 branchRedirectionQueue.enq(targetAddress);
             end
 
             if (executedInstruction.exception matches tagged Valid .exception) begin
                 if (verbose) begin
-                    $display("%0d,%0d,%0d,%0x,%0d,execute,EXCEPTION:", fetchIndex, cycleCounter, currentEpoch, executedInstruction.programCounter, stageNumber, fshow(exception));
+                    $display("%0d,%0d,%0d,%0x,%0d,execute,EXCEPTION:", fetchIndex, cycleCounter, currentEpoch, executedInstruction.programCounter, valueOf(ExecutionStageNumber), fshow(exception));
                 end
             end
 
             // If writeback data exists, that needs to be written into the previous pipeline 
             // stages using operand forwarding.
             if (executedInstruction.gprWriteBack matches tagged Valid .wb) begin
-                $display("%0d,%0d,%0d,%0x,%0d,execute,Setting NORMAL GPR writeback index to $%0d = $%0x", fetchIndex, cycleCounter, currentEpoch, executedInstruction.programCounter, stageNumber, wb.rd, wb.value);
+                $display("%0d,%0d,%0d,%0x,%0d,execute,Setting NORMAL GPR writeback index to $%0d = $%0x", fetchIndex, cycleCounter, currentEpoch, executedInstruction.programCounter, valueOf(ExecutionStageNumber), wb.rd, wb.value);
                 executionDestinationQueue.enq(wb.rd);
                 executionResultQueue.enq(wb.value);
             end
 
             if (executedInstruction.loadRequest matches tagged Valid .lr) begin
-                $display("%0d,%0d,%0d,%0x,%0d,execute,Setting LOAD GPR writeback index to $%0d", fetchIndex, cycleCounter, currentEpoch, executedInstruction.programCounter, stageNumber, lr.rd);
+                $display("%0d,%0d,%0d,%0x,%0d,execute,Setting LOAD GPR writeback index to $%0d", fetchIndex, cycleCounter, currentEpoch, executedInstruction.programCounter, valueOf(ExecutionStageNumber), lr.rd);
                 loadDestinationQueue.enq(lr.rd);
             end
             outputQueue.enq(executedInstruction);
@@ -471,34 +471,34 @@ module mkExecutionUnit#(
         method Action put(DecodedInstruction decodedInstruction);
             Bool verbose <- $test$plusargs ("verbose");
             let fetchIndex = decodedInstruction.fetchIndex;
-            let stageEpoch = pipelineController.stageEpoch(stageNumber, 1);
+            let stageEpoch = pipelineController.stageEpoch(valueOf(ExecutionStageNumber), 1);
             Maybe#(RVCSRIndex) csrScoreboardValue = tagged Invalid;
 
-            if (!pipelineController.isCurrentEpoch(stageNumber, 1, decodedInstruction.pipelineEpoch)) begin
+            if (!pipelineController.isCurrentEpoch(valueOf(ExecutionStageNumber), 1, decodedInstruction.pipelineEpoch)) begin
                 if (verbose)
-                    $display("%0d,%0d,%0d,%0x,%0d,execute,stale instruction (%0d != %0d)...adding bubble to pipeline", fetchIndex, trapController.csrFile.cycle_counter, decodedInstruction.pipelineEpoch, decodedInstruction.programCounter, stageNumber, decodedInstruction.pipelineEpoch, stageEpoch);
+                    $display("%0d,%0d,%0d,%0x,%0d,execute,stale instruction (%0d != %0d)...adding bubble to pipeline", fetchIndex, trapController.csrFile.cycle_counter, decodedInstruction.pipelineEpoch, decodedInstruction.programCounter, valueOf(ExecutionStageNumber), decodedInstruction.pipelineEpoch, stageEpoch);
 
                 let noopInstruction = newNOOPExecutedInstruction(decodedInstruction.programCounter);
                 outputQueue.enq(noopInstruction);
             end else if (isValid(decodedInstruction.exception)) begin
                 if (verbose)
-                    $display("%0d,%0d,%0d,%0x,%0d,execute,EXCEPTION - decoded instruction had exception - propagating", fetchIndex, trapController.csrFile.cycle_counter, decodedInstruction.pipelineEpoch, decodedInstruction.programCounter, stageNumber);
+                    $display("%0d,%0d,%0d,%0x,%0d,execute,EXCEPTION - decoded instruction had exception - propagating", fetchIndex, trapController.csrFile.cycle_counter, decodedInstruction.pipelineEpoch, decodedInstruction.programCounter, valueOf(ExecutionStageNumber));
                 outputQueue.enq(newExecutedInstructionFromDecodedInstruction(decodedInstruction));
             end else begin
                 let currentEpoch = stageEpoch;
 
                 if (verbose) begin
-                    $display("%0d,%0d,%0d,%0x,%0d,execute,executing instruction: ", fetchIndex, trapController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber, fshow(decodedInstruction.opcode));
-                    $display("%0d,%0d,%0d,%0x,%0d,execute,RS1: ", fetchIndex, trapController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber, (isValid(decodedInstruction.rs1) ? $format("x%0d = %0d ($%0x)", unJust(decodedInstruction.rs1), decodedInstruction.rs1Value, decodedInstruction.rs1Value) : $format("INVALID")));
-                    $display("%0d,%0d,%0d,%0x,%0d,execute,RS2: ", fetchIndex, trapController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber, (isValid(decodedInstruction.rs2) ? $format("x%0d = %0d ($%0x)", unJust(decodedInstruction.rs2), decodedInstruction.rs2Value, decodedInstruction.rs2Value) : $format("INVALID")));
-                    $display("%0d,%0d,%0d,%0x,%0d,execute,RD : ", fetchIndex, trapController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, stageNumber, (isValid(decodedInstruction.rd) ? $format("x%0d", unJust(decodedInstruction.rd)) : $format("INVALID")));
+                    $display("%0d,%0d,%0d,%0x,%0d,execute,executing instruction: ", fetchIndex, trapController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, valueOf(ExecutionStageNumber), fshow(decodedInstruction.opcode));
+                    $display("%0d,%0d,%0d,%0x,%0d,execute,RS1: ", fetchIndex, trapController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, valueOf(ExecutionStageNumber), (isValid(decodedInstruction.rs1) ? $format("x%0d = %0d ($%0x)", unJust(decodedInstruction.rs1), decodedInstruction.rs1Value, decodedInstruction.rs1Value) : $format("INVALID")));
+                    $display("%0d,%0d,%0d,%0x,%0d,execute,RS2: ", fetchIndex, trapController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, valueOf(ExecutionStageNumber), (isValid(decodedInstruction.rs2) ? $format("x%0d = %0d ($%0x)", unJust(decodedInstruction.rs2), decodedInstruction.rs2Value, decodedInstruction.rs2Value) : $format("INVALID")));
+                    $display("%0d,%0d,%0d,%0x,%0d,execute,RD : ", fetchIndex, trapController.csrFile.cycle_counter, currentEpoch, decodedInstruction.programCounter, valueOf(ExecutionStageNumber), (isValid(decodedInstruction.rd) ? $format("x%0d", unJust(decodedInstruction.rd)) : $format("INVALID")));
                 end
 
                 let executedInstruction <- executeInstruction(decodedInstruction);
 
                 finalizeInstruction(executedInstruction, verbose);
-                 csrScoreboardValue = decodedInstruction.csrIndex;
-           end
+                csrScoreboardValue = decodedInstruction.csrIndex;
+            end
             scoreboard.insertCSR(csrScoreboardValue);
         endmethod
     endinterface

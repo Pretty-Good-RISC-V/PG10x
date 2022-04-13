@@ -14,6 +14,7 @@ import DecodedInstruction::*;
 import GPRFile::*;
 import PipelineController::*;
 import Scoreboard::*;
+import StageNumbers::*;
 
 import FIFO::*;
 import FIFOF::*;
@@ -40,7 +41,6 @@ RVCSRIndex csr_RISCOF_HALT = 12'h7C0;      // Register, that when written, is us
 `endif
 
 module mkDecodeUnit#(
-    Integer stageNumber,
     PipelineController pipelineController,
     GPRFile gprFile,
     CSRFile csrFile,
@@ -469,7 +469,7 @@ module mkDecodeUnit#(
 
         let fetchIndex = decodedInstruction.fetchIndex;
         let programCounter = decodedInstruction.programCounter;
-        let stageEpoch = pipelineController.stageEpoch(stageNumber, 2);
+        let stageEpoch = pipelineController.stageEpoch(valueOf(DecodeStageNumber), 2);
 
         //
         // Check bypasses and scoreboards
@@ -480,7 +480,7 @@ module mkDecodeUnit#(
         if (bypassResult.stallRequired || stallWaitingForCSR) begin
             if (verbose) begin
                 if (bypassResult.stallRequired)
-                    $display("%0d,%0d,%0d,%0x,%0d,decode,stall waiting for bypass", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber);
+                    $display("%0d,%0d,%0d,%0x,%0d,decode,stall waiting for bypass", fetchIndex, cycleCounter, stageEpoch, programCounter, valueOf(DecodeStageNumber));
             end
         end else begin
             decodedInstructionWaitingForOperands.deq;
@@ -491,7 +491,7 @@ module mkDecodeUnit#(
             outputQueue.enq(decodedInstruction);
 
             if (verbose)
-                $display("%0d,%0d,%0d,%0x,%0d,decode,decode complete", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber);
+                $display("%0d,%0d,%0d,%0x,%0d,decode,decode complete", fetchIndex, cycleCounter, stageEpoch, programCounter, valueOf(DecodeStageNumber));
         end
     endrule
 
@@ -499,15 +499,15 @@ module mkDecodeUnit#(
         method Action put(EncodedInstruction encodedInstruction) if(decodedInstructionWaitingForOperands.notEmpty == False);
             Bool verbose <- $test$plusargs ("verbose");
             let fetchIndex = encodedInstruction.fetchIndex;
-            let stageEpoch = pipelineController.stageEpoch(stageNumber, 2);
+            let stageEpoch = pipelineController.stageEpoch(valueOf(DecodeStageNumber), 2);
 
-            if (!pipelineController.isCurrentEpoch(stageNumber, 2, encodedInstruction.pipelineEpoch)) begin
+            if (!pipelineController.isCurrentEpoch(valueOf(DecodeStageNumber), 2, encodedInstruction.pipelineEpoch)) begin
                 if (verbose)
-                    $display("%0d,%0d,%0d,%0x,%0d,decode,stale instruction...ignoring", fetchIndex, cycleCounter, encodedInstruction.pipelineEpoch, encodedInstruction.programCounter, stageNumber);
+                    $display("%0d,%0d,%0d,%0x,%0d,decode,stale instruction...ignoring", fetchIndex, cycleCounter, encodedInstruction.pipelineEpoch, encodedInstruction.programCounter, valueOf(DecodeStageNumber));
             end else if(isValid(encodedInstruction.exception)) begin
                 // Pass along any exceptions
                 if (verbose)
-                    $display("%0d,%0d,%0d,%0x,%0d,decode,exception in encoded instruction...propagating", fetchIndex, cycleCounter, encodedInstruction.pipelineEpoch, encodedInstruction.programCounter, stageNumber);
+                    $display("%0d,%0d,%0d,%0x,%0d,decode,exception in encoded instruction...propagating", fetchIndex, cycleCounter, encodedInstruction.pipelineEpoch, encodedInstruction.programCounter, valueOf(DecodeStageNumber));
 
                 let decodedInstruction = newDecodedInstruction(encodedInstruction.programCounter, 0);
                 decodedInstruction.fetchIndex = fetchIndex;
@@ -533,7 +533,7 @@ module mkDecodeUnit#(
                 if (bypassResult.stallRequired || stallWaitingForCSR) begin
                     if (verbose) begin
                         if (bypassResult.stallRequired)
-                            $display("%0d,%0d,%0d,%0x,%0d,decode,stall waiting for bypass", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber);
+                            $display("%0d,%0d,%0d,%0x,%0d,decode,stall waiting for bypass", fetchIndex, cycleCounter, stageEpoch, programCounter, valueOf(DecodeStageNumber));
                     end
                     decodedInstructionWaitingForOperands.enq(decodedInstruction);
                 end else begin
@@ -543,7 +543,7 @@ module mkDecodeUnit#(
                     outputQueue.enq(decodedInstruction);
 
                     if (verbose)
-                        $display("%0d,%0d,%0d,%0x,%0d,decode,decode complete", fetchIndex, cycleCounter, stageEpoch, programCounter, stageNumber);
+                        $display("%0d,%0d,%0d,%0x,%0d,decode,decode complete", fetchIndex, cycleCounter, stageEpoch, programCounter, valueOf(DecodeStageNumber));
                 end
             end
         endmethod

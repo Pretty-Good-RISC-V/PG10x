@@ -120,7 +120,6 @@ module mkHART#(
     // Stage 1 - Instruction fetch
     //
     FetchUnit fetchUnit <- mkFetchUnit(
-        1,  // stage number
         programCounter
     );
 
@@ -130,7 +129,6 @@ module mkHART#(
     // Stage 2 - Instruction Decode
     //
     DecodeUnit decodeUnit <- mkDecodeUnit(
-        2,  // stage number
         pipelineController,
         gprFile,
         trapController.csrFile,
@@ -144,7 +142,6 @@ module mkHART#(
     // Stage 3 - Instruction execution
     //
     ExecutionUnit executionUnit <- mkExecutionUnit(
-        3,  // stage number
         pipelineController,
         trapController,
         scoreboard
@@ -167,7 +164,6 @@ module mkHART#(
     // Stage 4 - Memory access
     //
     MemoryAccessUnit memoryAccessUnit <- mkMemoryAccessUnit(
-        4,
         pipelineController
     );
 
@@ -181,7 +177,6 @@ module mkHART#(
     // Stage 5 - Register Writeback
     //
     WritebackUnit writebackUnit <- mkWritebackUnit(
-        5,
         pipelineController,
         gprFile,
         trapController,

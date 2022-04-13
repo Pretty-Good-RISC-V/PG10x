@@ -15,6 +15,7 @@ import InstructionLogger::*;
 `endif
 import PipelineController::*;
 import Scoreboard::*;
+import StageNumbers::*;
 
 import Assert::*;
 import DReg::*;
@@ -36,7 +37,6 @@ interface WritebackUnit;
 endinterface
 
 module mkWritebackUnit#(
-    Integer stageNumber,
     PipelineController pipelineController,
     GPRFile gprFile,
     TrapController trapController,
@@ -64,16 +64,16 @@ module mkWritebackUnit#(
 `endif        
             Bool verbose <- $test$plusargs ("verbose");
             let fetchIndex = executedInstruction.fetchIndex;
-            let stageEpoch = pipelineController.stageEpoch(stageNumber, 0);
+            let stageEpoch = pipelineController.stageEpoch(valueOf(WritebackStageNumber), 0);
 
             if (executedInstruction.gprWriteBack matches tagged Valid .wb) begin
                 if (verbose)
-                    $display("%0d,%0d,%0d,%0x,%0d,writeback,writing result ($%08x) to GPR register x%0d", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, wb.value, wb.rd);
+                    $display("%0d,%0d,%0d,%0x,%0d,writeback,writing result ($%08x) to GPR register x%0d", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, valueOf(WritebackStageNumber), wb.value, wb.rd);
                 gprFile.write(wb.rd, wb.value);
                 
             end else begin
                 if (verbose)
-                    $display("%0d,%0d,%0d,%0x,%0d,writeback,NO-OP", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
+                    $display("%0d,%0d,%0d,%0x,%0d,writeback,NO-OP", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, valueOf(WritebackStageNumber));
             end
 
 `ifdef ENABLE_INSTRUCTION_LOGGING
@@ -101,7 +101,7 @@ module mkWritebackUnit#(
             if (executedInstruction.csrWriteBack matches tagged Valid .wb) begin
                 dynamicAssert(isValid(executedInstruction.exception) == False, "ERROR: CSR Writeback exists when an exception is present");
                 if (verbose)
-                    $display("%0d,%0d,%0d,%0x,%0d,writeback,writing result ($%08x) to CSR register $%0x", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, wb.value, wb.rd);
+                    $display("%0d,%0d,%0d,%0x,%0d,writeback,writing result ($%08x) to CSR register $%0x", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, valueOf(WritebackStageNumber), wb.value, wb.rd);
                 let writeResult <- trapController.csrFile.write1(wb.rd, wb.value);
                 dynamicAssert(writeResult == True, "ERROR: Failed to write to CSR via writeback");
             end else begin
@@ -114,22 +114,22 @@ module mkWritebackUnit#(
                     let exceptionVector <- trapController.beginTrap(executedInstruction.programCounter, exception);
 
                     if (verbose) begin
-                        $display("%0d,%0d,%0d,%0x,%0d,writeback,EXCEPTION:", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, fshow(exception));
-                        $display("%0d,%0d,%0d,%0x,%0d,writeback,Jumping to exception handler at $%08x", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, exceptionVector);
+                        $display("%0d,%0d,%0d,%0x,%0d,writeback,EXCEPTION:", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, valueOf(WritebackStageNumber), fshow(exception));
+                        $display("%0d,%0d,%0d,%0x,%0d,writeback,Jumping to exception handler at $%08x", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, valueOf(WritebackStageNumber), exceptionVector);
                     end
                     exceptionRedirectionQueue.enq(exceptionVector);
 
 `ifdef ENABLE_RISCOF_TESTS
                     if (exception.cause matches tagged ExceptionCause .cause &&& cause == exception_RISCOFTestHaltException) begin
                         if (verbose)
-                            $display("%0d,%0d,%0d,%0x,%0d,writeback,RISCOF HALT Requested", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
+                            $display("%0d,%0d,%0d,%0x,%0d,writeback,RISCOF HALT Requested", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, valueOf(WritebackStageNumber));
                         riscofHaltRequested <= True;
                     end
 `endif                    
                 end
 
                 if (verbose)
-                    $display("%0d,%0d,%0d,%0x,%0d,writeback,---------------------------", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
+                    $display("%0d,%0d,%0d,%0x,%0d,writeback,---------------------------", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, valueOf(WritebackStageNumber));
                 trapController.csrFile.increment_instructions_retired_counter;
 
                 instructionRetiredQueue.enq(True);
