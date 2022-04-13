@@ -10,7 +10,6 @@ import FetchUnit::*;
 import GPRFile::*;
 import MemoryAccessUnit::*;
 import PipelineController::*;
-import ProgramCounterRedirect::*;
 import Scoreboard::*;
 import TileLink::*;
 import WritebackUnit::*;
@@ -113,11 +112,6 @@ module mkHART#(
     PipelineController pipelineController <- mkPipelineController(7 /* stage count */);
 
     //
-    // Program Counter Redirect
-    //
-    ProgramCounterRedirect programCounterRedirect <- mkProgramCounterRedirect;
-
-    //
     // Program Counter
     //
     Reg#(ProgramCounter) programCounter <- mkReg(initialProgramCounter);
@@ -127,8 +121,7 @@ module mkHART#(
     //
     FetchUnit fetchUnit <- mkFetchUnit(
         1,  // stage number
-        programCounter,
-        programCounterRedirect
+        programCounter
     );
 
     mkConnection(toGet(cycleCounter), fetchUnit.putCycleCounter);
@@ -161,7 +154,7 @@ module mkHART#(
     mkConnection(decodeUnit.getDecodedInstruction, executionUnit.putDecodedInstruction);
 
     // Bypasses from the execution unit to the program counter redirect
-    mkConnection(executionUnit.getBranchProgramCounterRedirection, programCounterRedirect.putBranchProgramCounter);
+    mkConnection(executionUnit.getBranchProgramCounterRedirection, fetchUnit.putBranchProgramCounter);
 
     // Bypasses from the execution unit to the decode unit
     mkConnection(executionUnit.getExecutionDestination, decodeUnit.putExecutionDestination);
@@ -199,7 +192,7 @@ module mkHART#(
     mkConnection(memoryAccessUnit.getExecutedInstruction, writebackUnit.putExecutedInstruction);
 
     // Bypasses from the writeback unit to the program counter redirect
-    mkConnection(writebackUnit.getExceptionProgramCounterRedirection, programCounterRedirect.putExceptionProgramCounter);
+    mkConnection(writebackUnit.getExceptionProgramCounterRedirection, fetchUnit.putExceptionProgramCounter);
 
     // Connection to allow unpipelined operation
     mkConnection(writebackUnit.getInstructionRetired, fetchUnit.putExecuteSingleInstruction);

@@ -10,7 +10,6 @@ import BranchPredictor::*;
 import EncodedInstruction::*;
 import Exception::*;
 import PipelineController::*;
-import ProgramCounterRedirect::*;
 import TileLink::*;
 
 import Assert::*;
@@ -36,12 +35,14 @@ interface FetchUnit;
 
     interface Put#(Bool) putAutoFetchEnabled;
     interface Put#(Bool) putExecuteSingleInstruction;
+
+    interface Put#(ProgramCounter) putBranchProgramCounter;
+    interface Put#(ProgramCounter) putExceptionProgramCounter;
 endinterface
 
 module mkFetchUnit#(
     Integer stageNumber,
-    Reg#(ProgramCounter) programCounter,
-    ProgramCounterRedirect programCounterRedirect
+    Reg#(ProgramCounter) programCounter
 )(FetchUnit);
     Wire#(Word64) cycleCounter <- mkBypassWire();
 
@@ -53,6 +54,9 @@ module mkFetchUnit#(
     Reg#(Bool) waitingForMemoryResponse <- mkReg(False);
     Reg#(Bool) singleStepping           <- mkReg(False);
 
+    Reg#(Maybe#(ProgramCounter)) redirectDueToBranch[2]   <- mkCReg(2, tagged Invalid);
+    Reg#(Maybe#(ProgramCounter)) redirectDueToException[2] <- mkCReg(2, tagged Invalid);
+
     FIFO#(FetchInfo) fetchInfoQueue                       <- mkPipelineFIFO; // holds the fetch info for the current instruction request
     FIFO#(StdTileLinkResponse) instructionMemoryResponses <- mkFIFO;
     FIFO#(EncodedInstruction) outputQueue                 <- mkPipelineFIFO;
@@ -63,6 +67,22 @@ module mkFetchUnit#(
     BranchPredictor branchPredictor <- mkBackwardBranchTakenPredictor;
 `endif
 
+    function ActionValue#(Maybe#(ProgramCounter)) getRedirectedProgramCounter;
+        actionvalue
+            let redirect = redirectDueToException[1];
+            if (!isValid(redirect)) begin
+                redirect = redirectDueToBranch[1];
+            end
+
+            if (isValid(redirect)) begin
+                redirectDueToBranch[1] <= tagged Invalid;
+                redirectDueToException[1] <= tagged Invalid;
+            end
+
+            return redirect;
+        endactionvalue
+    endfunction
+
     function Action sendFetchRequest;
         action
             Bool verbose <- $test$plusargs ("verbose");
@@ -72,7 +92,7 @@ module mkFetchUnit#(
             // increment the epoch.
             let fetchProgramCounter = programCounter;
             let fetchEpoch = currentEpoch;
-            let redirectedProgramCounter <- programCounterRedirect.getRedirectedProgramCounter;
+            let redirectedProgramCounter <- getRedirectedProgramCounter;
 
             if (redirectedProgramCounter matches tagged Valid .rpc) begin 
                 fetchProgramCounter = rpc;
@@ -172,7 +192,6 @@ module mkFetchUnit#(
     endinterface
 
     interface Put putInstructionMemoryResponse = toPut(asIfc(instructionMemoryResponses));
-
     interface Put putAutoFetchEnabled = toPut(asIfc(autoFetchEnabled));
 
     interface Put putExecuteSingleInstruction;
@@ -181,6 +200,18 @@ module mkFetchUnit#(
                 dynamicAssert(executeSingleInstruction == True, "");
                 sendFetchRequest;
             end
+        endmethod
+    endinterface
+
+    interface Put putBranchProgramCounter;
+        method Action put(ProgramCounter branchTarget);
+            redirectDueToBranch[0] <= tagged Valid branchTarget;
+        endmethod
+    endinterface
+
+    interface Put putExceptionProgramCounter;
+        method Action put(ProgramCounter exceptionHandler);
+            redirectDueToException[0] <= tagged Valid exceptionHandler;
         endmethod
     endinterface
 endmodule
