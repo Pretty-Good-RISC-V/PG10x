@@ -132,7 +132,7 @@ if [ "$LINK" == "true" ]; then
     SOURCE_DIR=$(dirname "$INPUT_FILE")
 
     # Run the compiler
-    $BSV_COMPILER -show-schedule -sim -q -u -check-assert -e $TOP_MODULE -bdir "$OUTPUT_DIR" -p "$SOURCE_DIR:$INCLUDE_DIRECTORIES_SPEC" -o "$OUTPUT" ${POSITIONAL[@]}
+    $BSV_COMPILER -aggressive-conditions -show-schedule -sim -q -u -check-assert -e $TOP_MODULE -bdir "$OUTPUT_DIR" -p "$SOURCE_DIR:$INCLUDE_DIRECTORIES_SPEC" -o "$OUTPUT" ${POSITIONAL[@]}
 else
     INPUT_FILE=${POSITIONAL[0]}
 
@@ -148,5 +148,5 @@ else
     SOURCE_DIR=$(dirname "$INPUT_FILE")
 
     # Run the compiler
-    $BSV_COMPILER -show-schedule -q $DEFINITIONS -check-assert -u -sim -bdir "$OUTPUT_DIR" -simdir "$OUTPUT_DIR" -info-dir "$OUTPUT_DIR" -p "$INCLUDE_DIRECTORIES_SPEC:$SOURCE_DIR" "$INPUT_FILE"
+    $BSV_COMPILER -aggressive-conditions -show-schedule -q $DEFINITIONS -check-assert -u -sim -bdir "$OUTPUT_DIR" -simdir "$OUTPUT_DIR" -info-dir "$OUTPUT_DIR" -p "$INCLUDE_DIRECTORIES_SPEC:$SOURCE_DIR" "$INPUT_FILE"
 fi

@@ -6,11 +6,14 @@
 //
 import PGTypes::*;
 
+import GetPut::*;
+
 export mkProgramCounterRedirect, ProgramCounterRedirect(..);
 
 interface ProgramCounterRedirect;
-    method Action branch(ProgramCounter branchTarget);
-    method Action exception(ProgramCounter exceptionTarget);
+    interface Put#(ProgramCounter) putBranchProgramCounter;
+    interface Put#(ProgramCounter) putExceptionProgramCounter;
+
     method ActionValue#(Maybe#(ProgramCounter)) getRedirectedProgramCounter;
 endinterface
 
@@ -18,13 +21,13 @@ module mkProgramCounterRedirect(ProgramCounterRedirect);
     Reg#(Maybe#(ProgramCounter)) redirectDueToBranch[2] <- mkCReg(2, tagged Invalid);
     Reg#(Maybe#(ProgramCounter)) redirectDueToException[2] <- mkCReg(2, tagged Invalid);
 
-    method Action branch(ProgramCounter branchTarget);
-        redirectDueToBranch[0] <= tagged Valid branchTarget;
-    endmethod
+    // method Action branch(ProgramCounter branchTarget);
+    //     redirectDueToBranch[0] <= tagged Valid branchTarget;
+    // endmethod
 
-    method Action exception(ProgramCounter exceptionTarget);
-        redirectDueToException[0] <= tagged Valid exceptionTarget;
-    endmethod
+    // method Action exception(ProgramCounter exceptionTarget);
+    //     redirectDueToException[0] <= tagged Valid exceptionTarget;
+    // endmethod
 
     method ActionValue#(Maybe#(ProgramCounter)) getRedirectedProgramCounter;
         let redirect = redirectDueToException[1];
@@ -39,4 +42,17 @@ module mkProgramCounterRedirect(ProgramCounterRedirect);
 
         return redirect;
     endmethod
+
+    interface Put putBranchProgramCounter;
+        method Action put(ProgramCounter branchTarget);
+            redirectDueToBranch[0] <= tagged Valid branchTarget;
+        endmethod
+    endinterface
+
+    interface Put putExceptionProgramCounter;
+        method Action put(ProgramCounter exceptionHandler);
+            redirectDueToException[0] <= tagged Valid exceptionHandler;
+        endmethod
+    endinterface
+
 endmodule

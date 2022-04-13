@@ -13,7 +13,6 @@ import TrapController::*;
 import ExecutedInstruction::*;
 import LoadStore::*;
 import PipelineController::*;
-import ProgramCounterRedirect::*;
 import Scoreboard::*;
 
 import Assert::*;
@@ -25,6 +24,8 @@ export ExecutionUnit(..), mkExecutionUnit;
 
 interface ExecutionUnit;
     interface Put#(Word64) putCycleCounter;
+
+    interface Get#(ProgramCounter) getBranchProgramCounterRedirection;
 
     interface Put#(DecodedInstruction) putDecodedInstruction;
     interface Get#(ExecutedInstruction) getExecutedInstruction;
@@ -40,7 +41,6 @@ endinterface
 module mkExecutionUnit#(
     Integer stageNumber,
     PipelineController pipelineController,
-    ProgramCounterRedirect programCounterRedirect,
     TrapController trapController,
     Scoreboard#(4) scoreboard
 )(ExecutionUnit);
@@ -50,6 +50,7 @@ module mkExecutionUnit#(
     FIFO#(RVGPRIndex) executionDestinationQueue <- mkBypassFIFO;
     FIFO#(Word) executionResultQueue <- mkBypassFIFO;
     FIFO#(RVGPRIndex) loadDestinationQueue <- mkBypassFIFO;
+    FIFO#(ProgramCounter) branchRedirectionQueue <- mkBypassFIFO;
 
     Reg#(Bool) halt <- mkReg(False);
 
@@ -412,7 +413,8 @@ module mkExecutionUnit#(
 
                 if (verbose)
                     $display("%0d,%0d,%0d,%0x,%0d,execute,branch/jump to: $%08x", fetchIndex, cycleCounter, currentEpoch, executedInstruction.programCounter, stageNumber, targetAddress);
-                programCounterRedirect.branch(targetAddress);
+                
+                branchRedirectionQueue.enq(targetAddress);
             end
 
             if (executedInstruction.exception matches tagged Valid .exception) begin
@@ -502,6 +504,8 @@ module mkExecutionUnit#(
     endinterface
 
     interface Put putCycleCounter = toPut(asIfc(cycleCounter));
+    interface Get getBranchProgramCounterRedirection = toGet(branchRedirectionQueue);
+
     interface Get getExecutedInstruction = toGet(outputQueue);
     
     interface Get getExecutionDestination = toGet(executionDestinationQueue);

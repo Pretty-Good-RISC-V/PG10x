@@ -14,20 +14,21 @@ import GPRFile::*;
 import InstructionLogger::*;
 `endif
 import PipelineController::*;
-import ProgramCounterRedirect::*;
 import Scoreboard::*;
 
 import Assert::*;
 import DReg::*;
 import FIFO::*;
 import GetPut::*;
+import SpecialFIFOs::*;
 
 export WritebackUnit(..), mkWritebackUnit;
 
 interface WritebackUnit;
     interface Put#(Word64) putCycleCounter;
+    interface Get#(ProgramCounter) getExceptionProgramCounterRedirection;
     interface Put#(ExecutedInstruction) putExecutedInstruction;
-    method Bool wasInstructionRetired;
+    interface Get#(Bool) getInstructionRetired;
 
 `ifdef ENABLE_RISCOF_TESTS
     interface Get#(Bool) getRISCOFHaltRequested;
@@ -37,13 +38,13 @@ endinterface
 module mkWritebackUnit#(
     Integer stageNumber,
     PipelineController pipelineController,
-    ProgramCounterRedirect programCounterRedirect,
     GPRFile gprFile,
     TrapController trapController,
     Scoreboard#(4) scoreboard
 )(WritebackUnit);
     Wire#(Word64) cycleCounter <- mkBypassWire;
     Reg#(Bool) instructionRetired <- mkDReg(False);
+    FIFO#(ProgramCounter) exceptionRedirectionQueue <- mkBypassFIFO;
 
 `ifdef ENABLE_RISCOF_TESTS
     Reg#(Bool) riscofHaltRequested <- mkReg(False);
@@ -52,6 +53,8 @@ module mkWritebackUnit#(
 `ifdef ENABLE_INSTRUCTION_LOGGING
     InstructionLog instructionLog <- mkInstructionLog;
 `endif
+
+    FIFO#(Bool) instructionRetiredQueue <- mkFIFO;
 
     interface Put putExecutedInstruction;
 `ifdef ENABLE_RISCOF_TESTS    
@@ -114,7 +117,7 @@ module mkWritebackUnit#(
                         $display("%0d,%0d,%0d,%0x,%0d,writeback,EXCEPTION:", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, fshow(exception));
                         $display("%0d,%0d,%0d,%0x,%0d,writeback,Jumping to exception handler at $%08x", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, exceptionVector);
                     end
-                    programCounterRedirect.exception(exceptionVector);
+                    exceptionRedirectionQueue.enq(exceptionVector);
 
 `ifdef ENABLE_RISCOF_TESTS
                     if (exception.cause matches tagged ExceptionCause .cause &&& cause == exception_RISCOFTestHaltException) begin
@@ -128,16 +131,17 @@ module mkWritebackUnit#(
                 if (verbose)
                     $display("%0d,%0d,%0d,%0x,%0d,writeback,---------------------------", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
                 trapController.csrFile.increment_instructions_retired_counter;
-                instructionRetired <= True;
+
+                instructionRetiredQueue.enq(True);
             end
         endmethod
     endinterface
 
-    method Bool wasInstructionRetired;
-        return instructionRetired;
-    endmethod
-
     interface Put putCycleCounter = toPut(asIfc(cycleCounter));
+
+    interface Get getExceptionProgramCounterRedirection = toGet(exceptionRedirectionQueue);
+
+    interface Get getInstructionRetired = toGet(instructionRetiredQueue);
 
 `ifdef ENABLE_RISCOF_TESTS
     interface Get getRISCOFHaltRequested = toGet(riscofHaltRequested);

@@ -13,6 +13,7 @@ import PipelineController::*;
 import ProgramCounterRedirect::*;
 import TileLink::*;
 
+import Assert::*;
 import ClientServer::*;
 import FIFO::*;
 import GetPut::*;
@@ -29,15 +30,12 @@ typedef struct {
 interface FetchUnit;
     interface Put#(Word64) putCycleCounter;
     interface Get#(EncodedInstruction) getEncodedInstruction;
-//    interface StdTileLinkClient instructionMemoryClient;
 
     interface Get#(Maybe#(StdTileLinkRequest)) getInstructionMemoryRequest;
     interface Put#(StdTileLinkResponse) putInstructionMemoryResponse;
 
-    interface Put#(Bool) putFetchEnabled;
-    interface Put#(Bool) putSingleStepping;
-
-    method Action step;
+    interface Put#(Bool) putAutoFetchEnabled;
+    interface Put#(Bool) putExecuteSingleInstruction;
 endinterface
 
 module mkFetchUnit#(
@@ -47,19 +45,17 @@ module mkFetchUnit#(
 )(FetchUnit);
     Wire#(Word64) cycleCounter <- mkBypassWire();
 
-    Reg#(Bool) fetchEnabled <- mkReg(False);
-    Reg#(Word) fetchCounter <- mkReg(0);
-    Reg#(PipelineEpoch) currentEpoch <- mkReg(0);
-    Reg#(Bool) waitingForMemoryResponse <- mkReg(False);
-
-    FIFO#(FetchInfo) fetchInfoQueue <- mkPipelineFIFO; // holds the fetch info for the current instruction request
-
-//    FIFO#(StdTileLinkRequest) instructionMemoryRequests <- mkFIFO;
-    FIFO#(StdTileLinkResponse) instructionMemoryResponses <- mkFIFO;
-
     RWire#(StdTileLinkRequest) instructionMemoryRequest <- mkRWire;
 
-    FIFO#(EncodedInstruction) outputQueue <- mkPipelineFIFO;
+    Reg#(Bool) autoFetchEnabled         <- mkReg(False);
+    Reg#(Word) fetchCounter             <- mkReg(0);
+    Reg#(PipelineEpoch) currentEpoch    <- mkReg(0);
+    Reg#(Bool) waitingForMemoryResponse <- mkReg(False);
+    Reg#(Bool) singleStepping           <- mkReg(False);
+
+    FIFO#(FetchInfo) fetchInfoQueue                       <- mkPipelineFIFO; // holds the fetch info for the current instruction request
+    FIFO#(StdTileLinkResponse) instructionMemoryResponses <- mkFIFO;
+    FIFO#(EncodedInstruction) outputQueue                 <- mkPipelineFIFO;
 
 `ifdef DISABLE_BRANCH_PREDICTOR
     BranchPredictor branchPredictor <- mkNullBranchPredictor;
@@ -67,56 +63,55 @@ module mkFetchUnit#(
     BranchPredictor branchPredictor <- mkBackwardBranchTakenPredictor;
 `endif
 
-    Reg#(Bool) singleStepping <- mkReg(False);
+    function Action sendFetchRequest;
+        action
+            Bool verbose <- $test$plusargs ("verbose");
 
-    (* fire_when_enabled *)
-    rule sendFetchRequest(fetchEnabled == True && !waitingForMemoryResponse);
-        Bool verbose <- $test$plusargs ("verbose");
+            // Get the current program counter from the 'fetchProgramCounter' register, if the 
+            // program counter redirect has a value, move that into the program counter and
+            // increment the epoch.
+            let fetchProgramCounter = programCounter;
+            let fetchEpoch = currentEpoch;
+            let redirectedProgramCounter <- programCounterRedirect.getRedirectedProgramCounter;
 
-        // Get the current program counter from the 'fetchProgramCounter' register, if the 
-        // program counter redirect has a value, move that into the program counter and
-        // increment the epoch.
-        let fetchProgramCounter = programCounter;
-        let fetchEpoch = currentEpoch;
-        let redirectedProgramCounter <- programCounterRedirect.getRedirectedProgramCounter;
+            if (redirectedProgramCounter matches tagged Valid .rpc) begin 
+                fetchProgramCounter = rpc;
 
-        if (redirectedProgramCounter matches tagged Valid .rpc) begin 
-            fetchProgramCounter = rpc;
+                fetchEpoch = fetchEpoch + 1;
+                currentEpoch <= fetchEpoch;
 
-            fetchEpoch = fetchEpoch + 1;
-            currentEpoch <= fetchEpoch;
+                if (verbose)
+                    $display("%0d,%0d,%0d,%0x,%0d,fetch send,redirected PC: $%08x", fetchCounter, cycleCounter, fetchEpoch, fetchProgramCounter, stageNumber, fetchProgramCounter);
+            end
 
             if (verbose)
-                $display("%0d,%0d,%0d,%0x,%0d,fetch send,redirected PC: $%08x", fetchCounter, cycleCounter, fetchEpoch, fetchProgramCounter, stageNumber, fetchProgramCounter);
-        end
+                $display("%0d,%0d,%0d,%0x,%0d,fetch send,fetch address: $%08x", fetchCounter, cycleCounter, fetchEpoch, fetchProgramCounter, stageNumber, fetchProgramCounter);
 
-        if (verbose)
-            $display("%0d,%0d,%0d,%0x,%0d,fetch send,fetch address: $%08x", fetchCounter, cycleCounter, fetchEpoch, fetchProgramCounter, stageNumber, fetchProgramCounter);
+            instructionMemoryRequest.wset(TileLinkLiteWordRequest {
+                a_opcode: a_GET,
+                a_param: 0,
+                a_size: 2, // Log2(sizeof(Word32))
+                a_source: 0,
+                a_address: fetchProgramCounter,
+                a_mask: 'b1111,
+                a_data: ?,
+                a_corrupt: False
+            });
 
-        //instructionMemoryRequests.enq(TileLinkLiteWordRequest {
-        instructionMemoryRequest.wset(TileLinkLiteWordRequest {
-            a_opcode: a_GET,
-            a_param: 0,
-            a_size: 2, // Log2(sizeof(Word32))
-            a_source: 0,
-            a_address: fetchProgramCounter,
-            a_mask: 'b1111,
-            a_data: ?,
-            a_corrupt: False
-        });
+            fetchInfoQueue.enq(FetchInfo {
+                epoch: fetchEpoch,
+                address: fetchProgramCounter,
+                index: fetchCounter
+            });
 
-        fetchInfoQueue.enq(FetchInfo {
-            epoch: fetchEpoch,
-            address: fetchProgramCounter,
-            index: fetchCounter
-        });
+            waitingForMemoryResponse <= True;
+            fetchCounter <= fetchCounter + 1;
+        endaction
+    endfunction
 
-        waitingForMemoryResponse <= True;
-        fetchCounter <= fetchCounter + 1;
-
-        if (singleStepping) begin
-            fetchEnabled <= False;
-        end
+    (* fire_when_enabled *)
+    rule autoFetchHandler(autoFetchEnabled && !waitingForMemoryResponse);
+        sendFetchRequest;
     endrule
 
     (* fire_when_enabled *)
@@ -169,8 +164,6 @@ module mkFetchUnit#(
 
     interface Put putCycleCounter = toPut(asIfc(cycleCounter));
     interface Get getEncodedInstruction = toGet(outputQueue);
-//    interface TileLinkLiteWordClient instructionMemoryClient = toGPClient(instructionMemoryRequests, instructionMemoryResponses);
-
 
     interface Get getInstructionMemoryRequest;
         method ActionValue#(Maybe#(StdTileLinkRequest)) get;
@@ -180,11 +173,14 @@ module mkFetchUnit#(
 
     interface Put putInstructionMemoryResponse = toPut(asIfc(instructionMemoryResponses));
 
+    interface Put putAutoFetchEnabled = toPut(asIfc(autoFetchEnabled));
 
-    interface Put putFetchEnabled = toPut(asIfc(fetchEnabled));
-    interface Put putSingleStepping = toPut(asIfc(singleStepping));
-
-    method Action step if(fetchEnabled == False);
-        fetchEnabled <= True;
-    endmethod
+    interface Put putExecuteSingleInstruction;
+        method Action put(Bool executeSingleInstruction);
+            if (autoFetchEnabled == False) begin
+                dynamicAssert(executeSingleInstruction == True, "");
+                sendFetchRequest;
+            end
+        endmethod
+    endinterface
 endmodule

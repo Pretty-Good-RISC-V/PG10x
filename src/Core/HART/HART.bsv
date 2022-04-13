@@ -43,7 +43,6 @@ interface HART;
     method Action start;
     method HARTState getState;
 
-//    interface StdTileLinkClient instructionMemoryClient;
     interface Get#(Maybe#(StdTileLinkRequest)) getInstructionMemoryRequest;
     interface Put#(StdTileLinkResponse) putInstructionMemoryResponse;
     interface StdTileLinkClient dataMemoryClient;
@@ -126,7 +125,6 @@ module mkHART#(
     //
     // Stage 1 - Instruction fetch
     //
-    Reg#(Bool) singleStepping <- mkReg(False);
     FetchUnit fetchUnit <- mkFetchUnit(
         1,  // stage number
         programCounter,
@@ -134,7 +132,6 @@ module mkHART#(
     );
 
     mkConnection(toGet(cycleCounter), fetchUnit.putCycleCounter);
-    mkConnection(toGet(singleStepping), fetchUnit.putSingleStepping);
 
     //
     // Stage 2 - Instruction Decode
@@ -156,13 +153,15 @@ module mkHART#(
     ExecutionUnit executionUnit <- mkExecutionUnit(
         3,  // stage number
         pipelineController,
-        programCounterRedirect,
         trapController,
         scoreboard
     );
 
     mkConnection(toGet(cycleCounter), executionUnit.putCycleCounter);
     mkConnection(decodeUnit.getDecodedInstruction, executionUnit.putDecodedInstruction);
+
+    // Bypasses from the execution unit to the program counter redirect
+    mkConnection(executionUnit.getBranchProgramCounterRedirection, programCounterRedirect.putBranchProgramCounter);
 
     // Bypasses from the execution unit to the decode unit
     mkConnection(executionUnit.getExecutionDestination, decodeUnit.putExecutionDestination);
@@ -191,7 +190,6 @@ module mkHART#(
     WritebackUnit writebackUnit <- mkWritebackUnit(
         5,
         pipelineController,
-        programCounterRedirect,
         gprFile,
         trapController,
         scoreboard
@@ -199,6 +197,12 @@ module mkHART#(
 
     mkConnection(toGet(cycleCounter), writebackUnit.putCycleCounter);
     mkConnection(memoryAccessUnit.getExecutedInstruction, writebackUnit.putExecutedInstruction);
+
+    // Bypasses from the writeback unit to the program counter redirect
+    mkConnection(writebackUnit.getExceptionProgramCounterRedirection, programCounterRedirect.putExceptionProgramCounter);
+
+    // Connection to allow unpipelined operation
+    mkConnection(writebackUnit.getInstructionRetired, fetchUnit.putExecuteSingleInstruction);
 
     //
     // State handlers
@@ -248,19 +252,15 @@ module mkHART#(
         if (firstRun) begin
             $display("FetchIndex,Cycle,Pipeline Epoch,Program Counter,Stage Number,Stage Name,Info");
 
-            fetchUnit.putFetchEnabled.put(True);
-
-            if (!pipeliningEnabled) begin
-                singleStepping <= True;
-            end
+            fetchUnit.putAutoFetchEnabled.put(True);
             firstRun <= False;
         end
 
         if (!pipeliningEnabled && !firstRun) begin
-            let wasRetired = writebackUnit.wasInstructionRetired;
-            if (wasRetired) begin
-                fetchUnit.step;
-            end
+            // let wasRetired = writebackUnit.wasInstructionRetired;
+            // if (wasRetired) begin
+            //     fetchUnit.step;
+            // end
         end
     endrule
 
@@ -268,7 +268,7 @@ module mkHART#(
     // HALTING
     //
     rule handleHaltingState(hartState == HALTING);
-        fetchUnit.putFetchEnabled.put(False);
+        fetchUnit.putAutoFetchEnabled.put(False);
 
         // Wait for the pipeline to flush
         if (haltDelay > 0) begin
@@ -279,25 +279,11 @@ module mkHART#(
     endrule
 
     //
-    // HALTED
-    //
-    // rule handleHaltedState(hartState == HALTED);
-    // endrule
-
-    //
     // RESUMING
     //
     rule handleResumingState(hartState == RESUMING);
-        fetchUnit.putFetchEnabled.put(True);
+        fetchUnit.putAutoFetchEnabled.put(True);
         changeState(RUNNING);
-    endrule
-
-    //
-    // STEPPING
-    //
-    rule handleSteppingState(hartState == STEPPING);
-        fetchUnit.step;
-        changeState(HALTING);
     endrule
 
     //
@@ -334,7 +320,6 @@ module mkHART#(
     interface Get getInstructionMemoryRequest = fetchUnit.getInstructionMemoryRequest;
     interface Put putInstructionMemoryResponse = fetchUnit.putInstructionMemoryResponse;
 
-//    interface TileLinkLiteWordClient instructionMemoryClient = fetchUnit.instructionMemoryClient;
     interface TileLinkLiteWordClient dataMemoryClient = memoryAccessUnit.dataMemoryClient;
     interface Put putPipeliningEnabled = toPut(asIfc(pipeliningEnabled));
 
