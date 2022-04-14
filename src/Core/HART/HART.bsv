@@ -4,7 +4,6 @@ import ALU::*;
 import BypassController::*;
 import Debug::*;
 import DecodeUnit::*;
-import TrapController::*;
 import ExecutionUnit::*;
 import FetchUnit::*;
 import GPRFile::*;
@@ -12,6 +11,7 @@ import MemoryAccessUnit::*;
 import PipelineController::*;
 import Scoreboard::*;
 import TileLink::*;
+import TrapController::*;
 import WritebackUnit::*;
 
 import Connectable::*;

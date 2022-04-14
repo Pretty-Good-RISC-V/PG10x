@@ -18,5 +18,5 @@ target_link_libraries(ISATestHost
     Core::Core
     Crossbar::Crossbar
     RVCommon::RVCommon
-    Support::Support
+    ProgramMemoryTile::ProgramMemoryTile
 )

@@ -11,9 +11,7 @@ import TrapController::*;
 import ExecutedInstruction::*;
 import GPRFile::*;
 import InstructionCommon::*;
-`ifdef ENABLE_INSTRUCTION_LOGGING
-import InstructionLogger::*;
-`endif
+import Logger::*;
 import Scoreboard::*;
 import StageNumbers::*;
 
@@ -48,10 +46,6 @@ module mkWritebackUnit#(
 
 `ifdef ENABLE_RISCOF_TESTS
     Reg#(Bool) riscofHaltRequested <- mkReg(False);
-`endif
-
-`ifdef ENABLE_INSTRUCTION_LOGGING
-    InstructionLog instructionLog <- mkInstructionLog;
 `endif
 
     FIFO#(Bool) instructionRetiredQueue <- mkFIFO;
@@ -92,7 +86,7 @@ module mkWritebackUnit#(
             end
 
             if (logIt)
-                instructionLog.logInstruction(executedInstruction.instructionCommon.programCounter, executedInstruction.instructionCommon.rawInstruction);
+                logInstruction(executedInstruction.instructionCommon.programCounter, executedInstruction.instructionCommon.rawInstruction);
 `endif
 
             scoreboard.remove;

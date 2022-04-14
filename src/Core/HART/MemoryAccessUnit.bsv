@@ -42,7 +42,6 @@ interface MemoryAccessUnit;
     interface Get#(Maybe#(MemoryAccess)) getMemoryAccess;
 endinterface
 
-(* synthesize *)
 module mkMemoryAccessUnit(MemoryAccessUnit);
     Wire#(Word64) cycleCounter <- mkBypassWire;
     FIFO#(ExecutedInstruction) outputQueue <- mkPipelineFIFO;

@@ -10,7 +10,7 @@ target_link_libraries(Simulator
     Core::Core
     Crossbar::Crossbar
     RVCommon::RVCommon
-    Support::Support
+    ProgramMemoryTile::ProgramMemoryTile
 )
 
 target_compile_definitions(Simulator PUBLIC
