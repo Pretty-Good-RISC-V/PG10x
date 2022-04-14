@@ -9,7 +9,7 @@
 import BranchPredictor::*;
 import EncodedInstruction::*;
 import Exception::*;
-import PipelineController::*;
+import InstructionCommon::*;
 import StageNumbers::*;
 import TileLink::*;
 
@@ -171,11 +171,13 @@ module mkFetchUnit#(
 
         // Tell the decode stage what the program counter for the insruction it'll receive.
         outputQueue.enq(EncodedInstruction {
-            fetchIndex: fetchInfo.index,
-            programCounter: fetchInfo.address,
-            predictedNextProgramCounter: predictedNextProgramCounter,
-            pipelineEpoch: fetchInfo.epoch,
-            rawInstruction: fetchResponse.d_data[31:0],
+            instructionCommon: InstructionCommon {
+                fetchIndex: fetchInfo.index,
+                programCounter: fetchInfo.address,
+                predictedNextProgramCounter: predictedNextProgramCounter,
+                pipelineEpoch: fetchInfo.epoch,
+                rawInstruction: fetchResponse.d_data[31:0]
+            },
             exception: exception
         });
 

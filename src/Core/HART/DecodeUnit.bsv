@@ -12,7 +12,7 @@ import EncodedInstruction::*;
 import Exception::*;
 import DecodedInstruction::*;
 import GPRFile::*;
-import PipelineController::*;
+import InstructionCommon::*;
 import Scoreboard::*;
 import StageNumbers::*;
 
@@ -117,7 +117,7 @@ module mkDecodeUnit#(
                         instruction[11:8],      // 4 bits
                         1'b0                    // 1 bit
                     });
-                    let branchTarget = decodedInstruction.programCounter + signExtend(immediate);
+                    let branchTarget = decodedInstruction.instructionCommon.programCounter + signExtend(immediate);
                     Bool branchDirectionNegative = (msb(immediate) == 1'b1 ? True : False);
                     decodedInstruction.opcode = BRANCH;
                     decodedInstruction.branchOperator = func3;
@@ -337,7 +337,7 @@ module mkDecodeUnit#(
             2'b00: begin    // AUIPC
                 decodedInstruction.opcode = COPY_IMMEDIATE;
                 decodedInstruction.rd = tagged Valid rd;
-                decodedInstruction.immediate = tagged Valid (decodedInstruction.programCounter + (signExtend({instruction[31:12], 12'b0})));
+                decodedInstruction.immediate = tagged Valid (decodedInstruction.instructionCommon.programCounter + (signExtend({instruction[31:12], 12'b0})));
             end
 
             2'b01: begin    // LUI
@@ -450,11 +450,11 @@ module mkDecodeUnit#(
                 end else begin
 `ifdef ENABLE_RISCOF_TESTS
                     if (csrIndex == csr_RISCOF_HALT) begin
-                        decodedInstruction.exception = tagged Valid createRISCOFTestHaltException(decodedInstruction.programCounter);
+                        decodedInstruction.exception = tagged Valid createRISCOFTestHaltException(decodedInstruction.instructionCommon.programCounter);
                     end else
 `endif
                     begin
-                        decodedInstruction.exception = tagged Valid createIllegalInstructionException(decodedInstruction.rawInstruction);
+                        decodedInstruction.exception = tagged Valid createIllegalInstructionException(decodedInstruction.instructionCommon.rawInstruction);
                     end
                 end
             end
@@ -467,8 +467,8 @@ module mkDecodeUnit#(
         Bool verbose <- $test$plusargs ("verbose");
         let decodedInstruction = decodedInstructionWaitingForOperands.first;
 
-        let fetchIndex = decodedInstruction.fetchIndex;
-        let programCounter = decodedInstruction.programCounter;
+        let fetchIndex = decodedInstruction.instructionCommon.fetchIndex;
+        let programCounter = decodedInstruction.instructionCommon.programCounter;
         let stageEpoch = pipelineController.stageEpoch(valueOf(DecodeStageNumber), 2);
 
         //
@@ -498,31 +498,31 @@ module mkDecodeUnit#(
     interface Put putEncodedInstruction;
         method Action put(EncodedInstruction encodedInstruction) if(decodedInstructionWaitingForOperands.notEmpty == False);
             Bool verbose <- $test$plusargs ("verbose");
-            let fetchIndex = encodedInstruction.fetchIndex;
+            let fetchIndex = encodedInstruction.instructionCommon.fetchIndex;
             let stageEpoch = pipelineController.stageEpoch(valueOf(DecodeStageNumber), 2);
 
-            if (!pipelineController.isCurrentEpoch(valueOf(DecodeStageNumber), 2, encodedInstruction.pipelineEpoch)) begin
+            if (!pipelineController.isCurrentEpoch(valueOf(DecodeStageNumber), 2, encodedInstruction.instructionCommon.pipelineEpoch)) begin
                 if (verbose)
-                    $display("%0d,%0d,%0d,%0x,%0d,decode,stale instruction...ignoring", fetchIndex, cycleCounter, encodedInstruction.pipelineEpoch, encodedInstruction.programCounter, valueOf(DecodeStageNumber));
+                    $display("%0d,%0d,%0d,%0x,%0d,decode,stale instruction...ignoring", fetchIndex, cycleCounter, encodedInstruction.instructionCommon.pipelineEpoch, encodedInstruction.instructionCommon.programCounter, valueOf(DecodeStageNumber));
             end else if(isValid(encodedInstruction.exception)) begin
                 // Pass along any exceptions
                 if (verbose)
-                    $display("%0d,%0d,%0d,%0x,%0d,decode,exception in encoded instruction...propagating", fetchIndex, cycleCounter, encodedInstruction.pipelineEpoch, encodedInstruction.programCounter, valueOf(DecodeStageNumber));
+                    $display("%0d,%0d,%0d,%0x,%0d,decode,exception in encoded instruction...propagating", fetchIndex, cycleCounter, encodedInstruction.instructionCommon.pipelineEpoch, encodedInstruction.instructionCommon.programCounter, valueOf(DecodeStageNumber));
 
-                let decodedInstruction = newDecodedInstruction(encodedInstruction.programCounter, 0);
-                decodedInstruction.fetchIndex = fetchIndex;
-                decodedInstruction.pipelineEpoch = stageEpoch;
+                let decodedInstruction = newDecodedInstruction(encodedInstruction.instructionCommon.programCounter, 0);
+                decodedInstruction.instructionCommon.fetchIndex = fetchIndex;
+                decodedInstruction.instructionCommon.pipelineEpoch = stageEpoch;
                 decodedInstruction.opcode = NO_OP;
                 decodedInstruction.exception = encodedInstruction.exception;
                 outputQueue.enq(decodedInstruction);
             end else begin
-                let rawInstruction = encodedInstruction.rawInstruction;
-                let programCounter = encodedInstruction.programCounter;
+                let rawInstruction = encodedInstruction.instructionCommon.rawInstruction;
+                let programCounter = encodedInstruction.instructionCommon.programCounter;
 
                 let decodedInstruction = decodeInstruction(programCounter, rawInstruction);
-                decodedInstruction.fetchIndex = encodedInstruction.fetchIndex;
-                decodedInstruction.pipelineEpoch = stageEpoch;
-                decodedInstruction.predictedNextProgramCounter = encodedInstruction.predictedNextProgramCounter;
+                decodedInstruction.instructionCommon.fetchIndex = encodedInstruction.instructionCommon.fetchIndex;
+                decodedInstruction.instructionCommon.pipelineEpoch = stageEpoch;
+                decodedInstruction.instructionCommon.predictedNextProgramCounter = encodedInstruction.instructionCommon.predictedNextProgramCounter;
 
                 //
                 // Check GPR bypasses (these may stall if waiting for register values from memory)

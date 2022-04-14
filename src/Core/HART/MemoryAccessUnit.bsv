@@ -11,8 +11,8 @@ import PGTypes::*;
 import EncodedInstruction::*;
 import Exception::*;
 import ExecutedInstruction::*;
+import InstructionCommon::*;
 import LoadStore::*;
-import PipelineController::*;
 import StageNumbers::*;
 import TileLink::*;
 
@@ -42,6 +42,7 @@ interface MemoryAccessUnit;
     interface Get#(Maybe#(MemoryAccess)) getMemoryAccess;
 endinterface
 
+(* synthesize *)
 module mkMemoryAccessUnit(MemoryAccessUnit);
     Wire#(Word64) cycleCounter <- mkBypassWire;
     FIFO#(ExecutedInstruction) outputQueue <- mkPipelineFIFO;
@@ -165,13 +166,13 @@ module mkMemoryAccessUnit(MemoryAccessUnit);
     interface Put putExecutedInstruction;
         method Action put(ExecutedInstruction executedInstruction) if (waitingForMemoryResponse == False);
             Bool verbose <- $test$plusargs ("verbose");
-            let fetchIndex = executedInstruction.fetchIndex;
+            let fetchIndex = executedInstruction.instructionCommon.fetchIndex;
             if(executedInstruction.loadRequest matches tagged Valid .loadRequest) begin
                 if (verbose)
                     $display("%0d,%0d,XXX,%0x,%0d,memory access,LOAD", 
                         fetchIndex, 
                         cycleCounter, 
-                        executedInstruction.programCounter, 
+                        executedInstruction.instructionCommon.programCounter, 
                         valueOf(MemoryAccessStageNumber));
 
                 // NOTE: Alignment checks were already performed during the execution stage.
@@ -181,7 +182,7 @@ module mkMemoryAccessUnit(MemoryAccessUnit);
                     $display("%0d,%0d,XXX,%0x,%0d,memory access,Loading from $%08x with size: %d", 
                         fetchIndex, 
                         cycleCounter, 
-                        executedInstruction.programCounter, 
+                        executedInstruction.instructionCommon.programCounter, 
                         valueOf(MemoryAccessStageNumber), 
                         loadRequest.tlRequest.a_address, 
                         loadRequest.tlRequest.a_size);
@@ -192,7 +193,7 @@ module mkMemoryAccessUnit(MemoryAccessUnit);
                     $display("%0d,%0d,XXX,%0x,%0d,memory access,Storing to $%0x", 
                         fetchIndex, 
                         cycleCounter, 
-                        executedInstruction.programCounter, 
+                        executedInstruction.instructionCommon.programCounter, 
                         valueOf(MemoryAccessStageNumber), 
                         storeRequest.tlRequest.a_address);
 
@@ -205,7 +206,7 @@ module mkMemoryAccessUnit(MemoryAccessUnit);
                     $display("%0d,%0d,XXX,%0x,%0d,memory access,NO-OP", 
                         fetchIndex, 
                         cycleCounter, 
-                        executedInstruction.programCounter, 
+                        executedInstruction.instructionCommon.programCounter, 
                         valueOf(MemoryAccessStageNumber));
                 outputQueue.enq(executedInstruction);
             end

@@ -1,7 +1,6 @@
 import PGTypes::*;
 import Exception::*;
-import PipelineController::*;
-
+import InstructionCommon::*;
 import DefaultValue::*;
 
 //
@@ -49,21 +48,8 @@ typedef enum {
 // Structure holding the decoded representation of a RISC-V instruction.
 //
 typedef struct {
-    // fetchIndex - Monotically increasing index of all instructions fetched.
-    Word fetchIndex;
-
-    // pipelineEpoch - Records which pipeline epoch corresponds to this instruction.
-    PipelineEpoch pipelineEpoch;
-
-    // programCounter - The program counter corresponding to this instruction.
-    ProgramCounter programCounter;
-
-    // rawInstruction - The raw 32 bit instruction.
-    Word32 rawInstruction;
-
-    // predictedNextProgramCounter - Contains the *predicted* program counter following this
-    //                               instruction.
-    ProgramCounter predictedNextProgramCounter;
+    // instructionCommon - common instruction info
+    InstructionCommon instructionCommon;
 
     // opcode - Records which (micro)operation code corresponding to this instruction.
     Opcode opcode;
@@ -124,12 +110,8 @@ typedef struct {
 
 instance DefaultValue#(DecodedInstruction);
     defaultValue = DecodedInstruction {
-        fetchIndex: ?,
-        pipelineEpoch: ?,
+        instructionCommon: ?,
         opcode: UNSUPPORTED_OPCODE,
-        programCounter: ?,
-        rawInstruction: ?,
-        predictedNextProgramCounter: ?,
         aluOperator: ?,
         loadOperator: ?,
         storeOperator: ?,
@@ -150,8 +132,8 @@ endinstance
 
 function DecodedInstruction newDecodedInstruction(ProgramCounter programCounter, Word32 rawInstruction);
     DecodedInstruction decodedInstruction = defaultValue;
-    decodedInstruction.programCounter = programCounter;
-    decodedInstruction.rawInstruction = rawInstruction;
+    decodedInstruction.instructionCommon.programCounter = programCounter;
+    decodedInstruction.instructionCommon.rawInstruction = rawInstruction;
 
     return decodedInstruction;
 endfunction

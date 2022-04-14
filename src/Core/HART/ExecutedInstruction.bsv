@@ -1,8 +1,8 @@
 import PGTypes::*;
 
 import Exception::*;
+import InstructionCommon::*;
 import LoadStore::*;
-import PipelineController::*;
 
 //
 // GPRWriteBack
@@ -31,21 +31,8 @@ typedef struct {
 // data.
 //
 typedef struct {
-    // fetchIndex - Monotically increasing index of all instructions fetched.
-    Word fetchIndex;
-
-    // pipelineEpoch - Records which pipeline epoch corresponds to this instruction.
-    PipelineEpoch pipelineEpoch;
-
-    // programCounter - The program counter corresponding to this instruction.
-    ProgramCounter programCounter;
-
-    // predictedNextProgramCounter - Contains the *predicted* program counter following this
-    //                               instruction.
-    ProgramCounter predictedNextProgramCounter;
-
-    // rawInstruction - The raw instruction bits
-    Word32 rawInstruction;
+    // instructionCommon - common instruction info
+    InstructionCommon instructionCommon;
 
     // changedProgramCounter - The next program counter if this instruction was a
     //                         jump/branch/etc.
@@ -69,12 +56,8 @@ typedef struct {
 
 instance DefaultValue#(ExecutedInstruction);
     defaultValue = ExecutedInstruction {
-        fetchIndex: ?,
-        pipelineEpoch: ?,
-        programCounter: ?,
-        rawInstruction: ?,
+        instructionCommon: ?,
         changedProgramCounter: tagged Invalid,
-        predictedNextProgramCounter: ?,
         loadRequest: tagged Invalid,
         storeRequest: tagged Invalid,
         exception: tagged Invalid,
@@ -85,8 +68,8 @@ endinstance
 
 function ExecutedInstruction newExecutedInstruction(ProgramCounter programCounter, Word32 rawInstruction);
     ExecutedInstruction executedInstruction = defaultValue;
-    executedInstruction.programCounter = programCounter;
-    executedInstruction.rawInstruction = rawInstruction;
+    executedInstruction.instructionCommon.programCounter = programCounter;
+    executedInstruction.instructionCommon.rawInstruction = rawInstruction;
     executedInstruction.exception = tagged Valid createIllegalInstructionException(rawInstruction);
 
     return executedInstruction;
@@ -94,8 +77,8 @@ endfunction
 
 function ExecutedInstruction newNOOPExecutedInstruction(ProgramCounter programCounter);
     ExecutedInstruction executedInstruction = defaultValue;
-    executedInstruction.programCounter = programCounter;
-    executedInstruction.rawInstruction = 0;
+    executedInstruction.instructionCommon.programCounter = programCounter;
+    executedInstruction.instructionCommon.rawInstruction = 0;
     executedInstruction.exception = tagged Invalid;
 
     return executedInstruction;
