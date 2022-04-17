@@ -11,7 +11,11 @@ import TrapController::*;
 import ExecutedInstruction::*;
 import GPRFile::*;
 import InstructionCommon::*;
+
+`ifdef ENABLE_INSTRUCTION_LOGGING
 import Logger::*;
+`endif
+
 import Scoreboard::*;
 import StageNumbers::*;
 

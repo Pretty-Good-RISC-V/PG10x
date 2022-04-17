@@ -7,12 +7,15 @@ target_include_directories(HART INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(HART INTERFACE
     Common::Common
     CSRFile::CSRFile
-    Logger::Logger
     TileLink::TileLink
 )
 
 if (ENABLE_INSTRUCTION_LOGGING)
-    target_compile_definitions(HART INTERFACE
+    target_link_libraries(HART INTERFACE
+        Logger::Logger
+    )
+
+target_compile_definitions(HART INTERFACE
         ENABLE_INSTRUCTION_LOGGING
     )
 endif()
