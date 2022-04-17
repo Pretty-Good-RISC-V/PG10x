@@ -475,11 +475,13 @@ module mkExecutionUnit#(
             Maybe#(RVCSRIndex) csrScoreboardValue = tagged Invalid;
 
             if (!pipelineController.isCurrentEpoch(valueOf(ExecutionStageNumber), 1, decodedInstruction.instructionCommon.pipelineEpoch)) begin
+                // Stale instruction, change the instruction into a NO-OP and let it continue through the pipeline.
                 `stageLog(decodedInstruction.instructionCommon, ExecutionStageNumber, "stale instruction...adding bubble to pipeline")
 
                 let noopInstruction = newNOOPExecutedInstruction(decodedInstruction.instructionCommon.programCounter);
                 outputQueue.enq(noopInstruction);
             end else if(isValid(decodedInstruction.exception)) begin
+                // An exception was found in the incoming instruction - propagate it.
                 `stageLog(decodedInstruction.instructionCommon, ExecutionStageNumber, "EXCEPTION - decoded instruction had exception - propagating")
 
                 outputQueue.enq(newExecutedInstructionFromDecodedInstruction(decodedInstruction));
