@@ -25,17 +25,17 @@ import SpecialFIFOs::*;
 export ExecutionUnit(..), mkExecutionUnit;
 
 interface ExecutionUnit;
-    interface Get#(ProgramCounter) getBranchProgramCounterRedirection;
-
+    // Input
     interface Put#(DecodedInstruction) putDecodedInstruction;
+
+    // Output (primary)
     interface Get#(ExecutedInstruction) getExecutedInstruction;
 
-    interface Get#(RVGPRIndex) getExecutionDestination;
-    interface Get#(Word)       getExecutionResult;
-
-    interface Get#(RVGPRIndex) getLoadDestination;
-
-    interface Put#(Bool) putHalt;
+    // Outputs (secondary)
+    interface Get#(ProgramCounter)  getBranchProgramCounterRedirection;
+    interface Get#(RVGPRIndex)      getExecutionDestination;
+    interface Get#(Word)            getExecutionResult;
+    interface Get#(RVGPRIndex)      getLoadDestination;
 endinterface
 
 module mkExecutionUnit#(
@@ -43,14 +43,14 @@ module mkExecutionUnit#(
     TrapController trapController,
     Scoreboard#(4) scoreboard
 )(ExecutionUnit);
+    // Primary output FIFO
     FIFO#(ExecutedInstruction) outputQueue <- mkPipelineFIFO;
 
+    // Secondary output FIFOs
     FIFO#(RVGPRIndex) executionDestinationQueue <- mkBypassFIFO;
     FIFO#(Word) executionResultQueue <- mkBypassFIFO;
     FIFO#(RVGPRIndex) loadDestinationQueue <- mkBypassFIFO;
     FIFO#(ProgramCounter) branchRedirectionQueue <- mkBypassFIFO;
-
-    Reg#(Bool) halt <- mkReg(False);
 
     ALU alu <- mkALU;
 
@@ -77,25 +77,27 @@ module mkExecutionUnit#(
     //
     // ALU
     //
-    function ExecutedInstruction executeALU(DecodedInstruction decodedInstruction, ExecutedInstruction executedInstruction);
-        // dynamicAssert(isValid(decodedInstruction.rd), "ALU: rd is invalid");
-        // dynamicAssert(isValid(decodedInstruction.rs1), "ALU: rs1 is invalid");
+    function ActionValue#(ExecutedInstruction) executeALU(DecodedInstruction decodedInstruction, ExecutedInstruction executedInstruction);
+        actionvalue
+            dynamicAssert(isValid(decodedInstruction.rd), "ALU: rd is invalid");
+            dynamicAssert(isValid(decodedInstruction.rs1), "ALU: rs1 is invalid");
 
-        let result = alu.execute(
-            decodedInstruction.aluOperator, 
-            decodedInstruction.rs1Value,
-            fromMaybe(decodedInstruction.rs2Value, decodedInstruction.immediate)
-        );
+            let result = alu.execute(
+                decodedInstruction.aluOperator, 
+                decodedInstruction.rs1Value,
+                fromMaybe(decodedInstruction.rs2Value, decodedInstruction.immediate)
+            );
 
-        if (result matches tagged Valid .rdValue) begin
-            executedInstruction.gprWriteBack = tagged Valid GPRWriteBack {
-                rd: unJust(decodedInstruction.rd),
-                value: rdValue
-            };
-            executedInstruction.exception = tagged Invalid;
-        end
+            if (result matches tagged Valid .rdValue) begin
+                executedInstruction.gprWriteBack = tagged Valid GPRWriteBack {
+                    rd: unJust(decodedInstruction.rd),
+                    value: rdValue
+                };
+                executedInstruction.exception = tagged Invalid;
+            end
 
-        return executedInstruction;
+            return executedInstruction;
+        endactionvalue
     endfunction
 
     //
@@ -107,7 +109,6 @@ module mkExecutionUnit#(
     endfunction
 
     function Bool isBranchTaken(DecodedInstruction decodedInstruction);
-        // NOTE: Validity of the branch operator has already been checked.
         return case(decodedInstruction.branchOperator)
             branch_BEQ: return (decodedInstruction.rs1Value == decodedInstruction.rs2Value);
             branch_BNE: return (decodedInstruction.rs1Value != decodedInstruction.rs2Value);
@@ -118,55 +119,60 @@ module mkExecutionUnit#(
         endcase;
     endfunction
 
-    function ExecutedInstruction executeBRANCH(DecodedInstruction decodedInstruction, ExecutedInstruction executedInstruction);
-        // dynamicAssert(isValid(decodedInstruction.rd) == False, "BRANCH: rd SHOULD BE invalid");
-        // dynamicAssert(isValid(decodedInstruction.rs1), "BRANCH: rs1 is invalid");
-        // dynamicAssert(isValid(decodedInstruction.rs2), "BRANCH: rs2 is invalid");
-        // dynamicAssert(isValid(decodedInstruction.immediate), "BRANCH: immediate is invalid");
+    function ActionValue#(ExecutedInstruction) executeBRANCH(DecodedInstruction decodedInstruction, ExecutedInstruction executedInstruction);
+        actionvalue
+            dynamicAssert(isValid(decodedInstruction.rd) == False, "BRANCH: rd SHOULD BE invalid");
+            dynamicAssert(isValid(decodedInstruction.rs1), "BRANCH: rs1 is invalid");
+            dynamicAssert(isValid(decodedInstruction.rs2), "BRANCH: rs2 is invalid");
+            dynamicAssert(isValid(decodedInstruction.immediate), "BRANCH: immediate is invalid");
 
-        if (isValidBranchOperator(decodedInstruction.branchOperator) &&&
-            decodedInstruction.immediate matches tagged Valid .immediate) begin
-            Maybe#(ProgramCounter) nextProgramCounter = tagged Invalid;
-            if (isBranchTaken(decodedInstruction)) begin
-                // Determine branch target address and check
-                // for address misalignment.
-                let branchTarget = getEffectiveAddress(decodedInstruction.instructionCommon.programCounter, immediate);
-                // Branch target must be 32 bit aligned.
-                if (isValidInstructionAddress(branchTarget) == False) begin
-                    executedInstruction.exception = tagged Valid createMisalignedInstructionException(branchTarget);
+            if (isValidBranchOperator(decodedInstruction.branchOperator) &&&
+                decodedInstruction.immediate matches tagged Valid .immediate) begin
+                Maybe#(ProgramCounter) nextProgramCounter = tagged Invalid;
+                if (isBranchTaken(decodedInstruction)) begin
+                    // Determine branch target address and check
+                    // for address misalignment.
+                    let branchTarget = getEffectiveAddress(decodedInstruction.instructionCommon.programCounter, immediate);
+                    // Branch target must be 32 bit aligned.
+                    if (isValidInstructionAddress(branchTarget) == False) begin
+                        executedInstruction.exception = tagged Valid createMisalignedInstructionException(branchTarget);
+                    end else begin
+                        // Target address aligned
+                        executedInstruction.exception = tagged Invalid;
+                        nextProgramCounter = tagged Valid branchTarget;
+                    end
                 end else begin
-                    // Target address aligned
                     executedInstruction.exception = tagged Invalid;
-                    nextProgramCounter = tagged Valid branchTarget;
+                    nextProgramCounter = tagged Valid (decodedInstruction.instructionCommon.programCounter + 4);
                 end
-            end else begin
-                executedInstruction.exception = tagged Invalid;
-                nextProgramCounter = tagged Valid (decodedInstruction.instructionCommon.programCounter + 4);
+
+                if (nextProgramCounter matches tagged Valid .npc &&& npc != decodedInstruction.instructionCommon.predictedNextProgramCounter) begin
+                    executedInstruction.changedProgramCounter = tagged Valid npc;
+                end
             end
 
-            if (nextProgramCounter matches tagged Valid .npc &&& npc != decodedInstruction.instructionCommon.predictedNextProgramCounter) begin
-                executedInstruction.changedProgramCounter = tagged Valid npc;
-            end
-        end
-
-        return executedInstruction;
+            return executedInstruction;
+        endactionvalue
     endfunction
 
     //
     // COPY_IMMEDIATE
     //
-    function ExecutedInstruction executeCOPY_IMMEDIATE(DecodedInstruction decodedInstruction, ExecutedInstruction executedInstruction);
-        // dynamicAssert(isValid(decodedInstruction.rd), "COPY_IMMEDIATE: rd is invalid");
-        // dynamicAssert(isValid(decodedInstruction.rs1) == False, "COPY_IMMEDIATE: rs1 SHOULD BE invalid");
-        // dynamicAssert(isValid(decodedInstruction.rs2) == False, "COPY_IMMEDIATE: rs2 SHOULD BE invalid");
-        // dynamicAssert(isValid(decodedInstruction.immediate), "COPY_IMMEDIATE: immediate is invalid");
-        executedInstruction.gprWriteBack = tagged Valid GPRWriteBack {
-            rd: fromMaybe(?, decodedInstruction.rd),
-            value: fromMaybe(?, decodedInstruction.immediate)
-        };
-        executedInstruction.exception = tagged Invalid;
+    function ActionValue#(ExecutedInstruction) executeCOPY_IMMEDIATE(DecodedInstruction decodedInstruction, ExecutedInstruction executedInstruction);
+        actionvalue
+            dynamicAssert(isValid(decodedInstruction.rd), "COPY_IMMEDIATE: rd is invalid");
+            dynamicAssert(isValid(decodedInstruction.rs1) == False, "COPY_IMMEDIATE: rs1 SHOULD BE invalid");
+            dynamicAssert(isValid(decodedInstruction.rs2) == False, "COPY_IMMEDIATE: rs2 SHOULD BE invalid");
+            dynamicAssert(isValid(decodedInstruction.immediate), "COPY_IMMEDIATE: immediate is invalid");
 
-        return executedInstruction;
+            executedInstruction.gprWriteBack = tagged Valid GPRWriteBack {
+                rd: fromMaybe(?, decodedInstruction.rd),
+                value: fromMaybe(?, decodedInstruction.immediate)
+            };
+            executedInstruction.exception = tagged Invalid;
+
+            return executedInstruction;
+        endactionvalue
     endfunction
 
     //
@@ -323,7 +329,8 @@ module mkExecutionUnit#(
                 effectiveAddress
             );
 
-            `stageLog(decodedInstruction.instructionCommon, ExecutionStageNumber, $format("LOAD LEA: $%0x - $%0x", effectiveAddress, decodedInstruction.loadOperator))
+            `stageLog(decodedInstruction.instructionCommon, ExecutionStageNumber, 
+                $format("LOAD LEA: $%0x - $%0x", effectiveAddress, decodedInstruction.loadOperator))
 
             if (isSuccess(result)) begin
                 executedInstruction.loadRequest = tagged Valid result.Success;
@@ -372,20 +379,18 @@ module mkExecutionUnit#(
         actionvalue
             case(decodedInstruction.systemOperator)
                 sys_ECALL: begin
-                    // if (verbose)
-                    //     $display("%0d,%0d,%0d,%0x,%0d,execute,ECALL instruction encountered", decodedInstruction.fetchIndex, trapController.csrFile.cycle_counter, currentEpoch, decodedInstruction.instructionCommon.programCounter, valueOf(ExecutionStageNumber));
+                    `stageLog(decodedInstruction.instructionCommon, ExecutionStageNumber, "ECALL instruction encountered")
 
                     let curPriv <- trapController.csrFile.getCurrentPrivilegeLevel.get;
                     executedInstruction.exception = tagged Valid createEnvironmentCallException(curPriv, decodedInstruction.instructionCommon.programCounter);
                 end
                 sys_EBREAK: begin
-                    // if (verbose)
-                    //     $display("%0d,%0d,%0d,%0x,%0d,execute,EBREAK instruction encountered", decodedInstruction.fetchIndex, trapController.csrFile.cycle_counter, currentEpoch, decodedInstruction.instructionCommon.programCounter, valueOf(ExecutionStageNumber));
+                    `stageLog(decodedInstruction.instructionCommon, ExecutionStageNumber, "EBREAK instruction encountered")
+
                     executedInstruction.exception = tagged Valid createBreakpointException(decodedInstruction.instructionCommon.programCounter);
                 end
                 sys_MRET: begin
-                    // if (verbose)
-                    //     $display("%0d,%0d,%0d,%0x,%0d,execute,MRET instruction", decodedInstruction.fetchIndex, trapController.csrFile.cycle_counter, currentEpoch, decodedInstruction.instructionCommon.programCounter, valueOf(ExecutionStageNumber));
+                    `stageLog(decodedInstruction.instructionCommon, ExecutionStageNumber, "MRET instruction encountered")
                     
                     let newProgramCounterReadStatus <- trapController.endTrap;
                     if (newProgramCounterReadStatus matches tagged Valid .newProgramCounter) begin
@@ -452,9 +457,9 @@ module mkExecutionUnit#(
                 executedInstruction.exception = tagged Valid createInterruptException(decodedInstruction.instructionCommon.programCounter, extend(highest));
             end else begin
                 case(decodedInstruction.opcode)
-                    ALU:            executedInstruction = executeALU(decodedInstruction, executedInstruction);
-                    BRANCH:         executedInstruction = executeBRANCH(decodedInstruction, executedInstruction);
-                    COPY_IMMEDIATE: executedInstruction = executeCOPY_IMMEDIATE(decodedInstruction, executedInstruction);
+                    ALU:            executedInstruction <- executeALU(decodedInstruction, executedInstruction);
+                    BRANCH:         executedInstruction <- executeBRANCH(decodedInstruction, executedInstruction);
+                    COPY_IMMEDIATE: executedInstruction <- executeCOPY_IMMEDIATE(decodedInstruction, executedInstruction);
                     CSR:            executedInstruction <- executeCSR(decodedInstruction, executedInstruction);
                     FENCE:          executedInstruction = executeFENCE(decodedInstruction, executedInstruction);
                     JUMP:           executedInstruction <- executeJUMP(decodedInstruction, executedInstruction);
@@ -501,14 +506,10 @@ module mkExecutionUnit#(
         endmethod
     endinterface
 
-    interface Get getBranchProgramCounterRedirection = toGet(branchRedirectionQueue);
-
     interface Get getExecutedInstruction = toGet(outputQueue);
-    
+
+    interface Get getBranchProgramCounterRedirection = toGet(branchRedirectionQueue);
     interface Get getExecutionDestination = toGet(executionDestinationQueue);
     interface Get getExecutionResult = toGet(executionResultQueue);
-
     interface Get getLoadDestination = toGet(loadDestinationQueue);
-
-    interface Put putHalt = toPut(asIfc(halt));
 endmodule

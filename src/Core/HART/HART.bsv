@@ -82,11 +82,6 @@ module mkHART#(
     Reg#(HARTState) hartState <- mkReg(RESET);
 
     //
-    // CPU Halt Flag
-    //
-    Reg#(Bool) halt <- mkReg(False);
-
-    //
     // GPR File
     //
     GPRFile gprFile <- mkGPRFile;
@@ -102,7 +97,7 @@ module mkHART#(
     Scoreboard#(4) scoreboard <- mkScoreboard;
 
     //
-    // Pipeline stage epochs
+    // Pipeline controller
     //
     PipelineController pipelineController <- mkPipelineController(7 /* stage count */);
 
@@ -141,15 +136,13 @@ module mkHART#(
 
     mkConnection(decodeUnit.getDecodedInstruction, executionUnit.putDecodedInstruction);
 
-    // Bypasses from the execution unit to the program counter redirect
+    // Bypasses from the execution unit to the fetch unit
     mkConnection(executionUnit.getBranchProgramCounterRedirection, fetchUnit.putBranchProgramCounter);
 
     // Bypasses from the execution unit to the decode unit
     mkConnection(executionUnit.getExecutionDestination, decodeUnit.putExecutionDestination);
     mkConnection(executionUnit.getExecutionResult, decodeUnit.putExecutionResult);
     mkConnection(executionUnit.getLoadDestination, decodeUnit.putLoadDestination);
-
-    mkConnection(toGet(halt), executionUnit.putHalt);
 
     //
     // Stage 4 - Memory access
@@ -158,7 +151,7 @@ module mkHART#(
 
     mkConnection(executionUnit.getExecutedInstruction, memoryAccessUnit.putExecutedInstruction);
 
-    // Bypasses from the memory unit to the decode unit
+    // Bypass from the memory unit to the decode unit
     mkConnection(memoryAccessUnit.getLoadResult, decodeUnit.putLoadResult);
 
     // 
