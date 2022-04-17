@@ -14,6 +14,12 @@ if (ENABLE_PIPELINING)
     )
 endif()
 
+if (ENABLE_SIMULATION)
+    target_compile_definitions(ISATestHost PUBLIC
+        ENABLE_SIMULATION
+    )
+endif()
+
 target_link_libraries(ISATestHost 
     Core::Core
     Crossbar::Crossbar

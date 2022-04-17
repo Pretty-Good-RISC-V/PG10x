@@ -4,7 +4,8 @@
 // This module is a RISC-V instruction fetch unit.  It is responsible for fetching instructions 
 // from memory and creating a EncodedInstruction structure representing them.
 //
-`include "PGLib.bsh"
+`include "PGLib.bsvi"
+`include "HART.bsvi"
 
 import BranchPredictor::*;
 import EncodedInstruction::*;
@@ -21,14 +22,7 @@ import SpecialFIFOs::*;
 
 export mkFetchUnit, FetchUnit(..);
 
-typedef struct {
-    PipelineEpoch epoch;
-    Word address;
-    Word index;     // The fetch index
-} FetchInfo deriving(Bits, Eq, FShow);
-
 interface FetchUnit;
-    interface Put#(Word64) putCycleCounter;
     interface Get#(EncodedInstruction) getEncodedInstruction;
 
     interface Get#(Maybe#(StdTileLinkRequest)) getInstructionMemoryRequest;
@@ -44,8 +38,6 @@ endinterface
 module mkFetchUnit#(
     Reg#(ProgramCounter) programCounter
 )(FetchUnit);
-    Wire#(Word64) cycleCounter <- mkBypassWire();
-
     RWire#(StdTileLinkRequest) instructionMemoryRequest <- mkRWire;
 
     Reg#(Bool) autoFetchEnabled         <- mkReg(False);
@@ -57,7 +49,7 @@ module mkFetchUnit#(
     Reg#(Maybe#(ProgramCounter)) redirectDueToBranch[2]   <- mkCReg(2, tagged Invalid);
     Reg#(Maybe#(ProgramCounter)) redirectDueToException[2] <- mkCReg(2, tagged Invalid);
 
-    FIFO#(FetchInfo) fetchInfoQueue                       <- mkPipelineFIFO; // holds the fetch info for the current instruction request
+    FIFO#(InstructionCommon) fetchInfoQueue               <- mkPipelineFIFO; // info about the instruction being fetched
     FIFO#(StdTileLinkResponse) instructionMemoryResponses <- mkFIFO;
     FIFO#(EncodedInstruction) outputQueue                 <- mkPipelineFIFO;
 
@@ -85,44 +77,40 @@ module mkFetchUnit#(
 
     function Action sendFetchRequest;
         action
-            Bool verbose <- $test$plusargs ("verbose");
+            // Create an instruction common structure - this'll be the common
+            // struction of the instruction as it goes through the pipeline.
+            let instructionCommon = InstructionCommon {
+                fetchIndex: fetchCounter,
+                pipelineEpoch: currentEpoch,
+                programCounter: programCounter,
+                rawInstruction: ?,
+                predictedNextProgramCounter: ?
+            };
 
-            // Get the current program counter from the 'fetchProgramCounter' register, if the 
-            // program counter redirect has a value, move that into the program counter and
-            // increment the epoch.
-            let fetchProgramCounter = programCounter;
-            let fetchEpoch = currentEpoch;
             let redirectedProgramCounter <- getRedirectedProgramCounter;
-
             if (redirectedProgramCounter matches tagged Valid .rpc) begin 
-                fetchProgramCounter = rpc;
+                `stageLog(instructionCommon, FetchStageNumber, $format("redirected PC: $%08x", rpc))
 
-                fetchEpoch = fetchEpoch + 1;
-                currentEpoch <= fetchEpoch;
+                instructionCommon.programCounter = rpc;
+                instructionCommon.pipelineEpoch = instructionCommon.pipelineEpoch + 1;
 
-                if (verbose)
-                    $display("%0d,%0d,%0d,%0x,%0d,fetch send,redirected PC: $%08x", fetchCounter, cycleCounter, fetchEpoch, fetchProgramCounter, valueOf(FetchStageNumber), fetchProgramCounter);
+                currentEpoch <= instructionCommon.pipelineEpoch;
             end
 
-            if (verbose)
-                $display("%0d,%0d,%0d,%0x,%0d,fetch send,fetch address: $%08x", fetchCounter, cycleCounter, fetchEpoch, fetchProgramCounter, valueOf(FetchStageNumber), fetchProgramCounter);
+            `stageLog(instructionCommon, FetchStageNumber, $format("fetch address: $%08x", instructionCommon.programCounter))
 
             instructionMemoryRequest.wset(TileLinkLiteWordRequest {
                 a_opcode: a_GET,
                 a_param: 0,
                 a_size: 2, // Log2(sizeof(Word32))
                 a_source: 0,
-                a_address: fetchProgramCounter,
+                a_address: instructionCommon.programCounter,
                 a_mask: 'b1111,
                 a_data: ?,
                 a_corrupt: False
             });
 
-            fetchInfoQueue.enq(FetchInfo {
-                epoch: fetchEpoch,
-                address: fetchProgramCounter,
-                index: fetchCounter
-            });
+            fetchInfoQueue.enq(instructionCommon);
 
             waitingForMemoryResponse <= True;
             fetchCounter <= fetchCounter + 1;
@@ -136,55 +124,50 @@ module mkFetchUnit#(
 
     (* fire_when_enabled *)
     rule handleFetchResponse(waitingForMemoryResponse);
-        Bool verbose <- $test$plusargs ("verbose");
         let fetchResponse <- pop(instructionMemoryResponses);
-        let fetchInfo <- pop(fetchInfoQueue);
+        let instructionCommon <- pop(fetchInfoQueue);
         Maybe#(Exception) exception = tagged Invalid;
 
         if (fetchResponse.d_denied) begin
-            if (verbose)
-                $display("%0d,%0d,%0d,%0x,%0d,fetch receive,EXCEPTION - received access denied from memory system.", fetchInfo.index, cycleCounter, fetchInfo.epoch, fetchInfo.address, valueOf(FetchStageNumber));
+            `stageLog(instructionCommon, FetchStageNumber, "EXCEPTION - received access denied from memory system")
+
 `ifdef ENABLE_RISCOF_TESTS
-            if (fetchInfo.address == 'hc0dec0de)
-                exception = tagged Valid createRISCOFTestHaltException(fetchInfo.address);
+            if (instructionCommon.programCounter == 'hc0dec0de)
+                exception = tagged Valid createRISCOFTestHaltException(instructionCommon.programCounter);
             else
 `endif
-            exception = tagged Valid createInstructionAccessFaultException(fetchInfo.address);
+            exception = tagged Valid createInstructionAccessFaultException(instructionCommon.programCounter);
         end else if (fetchResponse.d_corrupt) begin
-            if (verbose)
-                $display("%0d,%0d,%0d,%0x,%0d,fetch receive,EXCEPTION - received corrupted data from memory system.", fetchInfo.index, cycleCounter, fetchInfo.epoch, fetchInfo.address, valueOf(FetchStageNumber));
-            exception = tagged Valid createInstructionAccessFaultException(fetchInfo.address);
+            `stageLog(instructionCommon, FetchStageNumber, "EXCEPTION - received corrupted data from memory system")
+
+            exception = tagged Valid createInstructionAccessFaultException(instructionCommon.programCounter);
         end else if (fetchResponse.d_opcode != d_ACCESS_ACK_DATA) begin
-            if (verbose)
-                $display("%0d,%0d,%0d,%0x,%0d,fetch receive,EXCEPTION - received unexpected opcode from memory system: ", fetchInfo.index, cycleCounter, fetchInfo.epoch, fetchInfo.address, valueOf(FetchStageNumber), fshow(fetchResponse.d_opcode));
-            exception = tagged Valid createInstructionAccessFaultException(fetchInfo.address);
+            `stageLog(instructionCommon, FetchStageNumber, $format("EXCEPTION - received unexpected opcode from memory system: ", fshow(fetchResponse.d_opcode)))
+
+            exception = tagged Valid createInstructionAccessFaultException(instructionCommon.programCounter);
         end else begin
-            if (verbose)
-                $display("%0d,%0d,%0d,%0x,%0d,fetch receive,encoded instruction=%08h", fetchInfo.index, cycleCounter, fetchInfo.epoch, fetchInfo.address, valueOf(FetchStageNumber), fetchResponse.d_data);
+            `stageLog(instructionCommon, FetchStageNumber, $format("encoded instruction=$%08h", fetchResponse.d_data))
         end
 
         // Predict what the next program counter will be
-        let predictedNextProgramCounter = branchPredictor.predictNextProgramCounter(fetchInfo.address, fetchResponse.d_data[31:0]);
-        if (verbose)
-            $display("%0d,%0d,%0d,%0x,%0d,fetch receive,predicted next instruction=$%x", fetchInfo.index, cycleCounter, fetchInfo.epoch, fetchInfo.address, valueOf(FetchStageNumber), predictedNextProgramCounter);
+        let predictedNextProgramCounter = branchPredictor.predictNextProgramCounter(instructionCommon.programCounter, fetchResponse.d_data[31:0]);
+
+        `stageLog(instructionCommon, FetchStageNumber, $format("predicted next instruction=$%0x", predictedNextProgramCounter))
+
         programCounter <= predictedNextProgramCounter;
 
         // Tell the decode stage what the program counter for the insruction it'll receive.
+        instructionCommon.predictedNextProgramCounter = predictedNextProgramCounter;
+        instructionCommon.rawInstruction = fetchResponse.d_data[31:0];
+
         outputQueue.enq(EncodedInstruction {
-            instructionCommon: InstructionCommon {
-                fetchIndex: fetchInfo.index,
-                programCounter: fetchInfo.address,
-                predictedNextProgramCounter: predictedNextProgramCounter,
-                pipelineEpoch: fetchInfo.epoch,
-                rawInstruction: fetchResponse.d_data[31:0]
-            },
+            instructionCommon: instructionCommon,
             exception: exception
         });
 
         waitingForMemoryResponse <= False;
     endrule
 
-    interface Put putCycleCounter = toPut(asIfc(cycleCounter));
     interface Get getEncodedInstruction = toGet(outputQueue);
 
     interface Get getInstructionMemoryRequest;

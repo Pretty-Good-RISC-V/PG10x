@@ -3,7 +3,7 @@
 //
 // This module handles writing back instruction results back to the register file.
 //
-import PGTypes::*;
+`include "HART.bsvi"
 
 import CSRFile::*;
 import Exception::*;
@@ -24,7 +24,6 @@ import SpecialFIFOs::*;
 export WritebackUnit(..), mkWritebackUnit;
 
 interface WritebackUnit;
-    interface Put#(Word64) putCycleCounter;
     interface Get#(ProgramCounter) getExceptionProgramCounterRedirection;
     interface Put#(ExecutedInstruction) putExecutedInstruction;
     interface Get#(Bool) getInstructionRetired;
@@ -40,7 +39,6 @@ module mkWritebackUnit#(
     TrapController trapController,
     Scoreboard#(4) scoreboard
 )(WritebackUnit);
-    Wire#(Word64) cycleCounter <- mkBypassWire;
     Reg#(Bool) instructionRetired <- mkDReg(False);
     FIFO#(ProgramCounter) exceptionRedirectionQueue <- mkBypassFIFO;
 
@@ -56,18 +54,15 @@ module mkWritebackUnit#(
 `else
         method Action put(ExecutedInstruction executedInstruction);
 `endif        
-            Bool verbose <- $test$plusargs ("verbose");
             let fetchIndex = executedInstruction.instructionCommon.fetchIndex;
             let stageEpoch = pipelineController.stageEpoch(valueOf(WritebackStageNumber), 0);
 
             if (executedInstruction.gprWriteBack matches tagged Valid .wb) begin
-                if (verbose)
-                    $display("%0d,%0d,%0d,%0x,%0d,writeback,writing result ($%08x) to GPR register x%0d", fetchIndex, cycleCounter, stageEpoch, executedInstruction.instructionCommon.programCounter, valueOf(WritebackStageNumber), wb.value, wb.rd);
+                `stageLog(executedInstruction.instructionCommon, WritebackStageNumber, $format("writing result ($%08x) to GPR register x%0d", wb.value, wb.rd))
                 gprFile.write(wb.rd, wb.value);
                 
             end else begin
-                if (verbose)
-                    $display("%0d,%0d,%0d,%0x,%0d,writeback,NO-OP", fetchIndex, cycleCounter, stageEpoch, executedInstruction.instructionCommon.programCounter, valueOf(WritebackStageNumber));
+                `stageLog(executedInstruction.instructionCommon, WritebackStageNumber, "NO-OP")
             end
 
 `ifdef ENABLE_INSTRUCTION_LOGGING
@@ -86,7 +81,7 @@ module mkWritebackUnit#(
             end
 
             if (logIt)
-                logInstruction(executedInstruction.instructionCommon.programCounter, executedInstruction.instructionCommon.rawInstruction);
+                logRawInstruction(executedInstruction.instructionCommon.programCounter, executedInstruction.instructionCommon.rawInstruction);
 `endif
 
             scoreboard.remove;
@@ -94,8 +89,9 @@ module mkWritebackUnit#(
             // exception present.   This is done to isolate the paths that write to CSRs (exception vs. CSR writeback)
             if (executedInstruction.csrWriteBack matches tagged Valid .wb) begin
                 dynamicAssert(isValid(executedInstruction.exception) == False, "ERROR: CSR Writeback exists when an exception is present");
-                if (verbose)
-                    $display("%0d,%0d,%0d,%0x,%0d,writeback,writing result ($%08x) to CSR register $%0x", fetchIndex, cycleCounter, stageEpoch, executedInstruction.instructionCommon.programCounter, valueOf(WritebackStageNumber), wb.value, wb.rd);
+
+                `stageLog(executedInstruction.instructionCommon, WritebackStageNumber, $format("writing result ($%08x) to CSR register $%0x", wb.value, wb.rd)) 
+
                 let writeResult <- trapController.csrFile.write1(wb.rd, wb.value);
                 dynamicAssert(writeResult == True, "ERROR: Failed to write to CSR via writeback");
             end else begin
@@ -107,23 +103,20 @@ module mkWritebackUnit#(
 
                     let exceptionVector <- trapController.beginTrap(executedInstruction.instructionCommon.programCounter, exception);
 
-                    if (verbose) begin
-                        $display("%0d,%0d,%0d,%0x,%0d,writeback,EXCEPTION:", fetchIndex, cycleCounter, stageEpoch, executedInstruction.instructionCommon.programCounter, valueOf(WritebackStageNumber), fshow(exception));
-                        $display("%0d,%0d,%0d,%0x,%0d,writeback,Jumping to exception handler at $%08x", fetchIndex, cycleCounter, stageEpoch, executedInstruction.instructionCommon.programCounter, valueOf(WritebackStageNumber), exceptionVector);
-                    end
+                    `stageLog(executedInstruction.instructionCommon, WritebackStageNumber, $format("exception: ", fshow(exception)))
+                    `stageLog(executedInstruction.instructionCommon, WritebackStageNumber, $format("Jumping to exception handler at $%08x", exceptionVector)) 
+
                     exceptionRedirectionQueue.enq(exceptionVector);
 
 `ifdef ENABLE_RISCOF_TESTS
                     if (exception.cause matches tagged ExceptionCause .cause &&& cause == exception_RISCOFTestHaltException) begin
-                        if (verbose)
-                            $display("%0d,%0d,%0d,%0x,%0d,writeback,RISCOF HALT Requested", fetchIndex, cycleCounter, stageEpoch, executedInstruction.instructionCommon.programCounter, valueOf(WritebackStageNumber));
+                        `stageLog(executedInstruction.instructionCommon, WritebackStageNumber, "RISCOF HALT Requested") 
                         riscofHaltRequested <= True;
                     end
 `endif                    
                 end
 
-                if (verbose)
-                    $display("%0d,%0d,%0d,%0x,%0d,writeback,---------------------------", fetchIndex, cycleCounter, stageEpoch, executedInstruction.instructionCommon.programCounter, valueOf(WritebackStageNumber));
+                `stageLog(executedInstruction.instructionCommon, WritebackStageNumber, "---------------------------")
                 trapController.csrFile.increment_instructions_retired_counter;
 
                 instructionRetiredQueue.enq(True);
@@ -131,10 +124,7 @@ module mkWritebackUnit#(
         endmethod
     endinterface
 
-    interface Put putCycleCounter = toPut(asIfc(cycleCounter));
-
     interface Get getExceptionProgramCounterRedirection = toGet(exceptionRedirectionQueue);
-
     interface Get getInstructionRetired = toGet(instructionRetiredQueue);
 
 `ifdef ENABLE_RISCOF_TESTS

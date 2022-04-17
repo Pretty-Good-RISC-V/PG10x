@@ -34,3 +34,9 @@ if (ENABLE_PIPELINING)
         ENABLE_PIPELINING
     )
 endif()
+
+if (ENABLE_SIMULATION)
+    target_compile_definitions(Simulator PUBLIC
+        ENABLE_SIMULATION
+    )
+endif()

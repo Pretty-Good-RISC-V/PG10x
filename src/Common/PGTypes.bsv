@@ -40,9 +40,15 @@ function Bool isSuccess(Result#(success_type, error_type) result);
     end
 endfunction
 
-function ActionValue#(t) pop(ifc f)
-   provisos (ToGet#(ifc, t));
+function ActionValue#(t) pop(ifc f) provisos (ToGet#(ifc, t));
    return toGet(f).get;
+endfunction
+
+function ActionValue#(Bit #(32)) getCurrentCycle;
+    actionvalue
+	    Bit#(32) t <- $stime;
+	    return t / 10;
+    endactionvalue
 endfunction
 
 export Memory::*, RVCommon::*, PGTypes::*;

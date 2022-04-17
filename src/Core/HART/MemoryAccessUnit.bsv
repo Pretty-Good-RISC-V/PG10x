@@ -6,7 +6,8 @@
 // valid LoadRequest or StoreRequest structures, the requisite load and store operations
 // are executed.
 //
-import PGTypes::*;
+`include "PGLib.bsvi"
+`include "HART.bsvi"
 
 import EncodedInstruction::*;
 import Exception::*;
@@ -31,8 +32,6 @@ typedef struct {
 } MemoryAccess deriving(Bits, Eq, FShow);
 
 interface MemoryAccessUnit;
-    interface Put#(Word64) putCycleCounter;
-
     interface Put#(ExecutedInstruction) putExecutedInstruction;
     interface Get#(ExecutedInstruction) getExecutedInstruction;
 
@@ -43,7 +42,6 @@ interface MemoryAccessUnit;
 endinterface
 
 module mkMemoryAccessUnit(MemoryAccessUnit);
-    Wire#(Word64) cycleCounter <- mkBypassWire;
     FIFO#(ExecutedInstruction) outputQueue <- mkPipelineFIFO;
     RWire#(MemoryAccess) memoryAccess <- mkRWire;
 
@@ -56,7 +54,6 @@ module mkMemoryAccessUnit(MemoryAccessUnit);
     FIFO#(Word) loadResultQueue <- mkBypassFIFO;
 
     rule handleMemoryResponse(waitingForMemoryResponse == True);
-        Bool verbose <- $test$plusargs ("verbose");
         let memoryResponse <- pop(dataMemoryResponses);
         let executedInstruction = instructionWaitingForMemoryOperation;
         waitingForMemoryResponse <= False;
@@ -64,22 +61,18 @@ module mkMemoryAccessUnit(MemoryAccessUnit);
         if (executedInstruction.storeRequest matches tagged Valid .storeRequest) begin
             let storeAddress = storeRequest.tlRequest.a_address;
             if (memoryResponse.d_denied) begin
-                if (verbose)
-                    $display("[****:****:memory] ERROR - Store returned access denied: ", fshow(memoryResponse));
+                `stageLog(executedInstruction.instructionCommon, MemoryAccessStageNumber, $format("ERROR - store returned access denied: ", fshow(memoryResponse)))
                 executedInstruction.exception = tagged Valid createStoreAccessFaultException(storeAddress);
             end else
             if (memoryResponse.d_corrupt) begin
-                if (verbose)
-                     $display("[****:****:memory] ERROR - Store returned access corrupted: ", fshow(memoryResponse));
+                `stageLog(executedInstruction.instructionCommon, MemoryAccessStageNumber, $format("ERROR - store returned access corrupted: ", fshow(memoryResponse)))
                 executedInstruction.exception = tagged Valid createStoreAccessFaultException(storeAddress);
             end else
             if (memoryResponse.d_opcode != d_ACCESS_ACK) begin
-                if (verbose)
-                    $display("[****:****:memory] ERROR - Store returned unexpected opcode: ", fshow(memoryResponse));
+                `stageLog(executedInstruction.instructionCommon, MemoryAccessStageNumber, $format("ERROR - store returned unexpected opcode: ", fshow(memoryResponse)))
                 executedInstruction.exception = tagged Valid createStoreAccessFaultException(storeAddress);
             end else begin
-                if (verbose)
-                    $display("[****:****:memory] Store completed");
+                `stageLog(executedInstruction.instructionCommon, MemoryAccessStageNumber, "store completed")
             end
 
             memoryAccess.wset(MemoryAccess {
@@ -95,21 +88,18 @@ module mkMemoryAccessUnit(MemoryAccessUnit);
                                // instruction)
 
             if (memoryResponse.d_denied) begin
-                if (verbose)
-                    $display("[****]:****:memory] ERROR - Load returned access denied: ", fshow(memoryResponse));
+                `stageLog(executedInstruction.instructionCommon, MemoryAccessStageNumber, $format("ERROR - load returned access denied: ", fshow(memoryResponse)))
                 executedInstruction.exception = tagged Valid createLoadAccessFaultException(loadAddress);
             end else
             if (memoryResponse.d_corrupt) begin
-                if (verbose)
-                    $display("[****:****:memory] ERROR - Load returned access corrupted: ", fshow(memoryResponse));                executedInstruction.exception = tagged Valid createLoadAccessFaultException(loadAddress);
+                `stageLog(executedInstruction.instructionCommon, MemoryAccessStageNumber, $format("ERROR - load returned access corrupted: ", fshow(memoryResponse)))
+                executedInstruction.exception = tagged Valid createLoadAccessFaultException(loadAddress);
             end else
             if (memoryResponse.d_opcode != d_ACCESS_ACK_DATA) begin
-                if (verbose)
-                    $display("[****:****:memory] ERROR - Load returned unexpected opcode: ", fshow(memoryResponse));
+                `stageLog(executedInstruction.instructionCommon, MemoryAccessStageNumber, $format("ERROR - load returned unexpected opcode:: ", fshow(memoryResponse)))
                 executedInstruction.exception = tagged Valid createLoadAccessFaultException(loadAddress);
             end else begin
-                if (verbose)
-                    $display("[****:****:memory] Load completed");
+                `stageLog(executedInstruction.instructionCommon, MemoryAccessStageNumber, "load completed")
 
                 // Save the data that will be written back into the register file on the
                 // writeback pipeline stage.
@@ -167,52 +157,31 @@ module mkMemoryAccessUnit(MemoryAccessUnit);
             Bool verbose <- $test$plusargs ("verbose");
             let fetchIndex = executedInstruction.instructionCommon.fetchIndex;
             if(executedInstruction.loadRequest matches tagged Valid .loadRequest) begin
-                if (verbose)
-                    $display("%0d,%0d,XXX,%0x,%0d,memory access,LOAD", 
-                        fetchIndex, 
-                        cycleCounter, 
-                        executedInstruction.instructionCommon.programCounter, 
-                        valueOf(MemoryAccessStageNumber));
+                `stageLog(executedInstruction.instructionCommon, MemoryAccessStageNumber, 
+                    $format("loading from $%08x with size %d", 
+                    loadRequest.tlRequest.a_address, 
+                    loadRequest.tlRequest.a_size))
 
-                // NOTE: Alignment checks were already performed during the execution stage.
                 dataMemoryRequests.enq(loadRequest.tlRequest);
-
-                if (verbose)
-                    $display("%0d,%0d,XXX,%0x,%0d,memory access,Loading from $%08x with size: %d", 
-                        fetchIndex, 
-                        cycleCounter, 
-                        executedInstruction.instructionCommon.programCounter, 
-                        valueOf(MemoryAccessStageNumber), 
-                        loadRequest.tlRequest.a_address, 
-                        loadRequest.tlRequest.a_size);
-                    instructionWaitingForMemoryOperation <= executedInstruction;
+                instructionWaitingForMemoryOperation <= executedInstruction;
                 waitingForMemoryResponse <= True;
             end else if (executedInstruction.storeRequest matches tagged Valid .storeRequest) begin
-                if (verbose)
-                    $display("%0d,%0d,XXX,%0x,%0d,memory access,Storing to $%0x", 
-                        fetchIndex, 
-                        cycleCounter, 
-                        executedInstruction.instructionCommon.programCounter, 
-                        valueOf(MemoryAccessStageNumber), 
-                        storeRequest.tlRequest.a_address);
+                `stageLog(executedInstruction.instructionCommon, MemoryAccessStageNumber, 
+                    $format("storing to $%08x with size %d and value %d", 
+                    storeRequest.tlRequest.a_address,
+                    storeRequest.tlRequest.a_size, 
+                    storeRequest.tlRequest.a_data))
 
                 dataMemoryRequests.enq(storeRequest.tlRequest);
                 instructionWaitingForMemoryOperation <= executedInstruction;
                 waitingForMemoryResponse <= True;
             end else begin
-                // Not a LOAD/STORE
-                if (verbose)
-                    $display("%0d,%0d,XXX,%0x,%0d,memory access,NO-OP", 
-                        fetchIndex, 
-                        cycleCounter, 
-                        executedInstruction.instructionCommon.programCounter, 
-                        valueOf(MemoryAccessStageNumber));
+                `stageLog(executedInstruction.instructionCommon, MemoryAccessStageNumber, "No memory operations in this instruction")
                 outputQueue.enq(executedInstruction);
             end
         endmethod
     endinterface
 
-    interface Put putCycleCounter = toPut(asIfc(cycleCounter));
     interface Get getExecutedInstruction = toGet(outputQueue);
     interface TileLinkLiteWordClient dataMemoryClient = toGPClient(dataMemoryRequests, dataMemoryResponses);
     interface Get getLoadResult = toGet(loadResultQueue);

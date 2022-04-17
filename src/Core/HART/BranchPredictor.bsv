@@ -3,7 +3,7 @@
 //
 // This module contains a branch predictor interface and several implementation variants.
 //
-`include "PGLib.bsh"
+`include "PGLib.bsvi"
 
 interface BranchPredictor;
     method ProgramCounter predictNextProgramCounter(ProgramCounter currentProgramCounter, Word32 instruction);

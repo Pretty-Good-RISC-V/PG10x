@@ -4,7 +4,8 @@
 // This module is a RISC-V instruction decode unit.  It is responsible for decoding machine 
 // code (a 'EncodedInstruction' structure) values into a 'DecodedInstruction' structure.
 //
-import PGTypes::*;
+`include "PGLib.bsvi"
+`include "HART.bsvi"
 
 import BypassController::*;
 import CSRFile::*;
@@ -24,8 +25,6 @@ import SpecialFIFOs::*;
 export DecodeUnit(..), mkDecodeUnit;
 
 interface DecodeUnit;
-    interface Put#(Word64) putCycleCounter;
-
     interface Put#(EncodedInstruction) putEncodedInstruction;
     interface Get#(DecodedInstruction) getDecodedInstruction;
 
@@ -46,8 +45,6 @@ module mkDecodeUnit#(
     CSRFile csrFile,
     Scoreboard#(4) scoreboard
 )(DecodeUnit);
-    Wire#(Word64) cycleCounter <- mkBypassWire;
-
     BypassController bypassController <- mkBypassController;
 
     function Bool isValidLoadInstruction(Bit#(3) func3);
@@ -464,7 +461,6 @@ module mkDecodeUnit#(
     endfunction
 
     rule waitForOperands;
-        Bool verbose <- $test$plusargs ("verbose");
         let decodedInstruction = decodedInstructionWaitingForOperands.first;
 
         let fetchIndex = decodedInstruction.instructionCommon.fetchIndex;
@@ -477,11 +473,10 @@ module mkDecodeUnit#(
         let bypassResult <- bypassController.check(decodedInstruction.rs1, decodedInstruction.rs2);
         let stallWaitingForCSR = scoreboard.searchCSR(decodedInstruction.csrIndex);
 
-        if (bypassResult.stallRequired || stallWaitingForCSR) begin
-            if (verbose) begin
-                if (bypassResult.stallRequired)
-                    $display("%0d,%0d,%0d,%0x,%0d,decode,stall waiting for bypass", fetchIndex, cycleCounter, stageEpoch, programCounter, valueOf(DecodeStageNumber));
-            end
+        if (bypassResult.stallRequired) begin
+            `stageLog(decodedInstruction.instructionCommon, DecodeStageNumber, "stall waiting for bypass")
+        end else if (stallWaitingForCSR) begin
+            `stageLog(decodedInstruction.instructionCommon, DecodeStageNumber, "stall waiting for CSR")
         end else begin
             decodedInstructionWaitingForOperands.deq;
 
@@ -490,24 +485,21 @@ module mkDecodeUnit#(
             // Send the decode result to the output queue.
             outputQueue.enq(decodedInstruction);
 
-            if (verbose)
-                $display("%0d,%0d,%0d,%0x,%0d,decode,decode complete", fetchIndex, cycleCounter, stageEpoch, programCounter, valueOf(DecodeStageNumber));
+            `stageLog(decodedInstruction.instructionCommon, DecodeStageNumber, "decode complete")
         end
     endrule
 
     interface Put putEncodedInstruction;
         method Action put(EncodedInstruction encodedInstruction) if(decodedInstructionWaitingForOperands.notEmpty == False);
-            Bool verbose <- $test$plusargs ("verbose");
             let fetchIndex = encodedInstruction.instructionCommon.fetchIndex;
             let stageEpoch = pipelineController.stageEpoch(valueOf(DecodeStageNumber), 2);
 
             if (!pipelineController.isCurrentEpoch(valueOf(DecodeStageNumber), 2, encodedInstruction.instructionCommon.pipelineEpoch)) begin
-                if (verbose)
-                    $display("%0d,%0d,%0d,%0x,%0d,decode,stale instruction...ignoring", fetchIndex, cycleCounter, encodedInstruction.instructionCommon.pipelineEpoch, encodedInstruction.instructionCommon.programCounter, valueOf(DecodeStageNumber));
+                `stageLog(encodedInstruction.instructionCommon, DecodeStageNumber, "stale instruction...ignoring")
             end else if(isValid(encodedInstruction.exception)) begin
                 // Pass along any exceptions
-                if (verbose)
-                    $display("%0d,%0d,%0d,%0x,%0d,decode,exception in encoded instruction...propagating", fetchIndex, cycleCounter, encodedInstruction.instructionCommon.pipelineEpoch, encodedInstruction.instructionCommon.programCounter, valueOf(DecodeStageNumber));
+
+                `stageLog(encodedInstruction.instructionCommon, DecodeStageNumber, "exception in encoded instruction...propagating")
 
                 let decodedInstruction = newDecodedInstruction(encodedInstruction.instructionCommon.programCounter, 0);
                 decodedInstruction.instructionCommon.fetchIndex = fetchIndex;
@@ -531,9 +523,10 @@ module mkDecodeUnit#(
                 let stallWaitingForCSR = scoreboard.searchCSR(decodedInstruction.csrIndex);
 
                 if (bypassResult.stallRequired || stallWaitingForCSR) begin
-                    if (verbose) begin
-                        if (bypassResult.stallRequired)
-                            $display("%0d,%0d,%0d,%0x,%0d,decode,stall waiting for bypass", fetchIndex, cycleCounter, stageEpoch, programCounter, valueOf(DecodeStageNumber));
+                    if (bypassResult.stallRequired) begin
+                        `stageLog(decodedInstruction.instructionCommon, DecodeStageNumber, "stall waiting for bypass")
+                    end else begin
+                        `stageLog(decodedInstruction.instructionCommon, DecodeStageNumber, "stall waiting for CSR")
                     end
                     decodedInstructionWaitingForOperands.enq(decodedInstruction);
                 end else begin
@@ -542,14 +535,12 @@ module mkDecodeUnit#(
                     // Send the decode result to the output queue.
                     outputQueue.enq(decodedInstruction);
 
-                    if (verbose)
-                        $display("%0d,%0d,%0d,%0x,%0d,decode,decode complete", fetchIndex, cycleCounter, stageEpoch, programCounter, valueOf(DecodeStageNumber));
+                    `stageLog(decodedInstruction.instructionCommon, DecodeStageNumber, "decode complete")
                 end
             end
         endmethod
     endinterface
 
-    interface Put putCycleCounter = toPut(asIfc(cycleCounter));
     interface Get getDecodedInstruction = toGet(outputQueue);
 
     interface Put putExecutionDestination = bypassController.putExecutionDestination;

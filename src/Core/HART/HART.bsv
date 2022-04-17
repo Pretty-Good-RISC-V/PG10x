@@ -82,11 +82,6 @@ module mkHART#(
     Reg#(HARTState) hartState <- mkReg(RESET);
 
     //
-    // Cycle counter
-    //
-    Reg#(Word64) cycleCounter <- mkReg(0);
-
-    //
     // CPU Halt Flag
     //
     Reg#(Bool) halt <- mkReg(False);
@@ -123,8 +118,6 @@ module mkHART#(
         programCounter
     );
 
-    mkConnection(toGet(cycleCounter), fetchUnit.putCycleCounter);
-
     //
     // Stage 2 - Instruction Decode
     //
@@ -135,7 +128,6 @@ module mkHART#(
         scoreboard
     );
 
-    mkConnection(toGet(cycleCounter), decodeUnit.putCycleCounter);
     mkConnection(fetchUnit.getEncodedInstruction, decodeUnit.putEncodedInstruction);
 
     //
@@ -147,7 +139,6 @@ module mkHART#(
         scoreboard
     );
 
-    mkConnection(toGet(cycleCounter), executionUnit.putCycleCounter);
     mkConnection(decodeUnit.getDecodedInstruction, executionUnit.putDecodedInstruction);
 
     // Bypasses from the execution unit to the program counter redirect
@@ -165,7 +156,6 @@ module mkHART#(
     //
     MemoryAccessUnit memoryAccessUnit <- mkMemoryAccessUnit;
 
-    mkConnection(toGet(cycleCounter), memoryAccessUnit.putCycleCounter);
     mkConnection(executionUnit.getExecutedInstruction, memoryAccessUnit.putExecutedInstruction);
 
     // Bypasses from the memory unit to the decode unit
@@ -181,7 +171,6 @@ module mkHART#(
         scoreboard
     );
 
-    mkConnection(toGet(cycleCounter), writebackUnit.putCycleCounter);
     mkConnection(memoryAccessUnit.getExecutedInstruction, writebackUnit.putExecutedInstruction);
 
     // Bypasses from the writeback unit to the program counter redirect
@@ -289,7 +278,6 @@ module mkHART#(
 
     (* fire_when_enabled, no_implicit_conditions *)
     rule incrementCycleCounter;
-        cycleCounter <= cycleCounter + 1;
         trapController.csrFile.increment_cycle_counter;
     endrule
 
