@@ -26,7 +26,7 @@ import SpecialFIFOs::*;
 export MemoryAccessUnit(..), mkMemoryAccessUnit, MemoryAccess(..);
 
 typedef struct {
-    VirtualAddress address;
+    Address address;
     Word value;
     Bool isStore;
 } MemoryAccess deriving(Bits, Eq, FShow);

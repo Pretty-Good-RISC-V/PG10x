@@ -13,10 +13,10 @@ typedef Bit#(XLEN) UnsignedInt;
 typedef Int#(XLEN) SignedInt;
 
 typedef Word ProgramCounter;
-typedef Word VirtualAddress;
+typedef Word FabricAddress;
+typedef Word Address;
 
 typedef Bit#(4) TileId;
-typedef Word FabricAddress;
 
 typedef TileLinkLiteWordRequest#(SizeOf#(TileId), XLEN) StdTileLinkRequest;
 typedef TileLinkLiteWordResponse#(SizeOf#(TileId), SizeOf#(TileId), XLEN) StdTileLinkResponse;
