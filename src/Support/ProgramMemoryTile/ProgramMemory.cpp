@@ -6,6 +6,7 @@
 #include <set>
 #include <string>
 #include <sstream>
+#include <iomanip>
 
 #include <elfio/elfio.hpp>
 

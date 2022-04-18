@@ -11,6 +11,7 @@ add_library(ProgramMemoryTile::ProgramMemoryTile ALIAS ProgramMemoryTile)
 
 set_target_properties(ProgramMemoryTile PROPERTIES LINKER_LANGUAGE CXX)
 set_target_properties(ProgramMemoryTile PROPERTIES CXX_STANDARD 17)
+set_target_properties(ProgramMemoryTile PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 target_include_directories(ProgramMemoryTile PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_compile_definitions(ProgramMemoryTile PUBLIC ${BASE_ISA})
