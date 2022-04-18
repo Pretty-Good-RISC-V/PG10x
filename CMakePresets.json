@@ -152,26 +152,24 @@
   ],
   "buildPresets": [
     {
-      "name": "default",
-      "configurePreset": "default"
-    }
-  ],
-  "testPresets": [
+      "name": "pg101_isa_tests",
+      "displayName": "PG101 (RV32I) ISA_TESTS",
+      "configurePreset": "pg101_isa_tests"
+    },
     {
-      "name": "default",
-      "configurePreset": "default",
-      "output": {
-        "outputOnFailure": true
-      },
-      "execution": {
-        "noTestsAction": "error",
-        "stopOnFailure": true
-      }
+      "name": "pg101_riscof_tests",
+      "displayName": "PG101 (RV32I) RISCOF_TESTS",
+      "configurePreset": "pg101_riscof_tests"
+    },
+    {
+      "name": "pg103_isa_tests",
+      "displayName": "PG103 (RV64I) ISA_TESTS",
+      "configurePreset": "pg103_isa_tests"
+    },
+    {
+      "name": "pg103_riscof_tests",
+      "displayName": "PG103 (RV64I) RISCOF_TESTS",
+      "configurePreset": "pg103_riscof_tests"
     }
-  ],
-  "vendor": {
-    "example.com/ExampleIDE/1.0": {
-      "autoFormat": false
-    }
-  }
+  ]
 }
