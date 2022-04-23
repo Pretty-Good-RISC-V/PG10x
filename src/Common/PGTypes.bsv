@@ -16,7 +16,8 @@ typedef Word ProgramCounter;
 typedef Word FabricAddress;
 typedef Word Address;
 
-typedef Bit#(4) TileId;
+typedef 4 TileIdSize;
+typedef Bit#(TileIdSize) TileId;
 
 typedef TileLinkLiteWordRequest#(SizeOf#(TileId), XLEN) StdTileLinkRequest;
 typedef TileLinkLiteWordResponse#(SizeOf#(TileId), SizeOf#(TileId), XLEN) StdTileLinkResponse;

@@ -11,7 +11,7 @@ interface SoCAddressMap;
     (* always_ready *) method FabricAddress uart0Base;
     (* always_ready *) method FabricAddress uart0Size;
     (* always_ready *) method FabricAddress uart0End;
-    (* always_ready *) method TileId uart0Id;
+    (* always_ready *) method Integer uart0Id;
 
     (* always_ready *) method FabricAddress rom0Base;
     (* always_ready *) method FabricAddress rom0Size;

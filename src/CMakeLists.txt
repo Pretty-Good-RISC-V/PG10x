@@ -12,7 +12,7 @@ endif()
 
 add_subdirectory(Tiles)
 
-if (ENABLE_SOC_VERILOG_OUTPUT)
+if (NOT ENABLE_SIMULATION)
     add_subdirectory(SoC)
 endif()
 
