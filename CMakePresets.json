@@ -12,6 +12,7 @@
       "hidden": true,
       "generator": "Unix Makefiles",
       "binaryDir": "${sourceDir}/build/${presetName}",
+      "installDir": "${sourceDir}/install/${presetName}",
       "environment": {
         "CTEST_OUTPUT_ON_FAILURE": "True"
       },
@@ -40,6 +41,11 @@
           "value": "OFF"
         }
       }
+    },
+    {
+      "name": "pg101_verilog",
+      "displayName": "PG101 (RV32I) SoC Verilog",
+      "inherits": "pg101"
     },
     {
       "name": "pg101_simulation",
@@ -89,11 +95,6 @@
           "value": "ON"
         }
       }
-    },
-    {
-      "name": "pg101_verilog",
-      "displayName": "PG101 (RV32I) SoC Verilog",
-      "inherits": "pg101"
     },
     {
       "name": "pg103",

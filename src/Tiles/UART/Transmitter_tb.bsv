@@ -21,6 +21,16 @@ module mkTransmitter_tb(Transmitter_tb);
     mkConnection(baudGenerator.getBaudX2Ticked, transmitter.putBaudX2Ticked);
 
     UCount cycleCounter <- mkUCount(0, clockRate - 1);
+    Reg#(Bit#(3)) writeOffset <- mkReg(0);
+
+    rule countdown;
+        cycleCounter.incr(1);
+        if (cycleCounter.isEqual(clockRate - 1)) begin
+            let data = 8'd65 + extend(writeOffset); 
+            transmitter.putData.put(data);
+            writeOffset <= writeOffset + 1;
+        end
+    endrule
 
     interface Get get_tx = transmitter.get_tx;
 endmodule
