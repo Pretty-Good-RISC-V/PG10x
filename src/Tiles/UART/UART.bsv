@@ -44,6 +44,10 @@ module mkUART(UART);
         end
     endrule
 
+    rule clockTick;
+        baudGenerator.clockTicked;
+    endrule
+
     interface MemoryServer memoryServer = toGPServer(requests, responses);
     interface Get get_tx = transmitter.get_tx;
     interface Put put_rx = toPut(asIfc(rx));

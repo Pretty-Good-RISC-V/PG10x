@@ -12,7 +12,7 @@ module mkBaudGenerator#(Integer ticksPerClock)(BaudGenerator);
     UCount baudRateX2Counter <- mkUCount(0, 7);         // Counts baud ticks - pulses 'baudRateX2' when = 0
     PulseWire baudRateX2 <- mkPulseWire;                // Pulses at baud rate * 2
 
-    UCount clockCounter <- mkUCount(0, ticksPerClock);  // Counts clock ticks
+    UCount clockCounter <- mkUCount(0, (ticksPerClock / 2) - 1);  // Counts clock ticks
     PulseWire baudRateX16 <- mkPulseWire;               // Pulses at baud rate * 16
 
     rule baudTick16(baudRateX16);
@@ -24,7 +24,7 @@ module mkBaudGenerator#(Integer ticksPerClock)(BaudGenerator);
     endrule
 
     method Action clockTicked;
-        if (clockCounter.isEqual(ticksPerClock)) begin
+        if (clockCounter.isEqual(0)) begin
             baudRateX16.send;
         end
 

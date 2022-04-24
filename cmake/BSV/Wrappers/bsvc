@@ -153,15 +153,20 @@ if [ "$VERILOG" == "true" ]; then
         unset POSITIONAL[0]
 
         TOP_MODULE=mk$(basename "$INPUT_FILE" .bsv)
-        log "[bsvc] Creating verilog file mk$(basename "$INPUT_FILE" .bsv).v for top module $TOP_MODULE"
-
-        OUTPUT="$(basename "$OUTPUT" .bsv.bo).v"
+        log "[bsvc] Creating verilog file (wrapped as a .bo) "$OUTPUT" for top module $TOP_MODULE"
 
         log "[bsvc] BSV COMMAND LINE: $BSV_COMPILER $BSC_COMMON $OUTPUT_TYPE $DEFINITIONS $TOP_MODULE_SWITCH $TOP_MODULE -o $OUTPUT ${POSITIONAL[@]} $INPUT_FILE"
 
-        $BSV_COMPILER $BSC_COMMON $OUTPUT_TYPE $DEFINITIONS $TOP_MODULE_SWITCH $TOP_MODULE -o "$OUTPUT" ${POSITIONAL[@]} "$INPUT_FILE"
+        OUTPUT_DIR="$(dirname $OUTPUT)"
+        OUTPUT_FILENAME="$(basename $OUTPUT)"
+
+        VERILOG_FILENAME="$OUTPUT_DIR/mk$(basename $OUTPUT .bsv.bo).v"
+
+        $BSV_COMPILER $BSC_COMMON $OUTPUT_TYPE $DEFINITIONS $TOP_MODULE_SWITCH $TOP_MODULE ${POSITIONAL[@]} "$INPUT_FILE"
     else
-        log "[bsvc] linking...no link stage for verilog ($LINK)."
+        log "[bsvc] copying $INPUT_FILE to $OUTPUT"
+
+        cp "$(dirname $INPUT_FILE)/"*.v "$(dirname $OUTPUT)"
     fi
 elif [ "$LINK" == "true" ]; then
     unset POSITIONAL[0]
