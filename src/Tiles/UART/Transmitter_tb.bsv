@@ -5,13 +5,19 @@ import Cntrs::*;
 import Connectable::*;
 import GetPut::*;
 
-Integer clockRate = 12_000_000;
 Integer baudRate  = 115_200;
 
+`ifdef ENABLE_SIMULATION
+Integer clockRate = baudRate * 32;
+interface Transmitter_tb;
+endinterface
+`else
+Integer clockRate = 12_000_000;
 interface Transmitter_tb;
     (* always_ready, always_enabled *)
     interface Get#(Bit#(1)) get_tx;
 endinterface
+`endif
 
 (* synthesize *)
 module mkTransmitter_tb(Transmitter_tb);
@@ -25,6 +31,7 @@ module mkTransmitter_tb(Transmitter_tb);
 
     rule countdown;
         cycleCounter.incr(1);
+        baudGenerator.clockTicked;
         if (cycleCounter.isEqual(clockRate - 1)) begin
             let data = 8'd65 + extend(writeOffset); 
             transmitter.putData.put(data);
@@ -32,5 +39,7 @@ module mkTransmitter_tb(Transmitter_tb);
         end
     endrule
 
+`ifndef ENABLE_SIMULATION
     interface Get get_tx = transmitter.get_tx;
+`endif
 endmodule
