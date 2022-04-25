@@ -9,28 +9,29 @@ interface BaudGenerator;
 endinterface
 
 module mkBaudGenerator#(Integer ticksPer16xBaud)(BaudGenerator);
-    UCount baudRateX2Counter <- mkUCount(0, 7);         // Counts baud ticks - pulses 'baudRateX2' when = 0
-    PulseWire baudRateX2 <- mkPulseWire;                // Pulses at baud rate * 2
-
-    UCount clockCounter <- mkUCount(0, ticksPer16xBaud - 1);    // Counts clock ticks
-    PulseWire baudRateX16 <- mkPulseWire;                       // Pulses at baud rate * 16
-
-    rule baudTick2(baudRateX2Counter.isEqual(0) && baudRateX16);
-        baudRateX2.send;            // Pulse the X2 wire
-//        $display("X2 tick");
-    endrule
-
-    rule baudTick16(baudRateX16);
-        baudRateX2Counter.incr(1);  // Increment the X2 counter
-//        $display("X16 tick");
-    endrule
+    // baudRateX16Counter - counts *clock* ticks until the X16 baud has been reached
+    UCount baudRateX16Counter <- mkUCount(0, ticksPer16xBaud - 1);
+    // baudRateX16        - pulses at baud rate * 16
+    PulseWire baudRateX16 <- mkPulseWire;
+    // baudRateX2Counter  - counts *rateX16* ticks until the X2 baud has been reached
+    UCount baudRateX2Counter <- mkUCount(0, 7);
+    // baudRateX2         - pulses at baud rate * 2
+    PulseWire baudRateX2 <- mkPulseWire;
 
     method Action clockTicked;
-        if (clockCounter.isEqual(0)) begin
-            baudRateX16.send;       // Pulse the X16 wire
+        // See if the X16 counter has elapsed...
+        if (baudRateX16Counter.isEqual(0)) begin
+            baudRateX16.send;           // Pulse the X16 wire
+
+            // See if the X2 counter has elapsed...
+            if (baudRateX2Counter.isEqual(0)) begin
+                baudRateX2.send;        // Pulse the X2 wire
+            end
+
+            baudRateX2Counter.incr(1);  // Increment the X2 counter
         end
 
-        clockCounter.incr(1);
+        baudRateX16Counter.incr(1);     // Increment the X16 counter
     endmethod
 
     interface Get getBaudX2Ticked = toGet(baudRateX2);

@@ -6,11 +6,11 @@ import FIFO::*;
 import GetPut::*;
 
 interface Transmitter;
-    // putData - puts data to be transmitted
+    // putData         - puts data to be transmitted
     interface Put#(Bit#(8)) putData;
     // putBaudX2Ticked - puts value indicating if the 2x baud rate time has elapsed
     interface Put#(Bool) putBaudX2Ticked;
-    // get_tx - gets the TX transmission line value
+    // get_tx          - gets the TX transmission line value
     interface Get#(Bit#(1)) get_tx;
 endinterface
 
