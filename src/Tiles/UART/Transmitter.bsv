@@ -33,6 +33,7 @@ module mkTransmitter(Transmitter);
     Reg#(Bool) txBaudX2Ticked <- mkReg(False);
 
     rule handleTransmitIDLE(txState == UART_IDLE);
+        $display("XMIT: Popping from queue");
         let data <- pop(transmitQueue);
 
         txByte <= data;
@@ -44,11 +45,13 @@ module mkTransmitter(Transmitter);
         if (txTick.isEqual(0)) begin
             case(txState)
                 UART_START_BIT: begin
+                    $display("Writing start bit");
                     txLine <= 0;        // lower TX
                     txState <= UART_DATA;
                     txBit <= 0;
                 end
                 UART_DATA: begin
+                    $display("Writing data bit #%0d", txBit);
                     if ((txByte & (1 << txBit)) == 1) begin
                         txLine <= 0;    // lower TX
                     end else begin
@@ -62,10 +65,12 @@ module mkTransmitter(Transmitter);
                     end
                 end
                 UART_STOP_BIT: begin
+                    $display("Writing stop bit");
                     txLine <= 0;        // lower TX
                     txState <= UART_FINISH;
                 end
                 UART_FINISH: begin
+                    $display("Character complete");
                     txLine <= 1;        // raise TX
                     txState <= UART_IDLE;
                 end

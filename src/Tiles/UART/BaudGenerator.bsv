@@ -12,20 +12,22 @@ module mkBaudGenerator#(Integer ticksPer16xBaud)(BaudGenerator);
     UCount baudRateX2Counter <- mkUCount(0, 7);         // Counts baud ticks - pulses 'baudRateX2' when = 0
     PulseWire baudRateX2 <- mkPulseWire;                // Pulses at baud rate * 2
 
-    UCount clockCounter <- mkUCount(0, ticksPer16xBaud - 1);  // Counts clock ticks
-    PulseWire baudRateX16 <- mkPulseWire;               // Pulses at baud rate * 16
-
-    rule baudTick16(baudRateX16);
-        baudRateX2Counter.incr(1);
-    endrule
+    UCount clockCounter <- mkUCount(0, ticksPer16xBaud - 1);    // Counts clock ticks
+    PulseWire baudRateX16 <- mkPulseWire;                       // Pulses at baud rate * 16
 
     rule baudTick2(baudRateX2Counter.isEqual(0) && baudRateX16);
-        baudRateX2.send;
+        baudRateX2.send;            // Pulse the X2 wire
+//        $display("X2 tick");
+    endrule
+
+    rule baudTick16(baudRateX16);
+        baudRateX2Counter.incr(1);  // Increment the X2 counter
+//        $display("X16 tick");
     endrule
 
     method Action clockTicked;
         if (clockCounter.isEqual(0)) begin
-            baudRateX16.send;
+            baudRateX16.send;       // Pulse the X16 wire
         end
 
         clockCounter.incr(1);
