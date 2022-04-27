@@ -17,7 +17,7 @@ interface BypassController;
     interface Put#(Word)       putExecutionResult;
 
     interface Put#(RVGPRIndex) putLoadDestination;
-    interface Put#(Word)       putLoadResult;
+    interface Put#(Maybe#(Word)) putLoadResult;
 endinterface
 
 module mkBypassController(BypassController);
@@ -25,7 +25,7 @@ module mkBypassController(BypassController);
     Reg#(Word) executionResult[2] <- mkCReg(2, 0);
 
     Reg#(RVGPRIndex) loadDestination[2] <- mkCReg(2, 0);
-    Reg#(Word) loadResult[2] <- mkCReg(2, 0);
+    Reg#(Maybe#(Word)) loadResult[2] <- mkCReg(2, tagged Invalid);
 
     method ActionValue#(BypassResult) check(Maybe#(RVGPRIndex) instructionRS1, Maybe#(RVGPRIndex) instructionRS2);
         let bypassResult = BypassResult {
@@ -52,7 +52,29 @@ module mkBypassController(BypassController);
             bypassResult.rs2Value = tagged Valid (rs2 == 0 ? 0 : executionResult[1]);
         end
 
-        // !todo - missing load handling
+        let clearLoadResult = False;
+        if (instructionRS1 matches tagged Valid .rs1 &&& rs1 != 0 &&& rs1 == loadDestination[1]) begin
+            if (loadResult[1] matches tagged Valid .loadValue) begin
+                bypassResult.rs1Value = tagged Valid (rs1 == 0 ? 0 : loadValue);
+                clearLoadResult = True;
+            end else begin
+                bypassResult.stallRequired = True;
+            end
+        end
+
+        if (instructionRS2 matches tagged Valid .rs2 &&& rs2 != 0 &&& rs2 == loadDestination[1]) begin
+            if (loadResult[1] matches tagged Valid .loadValue) begin
+                bypassResult.rs2Value = tagged Valid (rs2 == 0 ? 0 : loadValue);
+                clearLoadResult = True;
+            end else begin
+                bypassResult.stallRequired = True;
+            end
+        end
+
+        if (clearLoadResult) begin
+            loadDestination[1] <= 0;
+            loadResult[1] <= tagged Invalid;
+        end
 
         return bypassResult;
     endmethod

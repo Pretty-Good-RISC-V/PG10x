@@ -37,7 +37,7 @@ interface MemoryAccessUnit;
 
     interface StdTileLinkClient dataMemoryClient;
 
-    interface Get#(Word) getLoadResult;
+    interface Get#(Maybe#(Word)) getLoadResult;
     interface Get#(Maybe#(MemoryAccess)) getMemoryAccess;
 endinterface
 
@@ -51,7 +51,7 @@ module mkMemoryAccessUnit(MemoryAccessUnit);
     FIFO#(StdTileLinkRequest) dataMemoryRequests <- mkFIFO;
     FIFO#(StdTileLinkResponse) dataMemoryResponses <- mkFIFO;
 
-    FIFO#(Word) loadResultQueue <- mkBypassFIFO;
+    FIFO#(Maybe#(Word)) loadResultQueue <- mkBypassFIFO;
 
     rule handleMemoryResponse(waitingForMemoryResponse == True);
         let memoryResponse <- pop(dataMemoryResponses);
@@ -146,7 +146,7 @@ module mkMemoryAccessUnit(MemoryAccessUnit);
                 });
             end
 
-            loadResultQueue.enq(value);
+            loadResultQueue.enq(tagged Valid value);
         end
 
         outputQueue.enq(executedInstruction);

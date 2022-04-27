@@ -10,7 +10,6 @@ import RegFile::*;
 
 (* synthesize *)
 module mkISATestHost(Empty);
-    ReadOnly#(Maybe#(Word)) toHostAddress <- mkReadOnly(tagged Valid 'h8000_1000);
     Reg#(Bool) initialized <- mkReg(False);
     Reg#(Maybe#(MemoryAccess)) memoryAccess <- mkReg(tagged Invalid);
 

@@ -32,7 +32,7 @@ interface DecodeUnit;
     interface Put#(RVGPRIndex) putExecutionDestination;
     interface Put#(Word)       putExecutionResult;
     interface Put#(RVGPRIndex) putLoadDestination;
-    interface Put#(Word)       putLoadResult;
+    interface Put#(Maybe#(Word)) putLoadResult;
 endinterface
 
 `ifdef ENABLE_RISCOF_TESTS
