@@ -8,11 +8,11 @@ import GetPut::*;
 import Vector::*;
 
 interface InstructionCache;
-//    interface StdTileLinkServer instructionCacheServer;
-    interface StdTileLinkClient systemMemoryClient;
-
     interface Put#(Maybe#(StdTileLinkRequest)) putInstructionCacheRequest;
     interface Get#(StdTileLinkResponse) getInstructionCacheResponse;
+
+    // systemMemoryClient - client to main system memory bus.
+    interface StdTileLinkClient systemMemoryClient;
 endinterface
 
 module mkSingleLineInstructionCache(InstructionCache);
@@ -121,8 +121,6 @@ module mkSingleLineInstructionCache(InstructionCache);
                     // Tags match, no need to fill.
                     $display("$%0x hit for tag $%0x", request.a_address, tag);
 
-                    //instructionCacheRequests.deq;
-
                     response.d_opcode = d_ACCESS_ACK_DATA;
                     response.d_data = extend(line[offset]);
                     response.d_denied = False;
@@ -151,6 +149,5 @@ module mkSingleLineInstructionCache(InstructionCache);
 
     interface Get getInstructionCacheResponse = toGet(instructionCacheResponses);
 
-//    interface StdTileLinkServer instructionCacheServer = toGPServer(instructionCacheRequests, instructionCacheResponses);
     interface StdTileLinkClient systemMemoryClient = toGPClient(systemMemoryRequests, systemMemoryResponses);
 endmodule

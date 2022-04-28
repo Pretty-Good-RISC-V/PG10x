@@ -71,7 +71,7 @@ module mkBypassController(BypassController);
             end
         end
 
-        if (clearLoadResult) begin
+        if (clearLoadResult && bypassResult.stallRequired == False) begin
             loadDestination[1] <= 0;
             loadResult[1] <= tagged Invalid;
         end
