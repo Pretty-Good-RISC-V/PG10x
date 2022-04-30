@@ -85,7 +85,7 @@ typedef struct {
     Word csrValue;
 
     // rd - The *destination* register (if any) corresponding to this instruction.
-    Maybe#(RVGPRIndex) rd;
+    RVGPRIndex rd;
 
     // rs1 - The first *source* register (if any) corresponding to this instruction.
     Maybe#(RVGPRIndex) rs1;
@@ -120,7 +120,7 @@ instance DefaultValue#(DecodedInstruction);
         csrValue: ?,
         branchOperator: ?,
         systemOperator: ?,
-        rd: tagged Invalid,
+        rd: 0,
         rs1: tagged Invalid,
         rs2: tagged Invalid,
         immediate: tagged Invalid,

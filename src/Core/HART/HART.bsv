@@ -123,7 +123,7 @@ module mkHART#(
         scoreboard
     );
 
-    mkConnection(fetchUnit.getEncodedInstruction, decodeUnit.putEncodedInstruction);
+    let fu_du_encodedInstruction <- mkConnection(fetchUnit.getEncodedInstruction, decodeUnit.putEncodedInstruction);
 
     //
     // Stage 3 - Instruction execution
@@ -134,25 +134,25 @@ module mkHART#(
         scoreboard
     );
 
-    mkConnection(decodeUnit.getDecodedInstruction, executionUnit.putDecodedInstruction);
+    let du_eu_decodedInstruction <- mkConnection(decodeUnit.getDecodedInstruction, executionUnit.putDecodedInstruction);
 
     // Bypasses from the execution unit to the fetch unit
-    mkConnection(executionUnit.getBranchProgramCounterRedirection, fetchUnit.putBranchProgramCounter);
+    let euBranchRedirect_fuPutBranchRedirect <- mkConnection(executionUnit.getBranchProgramCounterRedirection, fetchUnit.putBranchProgramCounter);
 
     // Bypasses from the execution unit to the decode unit
-    mkConnection(executionUnit.getExecutionDestination, decodeUnit.putExecutionDestination);
-    mkConnection(executionUnit.getExecutionResult, decodeUnit.putExecutionResult);
-    mkConnection(executionUnit.getLoadDestination, decodeUnit.putLoadDestination);
+    let eu_du_executionDestination <- mkConnection(executionUnit.getExecutionDestination, decodeUnit.putExecutionDestination);
+    let eu_du_executionResult <- mkConnection(executionUnit.getExecutionResult, decodeUnit.putExecutionResult);
+    let eu_du_loadDestination <- mkConnection(executionUnit.getLoadDestination, decodeUnit.putLoadDestination);
 
     //
     // Stage 4 - Memory access
     //
     MemoryAccessUnit memoryAccessUnit <- mkMemoryAccessUnit;
 
-    mkConnection(executionUnit.getExecutedInstruction, memoryAccessUnit.putExecutedInstruction);
+    let eu_mau_executedInstruction <- mkConnection(executionUnit.getExecutedInstruction, memoryAccessUnit.putExecutedInstruction);
 
     // Bypass from the memory unit to the decode unit
-    mkConnection(memoryAccessUnit.getLoadResult, decodeUnit.putLoadResult);
+    let mau_du_loadResult <- mkConnection(memoryAccessUnit.getLoadResult, decodeUnit.putLoadResult);
 
     // 
     // Stage 5 - Register Writeback
@@ -164,13 +164,13 @@ module mkHART#(
         scoreboard
     );
 
-    mkConnection(memoryAccessUnit.getExecutedInstruction, writebackUnit.putExecutedInstruction);
+    let mau_wb_executedInstruction <- mkConnection(memoryAccessUnit.getExecutedInstruction, writebackUnit.putExecutedInstruction);
 
     // Bypasses from the writeback unit to the program counter redirect
-    mkConnection(writebackUnit.getExceptionProgramCounterRedirection, fetchUnit.putExceptionProgramCounter);
+    let wb_fu_exceptionProgramCounter <- mkConnection(writebackUnit.getExceptionProgramCounterRedirection, fetchUnit.putExceptionProgramCounter);
 
     // Connection to allow unpipelined operation
-    mkConnection(writebackUnit.getInstructionRetired, fetchUnit.putExecuteSingleInstruction);
+    let wb_fu_instructionRetired <- mkConnection(writebackUnit.getInstructionRetired, fetchUnit.putExecuteSingleInstruction);
 
     //
     // State handlers

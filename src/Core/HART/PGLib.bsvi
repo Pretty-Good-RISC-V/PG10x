@@ -4,3 +4,9 @@ function ProgramCounter getEffectiveAddress(Word base, Word signedOffset);
     Int#(XLEN) offset = unpack(signedOffset);
     return pack(unpack(base) + offset);
 endfunction
+
+function ProgramCounter getEffectiveAddressWithMaybe(Word base, Maybe#(Word) signedOffsetMaybe);
+    let signedOffset = fromMaybe(0, signedOffsetMaybe);
+    Int#(XLEN) offset = unpack(signedOffset);
+    return pack(unpack(base) + offset);
+endfunction

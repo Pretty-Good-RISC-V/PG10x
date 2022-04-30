@@ -34,9 +34,9 @@ typedef struct {
     // instructionCommon - common instruction info
     InstructionCommon instructionCommon;
 
-    // changedProgramCounter - The next program counter if this instruction was a
-    //                         jump/branch/etc.
-    Maybe#(ProgramCounter) changedProgramCounter;
+    // redirectedProgramCounter - The next program counter if this instruction was a
+    //                            jump/branch/etc.
+    Maybe#(ProgramCounter) redirectedProgramCounter;
 
     // exception - The exception (if any) encounted during execution of the instruction.
     Maybe#(Exception) exception;
@@ -50,14 +50,14 @@ typedef struct {
     // gprWriteBack - The data to be written to the GPR file (if any) for the instruction.
     Maybe#(GPRWriteBack) gprWriteBack;
 
-    // gprWriteBack - The data to be written to the GPR file (if any) for the instruction.
+    // csrWriteBack - The data to be written to the GPR file (if any) for the instruction.
     Maybe#(CSRWriteBack) csrWriteBack;
 } ExecutedInstruction deriving(Bits, Eq, FShow);
 
 instance DefaultValue#(ExecutedInstruction);
     defaultValue = ExecutedInstruction {
         instructionCommon: ?,
-        changedProgramCounter: tagged Invalid,
+        redirectedProgramCounter: tagged Invalid,
         loadRequest: tagged Invalid,
         storeRequest: tagged Invalid,
         exception: tagged Invalid,

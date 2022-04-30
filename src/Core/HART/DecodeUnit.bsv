@@ -86,7 +86,7 @@ module mkDecodeUnit#(
                 if (isValidLoadInstruction(func3)) begin
                     decodedInstruction.opcode = LOAD;
                     decodedInstruction.loadOperator = func3;
-                    decodedInstruction.rd = tagged Valid rd;
+                    decodedInstruction.rd = rd;
                     decodedInstruction.rs1 = tagged Valid rs1;
                     decodedInstruction.immediate = tagged Valid signExtend({func7,rs2});
                 end
@@ -144,7 +144,7 @@ module mkDecodeUnit#(
 
             2'b11: begin    // JALR
                 decodedInstruction.opcode = JUMP_INDIRECT;
-                decodedInstruction.rd = tagged Valid rd;
+                decodedInstruction.rd = rd;
                 decodedInstruction.rs1 = tagged Valid rs1;
                 decodedInstruction.immediate = tagged Valid signExtend(instruction[31:20]);
             end
@@ -180,7 +180,7 @@ module mkDecodeUnit#(
             2'b00: begin    // MISC-MEM
                 if (func3 == 3'b000) begin
                     decodedInstruction.opcode = FENCE;
-                    decodedInstruction.rd = tagged Valid rd;
+                    decodedInstruction.rd = rd;
                     decodedInstruction.rs1 = tagged Valid rs1;
                 end
             end
@@ -193,7 +193,7 @@ module mkDecodeUnit#(
 
             2'b11: begin    // JAL
                 decodedInstruction.opcode = JUMP;
-                decodedInstruction.rd = tagged Valid rd;
+                decodedInstruction.rd = rd;
                 decodedInstruction.immediate = tagged Valid signExtend({
                     instruction[31],    // 1 bit
                     instruction[19:12], // 8 bits
@@ -233,14 +233,14 @@ module mkDecodeUnit#(
                         decodedInstruction.aluOperator = {1'b0, func7[6:1], 1'b0, func3};
 `endif
                         decodedInstruction.opcode = ALU;
-                        decodedInstruction.rd = tagged Valid rd;
+                        decodedInstruction.rd = rd;
                         decodedInstruction.rs1 = tagged Valid rs1;
                         decodedInstruction.immediate = tagged Valid extend(shamt);
                     end
                 end else begin
                     decodedInstruction.aluOperator = {1'b0, 7'b0, func3};
                     decodedInstruction.opcode = ALU;
-                    decodedInstruction.rd = tagged Valid rd;
+                    decodedInstruction.rd = rd;
                     decodedInstruction.rs1 = tagged Valid rs1;
                     decodedInstruction.immediate = tagged Valid immediate31_20;
                 end
@@ -250,7 +250,7 @@ module mkDecodeUnit#(
                 if (func7 == 7'b0000000 || (func7 == 7'b0100000 && (func3 == 3'b000 || func3 == 3'b101))) begin
                     decodedInstruction.aluOperator = {1'b0, func7, func3};
                     decodedInstruction.opcode = ALU;
-                    decodedInstruction.rd = tagged Valid rd;
+                    decodedInstruction.rd = rd;
                     decodedInstruction.rs1 = tagged Valid rs1;
                     decodedInstruction.rs2 = tagged Valid rs2;            
                 end
@@ -309,7 +309,7 @@ module mkDecodeUnit#(
                         decodedInstruction.opcode = CSR;
                         decodedInstruction.csrOperator = func3;
                         decodedInstruction.csrIndex = tagged Valid ({func7, rs2});
-                        decodedInstruction.rd = tagged Valid rd;
+                        decodedInstruction.rd = rd;
                         decodedInstruction.rs1 = tagged Valid rs1;
                     end
 
@@ -317,7 +317,7 @@ module mkDecodeUnit#(
                         decodedInstruction.opcode = CSR;
                         decodedInstruction.csrOperator = func3;
                         decodedInstruction.csrIndex = tagged Valid ({func7, rs2});
-                        decodedInstruction.rd = tagged Valid rd;
+                        decodedInstruction.rd = rd;
                         decodedInstruction.immediate = tagged Valid extend(uimm);
                     end
                 endcase
@@ -333,13 +333,13 @@ module mkDecodeUnit#(
         case(instruction[6:5])
             2'b00: begin    // AUIPC
                 decodedInstruction.opcode = COPY_IMMEDIATE;
-                decodedInstruction.rd = tagged Valid rd;
+                decodedInstruction.rd = rd;
                 decodedInstruction.immediate = tagged Valid (decodedInstruction.instructionCommon.programCounter + (signExtend({instruction[31:12], 12'b0})));
             end
 
             2'b01: begin    // LUI
                 decodedInstruction.opcode = COPY_IMMEDIATE;
-                decodedInstruction.rd = tagged Valid rd;
+                decodedInstruction.rd = rd;
                 decodedInstruction.immediate = tagged Valid (signExtend({instruction[31:12], 12'b0}));
             end
 
@@ -363,7 +363,7 @@ module mkDecodeUnit#(
         let immediate31_20 = signExtend({func7,rs2});
 
         decodedInstruction.rs1 = tagged Valid rs1;
-        decodedInstruction.rd = tagged Valid rd;
+        decodedInstruction.rd = rd;
 
         case(instruction[6:5])
 `ifdef RV64
