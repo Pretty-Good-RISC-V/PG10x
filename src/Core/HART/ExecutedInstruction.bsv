@@ -42,16 +42,16 @@ typedef struct {
     Maybe#(Exception) exception;
 
     // loadRequest - The load request (if any) of the executed instruction.
-    Maybe#(LoadRequest) loadRequest;
+    Result#(LoadRequest, Exception) loadRequest;
 
     // storeRequest - The store request (if any) of the executed instruction.
-    Maybe#(StoreRequest) storeRequest;
+    Result#(StoreRequest, Exception) storeRequest;
 
     // gprWriteBack - The data to be written to the GPR file (if any) for the instruction.
-    Maybe#(GPRWriteBack) gprWriteBack;
+    Result#(GPRWriteBack, Exception) gprWriteBack;
 
-    // csrWriteBack - The data to be written to the GPR file (if any) for the instruction.
-    Maybe#(CSRWriteBack) csrWriteBack;
+    // csrWriteBack - The data to be written to the CSR file (if any) for the instruction.
+    Result#(CSRWriteBack, Exception) csrWriteBack;
 } ExecutedInstruction deriving(Bits, Eq, FShow);
 
 instance DefaultValue#(ExecutedInstruction);

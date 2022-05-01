@@ -58,7 +58,7 @@ module mkMemoryAccessUnit(MemoryAccessUnit);
         let executedInstruction = instructionWaitingForMemoryOperation;
         waitingForMemoryResponse <= False;
 
-        if (executedInstruction.storeRequest matches tagged Valid .storeRequest) begin
+        if (executedInstruction.storeRequest matches tagged Success .storeRequest) begin
             let storeAddress = storeRequest.tlRequest.a_address;
             if (memoryResponse.d_denied) begin
                 `stageLog(executedInstruction.instructionCommon, MemoryAccessStageNumber, $format("ERROR - store returned access denied: ", fshow(memoryResponse)))
@@ -80,7 +80,7 @@ module mkMemoryAccessUnit(MemoryAccessUnit);
                 value: storeRequest.tlRequest.a_data,
                 isStore: True
             });
-        end else if (executedInstruction.loadRequest matches tagged Valid .loadRequest) begin
+        end else if (executedInstruction.loadRequest matches tagged Success .loadRequest) begin
             let loadAddress = loadRequest.tlRequest.a_address;
             Word value = ?;
             RVGPRIndex rd = 0; // Any exceptions below that also have writeback data will
@@ -134,7 +134,7 @@ module mkMemoryAccessUnit(MemoryAccessUnit);
                     end
 `endif
                 endcase
-                executedInstruction.gprWriteBack = tagged Valid GPRWriteBack {
+                executedInstruction.gprWriteBack = tagged Success GPRWriteBack {
                     rd: rd,
                     value: value
                 };
@@ -156,7 +156,7 @@ module mkMemoryAccessUnit(MemoryAccessUnit);
         method Action put(ExecutedInstruction executedInstruction) if (waitingForMemoryResponse == False);
             Bool verbose <- $test$plusargs ("verbose");
             let fetchIndex = executedInstruction.instructionCommon.fetchIndex;
-            if(executedInstruction.loadRequest matches tagged Valid .loadRequest) begin
+            if(executedInstruction.loadRequest matches tagged Success .loadRequest) begin
                 `stageLog(executedInstruction.instructionCommon, MemoryAccessStageNumber, 
                     $format("loading from $%08x with size %d", 
                     loadRequest.tlRequest.a_address, 
@@ -165,7 +165,7 @@ module mkMemoryAccessUnit(MemoryAccessUnit);
                 dataMemoryRequests.enq(loadRequest.tlRequest);
                 instructionWaitingForMemoryOperation <= executedInstruction;
                 waitingForMemoryResponse <= True;
-            end else if (executedInstruction.storeRequest matches tagged Valid .storeRequest) begin
+            end else if (executedInstruction.storeRequest matches tagged Success .storeRequest) begin
                 `stageLog(executedInstruction.instructionCommon, MemoryAccessStageNumber, 
                     $format("storing to $%08x with size %d and value %d", 
                     storeRequest.tlRequest.a_address,

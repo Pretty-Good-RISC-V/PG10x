@@ -61,7 +61,7 @@ module mkWritebackUnit#(
             let fetchIndex = executedInstruction.instructionCommon.fetchIndex;
             let stageEpoch = pipelineController.stageEpoch(valueOf(WritebackStageNumber), 0);
 
-            if (executedInstruction.gprWriteBack matches tagged Valid .wb) begin
+            if (executedInstruction.gprWriteBack matches tagged Success .wb) begin
                 `stageLog(executedInstruction.instructionCommon, WritebackStageNumber, $format("writing result ($%08x) to GPR register x%0d", wb.value, wb.rd))
                 gprFile.write(wb.rd, wb.value);
                 
@@ -91,7 +91,7 @@ module mkWritebackUnit#(
             scoreboard.remove;
             // NOTE: This logic ** ASSUMES ** that if a csrWriteBack exists then there is *NO*
             // exception present.   This is done to isolate the paths that write to CSRs (exception vs. CSR writeback)
-            if (executedInstruction.csrWriteBack matches tagged Valid .wb) begin
+            if (executedInstruction.csrWriteBack matches tagged Success .wb) begin
                 dynamicAssert(isValid(executedInstruction.exception) == False, "ERROR: CSR Writeback exists when an exception is present");
 
                 `stageLog(executedInstruction.instructionCommon, WritebackStageNumber, $format("writing result ($%08x) to CSR register $%0x", wb.value, wb.rd)) 

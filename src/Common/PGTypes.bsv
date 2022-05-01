@@ -29,9 +29,10 @@ typedef TLog#(TDiv#(n,8)) DataSz#(numeric type n);
 
 // A Rust inspired Result type.
 typedef union tagged {
+    void Invalid;
     success_type Success;
     error_type Error;
-} Result#(type success_type, type error_type);
+} Result#(type success_type, type error_type) deriving(Bits, Eq, FShow);
 
 function Bool isSuccess(Result#(success_type, error_type) result);
     if (result matches tagged Success .*) begin
