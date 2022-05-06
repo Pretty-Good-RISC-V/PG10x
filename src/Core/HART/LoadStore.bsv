@@ -37,8 +37,8 @@ function Result#(LoadRequest, Exception) createLoadRequest(
             a_size: ?,
             a_source: 0,
             a_address: effectiveAddress,
-            a_mask: ?,
-            a_data: ?,
+            a_mask: 0,
+            a_data: 0,
             a_corrupt: False
         },
         rd: rd,

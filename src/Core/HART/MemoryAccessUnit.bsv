@@ -16,6 +16,7 @@ import InstructionCommon::*;
 import LoadStore::*;
 import StageNumbers::*;
 import TileLink::*;
+import WritebackInstruction::*;
 
 import Assert::*;
 import ClientServer::*;
@@ -33,7 +34,7 @@ typedef struct {
 
 interface MemoryAccessUnit;
     interface Put#(ExecutedInstruction) putExecutedInstruction;
-    interface Get#(ExecutedInstruction) getExecutedInstruction;
+    interface Get#(WritebackInstruction) getWritebackInstruction;
 
     interface StdTileLinkClient dataMemoryClient;
 
@@ -42,7 +43,7 @@ interface MemoryAccessUnit;
 endinterface
 
 module mkMemoryAccessUnit(MemoryAccessUnit);
-    FIFO#(ExecutedInstruction) outputQueue <- mkPipelineFIFO;
+    FIFO#(WritebackInstruction) outputQueue <- mkPipelineFIFO;
     RWire#(MemoryAccess) memoryAccess <- mkRWire;
 
     Reg#(Bool) waitingForMemoryResponse <- mkReg(False);
@@ -134,7 +135,7 @@ module mkMemoryAccessUnit(MemoryAccessUnit);
                     end
 `endif
                 endcase
-                executedInstruction.gprWriteBack = tagged Success GPRWriteBack {
+                executedInstruction.gprWriteback = tagged Success GPRWriteback {
                     rd: rd,
                     value: value
                 };
@@ -149,7 +150,12 @@ module mkMemoryAccessUnit(MemoryAccessUnit);
             loadResultQueue.enq(tagged Valid value);
         end
 
-        outputQueue.enq(executedInstruction);
+        outputQueue.enq(WritebackInstruction {
+            instructionCommon: executedInstruction.instructionCommon,
+            exception: executedInstruction.exception,
+            gprWriteback: executedInstruction.gprWriteback,
+            csrWriteback: executedInstruction.csrWriteback
+        });
     endrule
 
     interface Put putExecutedInstruction;
@@ -177,12 +183,17 @@ module mkMemoryAccessUnit(MemoryAccessUnit);
                 waitingForMemoryResponse <= True;
             end else begin
                 `stageLog(executedInstruction.instructionCommon, MemoryAccessStageNumber, "No memory operations in this instruction")
-                outputQueue.enq(executedInstruction);
+                outputQueue.enq(WritebackInstruction {
+                    instructionCommon: executedInstruction.instructionCommon,
+                    exception: executedInstruction.exception,
+                    gprWriteback: executedInstruction.gprWriteback,
+                    csrWriteback: executedInstruction.csrWriteback
+                });
             end
         endmethod
     endinterface
 
-    interface Get getExecutedInstruction = toGet(outputQueue);
+    interface Get getWritebackInstruction = toGet(outputQueue);
     interface TileLinkLiteWordClient dataMemoryClient = toGPClient(dataMemoryRequests, dataMemoryResponses);
     interface Get getLoadResult = toGet(loadResultQueue);
 

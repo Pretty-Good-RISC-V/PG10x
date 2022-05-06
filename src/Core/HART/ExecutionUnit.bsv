@@ -22,7 +22,7 @@ import FIFO::*;
 import GetPut::*;
 import SpecialFIFOs::*;
 
-export ExecutionUnit(..), mkExecutionUnit, mkExecutionUnitV2;
+export ExecutionUnit(..), mkExecutionUnit, mkExecutionUnitV2, mkExecutionUnitTester;
 
 interface ExecutionUnit;
     // Input
@@ -54,6 +54,44 @@ function ExecutedInstruction newExecutedInstructionFromDecodedInstruction(Decode
     return executedInstruction;
 endfunction
 
+function ExecutedInstruction newExecutedInstructionFromDecodedInstructionNEW(DecodedInstruction decodedInstruction);
+    ExecutedInstruction executedInstruction = newExecutedInstruction(decodedInstruction.instructionCommon.programCounter, decodedInstruction.instructionCommon.rawInstruction);
+    executedInstruction.instructionCommon.fetchIndex = decodedInstruction.instructionCommon.fetchIndex;
+    executedInstruction.instructionCommon.pipelineEpoch = decodedInstruction.instructionCommon.pipelineEpoch;
+    executedInstruction.instructionCommon.predictedNextProgramCounter = decodedInstruction.instructionCommon.predictedNextProgramCounter;
+
+    // If there's an exception in the incoming deccoded instruction, pass it to
+    // the executed instruction, otherwise, keep the illegal instruction exception
+    // that's created by default.
+    if (decodedInstruction.exception matches tagged Valid .exception) begin
+        executedInstruction.exception = decodedInstruction.exception;
+    end else begin
+        executedInstruction.exception = tagged Invalid;
+    end
+
+    return executedInstruction;
+endfunction
+
+function Bool isValidInstructionAddress(ProgramCounter programCounter);
+    return (programCounter[1:0] == 0 ? True : False);
+endfunction
+
+function Bool isValidBranchOperator(RVBranchOperator operator);
+    return ((operator != branch_UNSUPPORTED_010 &&
+            operator != branch_UNSUPPORTED_011) ? True : False);
+endfunction
+
+function Bool isBranchTaken(DecodedInstruction decodedInstruction);
+    return case(decodedInstruction.branchOperator)
+        branch_BEQ: return (decodedInstruction.rs1Value == decodedInstruction.rs2Value);
+        branch_BNE: return (decodedInstruction.rs1Value != decodedInstruction.rs2Value);
+        branch_BLT: return (signedLT(decodedInstruction.rs1Value, decodedInstruction.rs2Value));
+        branch_BGE: return (signedGE(decodedInstruction.rs1Value, decodedInstruction.rs2Value));
+        branch_BGEU: return (decodedInstruction.rs1Value >= decodedInstruction.rs2Value);
+        branch_BLTU: return (decodedInstruction.rs1Value < decodedInstruction.rs2Value);
+    endcase;
+endfunction
+
 module mkExecutionUnit#(
     PipelineController pipelineController,
     TrapController trapController,
@@ -71,10 +109,6 @@ module mkExecutionUnit#(
     // ALU
     ALU alu <- mkALU;
 
-    function Bool isValidInstructionAddress(ProgramCounter programCounter);
-        return (programCounter[1:0] == 0 ? True : False);
-    endfunction
-
     //
     // ALU
     //
@@ -89,11 +123,13 @@ module mkExecutionUnit#(
             );
 
             if (result matches tagged Valid .rdValue) begin
-                executedInstruction.gprWriteBack = tagged Success GPRWriteBack {
+                executedInstruction.gprWriteback = tagged Success GPRWriteback {
                     rd: decodedInstruction.rd,
                     value: rdValue
                 };
                 executedInstruction.exception = tagged Invalid;
+            end else begin
+                executedInstruction.gprWriteback = tagged Error createIllegalInstructionException(decodedInstruction.instructionCommon.rawInstruction);
             end
 
             return executedInstruction;
@@ -103,22 +139,6 @@ module mkExecutionUnit#(
     //
     // BRANCH
     //
-    function Bool isValidBranchOperator(RVBranchOperator operator);
-        return ((operator != branch_UNSUPPORTED_010 &&
-                operator != branch_UNSUPPORTED_011) ? True : False);
-    endfunction
-
-    function Bool isBranchTaken(DecodedInstruction decodedInstruction);
-        return case(decodedInstruction.branchOperator)
-            branch_BEQ: return (decodedInstruction.rs1Value == decodedInstruction.rs2Value);
-            branch_BNE: return (decodedInstruction.rs1Value != decodedInstruction.rs2Value);
-            branch_BLT: return (signedLT(decodedInstruction.rs1Value, decodedInstruction.rs2Value));
-            branch_BGE: return (signedGE(decodedInstruction.rs1Value, decodedInstruction.rs2Value));
-            branch_BGEU: return (decodedInstruction.rs1Value >= decodedInstruction.rs2Value);
-            branch_BLTU: return (decodedInstruction.rs1Value < decodedInstruction.rs2Value);
-        endcase;
-    endfunction
-
     function ActionValue#(ExecutedInstruction) executeBRANCH(DecodedInstruction decodedInstruction, Address branchTarget, ExecutedInstruction executedInstruction);
         actionvalue
             dynamicAssert(isValid(decodedInstruction.rs1), "BRANCH: rs1 is invalid");
@@ -143,7 +163,7 @@ module mkExecutionUnit#(
                 end
 
                 if (nextProgramCounter matches tagged Valid .npc &&& npc != decodedInstruction.instructionCommon.predictedNextProgramCounter) begin
-                    executedInstruction.redirectedProgramCounter = tagged Valid npc;
+                    executedInstruction.redirectedProgramCounter = tagged Success npc;
                 end
             end
 
@@ -160,7 +180,7 @@ module mkExecutionUnit#(
             dynamicAssert(isValid(decodedInstruction.rs2) == False, "COPY_IMMEDIATE: rs2 SHOULD BE invalid");
             dynamicAssert(isValid(decodedInstruction.immediate), "COPY_IMMEDIATE: immediate is invalid");
 
-            executedInstruction.gprWriteBack = tagged Success GPRWriteBack {
+            executedInstruction.gprWriteback = tagged Success GPRWriteback {
                 rd: decodedInstruction.rd,
                 value: unJust(decodedInstruction.immediate)
             };
@@ -186,7 +206,7 @@ module mkExecutionUnit#(
                 let immediateIsZero = (isValid(decodedInstruction.immediate) ? unJust(decodedInstruction.immediate) == 0 : False);
 
                 let currentValue = decodedInstruction.csrValue;
-                executedInstruction.gprWriteBack = tagged Success GPRWriteBack {
+                executedInstruction.gprWriteback = tagged Success GPRWriteback {
                     rd: rd,
                     value: currentValue
                 };
@@ -213,16 +233,16 @@ module mkExecutionUnit#(
 
                 if (writeValue matches tagged Valid .v) begin
                     if (trapController.csrFile.isWritable(csrIndex)) begin
-                        executedInstruction.csrWriteBack = tagged Success CSRWriteBack {
+                        executedInstruction.csrWriteback = tagged Success CSRWriteback {
                             rd: csrIndex,
-                            value: unJust(writeValue)
+                            value: v
                         };
                         executedInstruction.exception = tagged Invalid;
                     end else begin
                         `stageLog(decodedInstruction.instructionCommon, DecodeStageNumber, "ERROR - attempted to write to a read-only CSR")
 
                         executedInstruction.exception = tagged Valid createIllegalInstructionException(decodedInstruction.instructionCommon.rawInstruction);
-                        executedInstruction.gprWriteBack = tagged Error createIllegalInstructionException(decodedInstruction.instructionCommon.rawInstruction);
+                        executedInstruction.gprWriteback = tagged Error createIllegalInstructionException(decodedInstruction.instructionCommon.rawInstruction);
                     end
                 end else begin
                     executedInstruction.exception = tagged Invalid;
@@ -257,9 +277,10 @@ module mkExecutionUnit#(
 
             if (isValidInstructionAddress(jumpTarget) == False) begin
                 executedInstruction.exception = tagged Valid createMisalignedInstructionException(jumpTarget);
+                executedInstruction.gprWriteback = tagged Error createMisalignedInstructionException(jumpTarget);
             end else begin
-                executedInstruction.redirectedProgramCounter = tagged Valid jumpTarget;
-                executedInstruction.gprWriteBack = tagged Success GPRWriteBack {
+                executedInstruction.redirectedProgramCounter = tagged Success jumpTarget;
+                executedInstruction.gprWriteback = tagged Success GPRWriteback {
                     rd: decodedInstruction.rd,
                     value: (decodedInstruction.instructionCommon.programCounter + 4)
                 };
@@ -286,9 +307,10 @@ module mkExecutionUnit#(
 
             if (isValidInstructionAddress(jumpTarget) == False) begin
                 executedInstruction.exception = tagged Valid createMisalignedInstructionException(jumpTarget);
+                executedInstruction.gprWriteback = tagged Error createMisalignedInstructionException(jumpTarget);
             end else begin
-                executedInstruction.redirectedProgramCounter = tagged Valid jumpTarget;
-                executedInstruction.gprWriteBack = tagged Success GPRWriteBack {
+                executedInstruction.redirectedProgramCounter = tagged Success jumpTarget;
+                executedInstruction.gprWriteback = tagged Success GPRWriteback {
                     rd: decodedInstruction.rd,
                     value: (decodedInstruction.instructionCommon.programCounter + 4)
                 };
@@ -378,7 +400,7 @@ module mkExecutionUnit#(
                     
                     let newProgramCounterReadStatus <- trapController.endTrap;
                     if (newProgramCounterReadStatus matches tagged Valid .newProgramCounter) begin
-                        executedInstruction.redirectedProgramCounter = tagged Valid newProgramCounter;
+                        executedInstruction.redirectedProgramCounter = tagged Success newProgramCounter;
                         executedInstruction.exception = tagged Invalid;
                     end else begin
                         executedInstruction.exception = tagged Valid createIllegalInstructionException(decodedInstruction.instructionCommon.rawInstruction);
@@ -399,7 +421,7 @@ module mkExecutionUnit#(
 
             // If the program counter was changed, see if it matches a predicted branch/jump.
             // If not, redirect the program counter to the mispredicted target address.
-            if (executedInstruction.redirectedProgramCounter matches tagged Valid .targetAddress &&& targetAddress != executedInstruction.instructionCommon.predictedNextProgramCounter) begin
+            if (executedInstruction.redirectedProgramCounter matches tagged Success .targetAddress &&& targetAddress != executedInstruction.instructionCommon.predictedNextProgramCounter) begin
                 // Bump the current instruction epoch
                 pipelineController.flush(1);
 
@@ -416,7 +438,7 @@ module mkExecutionUnit#(
 
             // If writeback data exists, that needs to be written into the previous pipeline 
             // stages using operand forwarding.
-            if (executedInstruction.gprWriteBack matches tagged Success .wb) begin
+            if (executedInstruction.gprWriteback matches tagged Success .wb) begin
                 `stageLog(executedInstruction.instructionCommon, ExecutionStageNumber, $format("Setting NORMAL GPR writeback index to $%0d = $%0x", wb.rd, wb.value))
                 executionDestinationQueue.enq(wb.rd);
                 executionResultQueue.enq(wb.value);
@@ -500,6 +522,8 @@ module mkExecutionUnit#(
     interface Get getLoadDestination = toGet(loadDestinationQueue);
 endmodule
 
+`define DISABLE_PIPELINE_CONTROLLER
+
 module mkExecutionUnitV2#(
     PipelineController pipelineController,
     TrapController trapController,
@@ -513,6 +537,57 @@ module mkExecutionUnitV2#(
     FIFO#(Word) executionResultQueue <- mkBypassFIFO;
     FIFO#(RVGPRIndex) loadDestinationQueue <- mkBypassFIFO;
     FIFO#(ProgramCounter) branchRedirectionQueue <- mkBypassFIFO;
+
+    let branchJumpTargetAddress = getEffectiveAddressWithMaybe(
+        decodedInstruction.instructionCommon.programCounter, 
+        decodedInstruction.immediate
+    );
+
+    let indirectJumpTargetAddress = {branchJumpTargetAddress[valueOf(XLEN)-1:1], 1'b0};
+
+    //
+    // Redirected Program Counter
+    //
+    function Result#(ProgramCounter, Exception) getRedirectedProgramCounter;
+        return case(decodedInstruction.opcode)
+            BRANCH: begin
+                if (isValidBranchOperator(decodedInstruction.branchOperator) &&& decodedInstruction.immediate matches tagged Valid .immediate) begin
+                    Result#(ProgramCounter, Exception) result = tagged Invalid;
+                    Maybe#(ProgramCounter) nextProgramCounter = tagged Invalid;
+                    if (isBranchTaken(decodedInstruction)) begin
+                        // Branch target must be 32 bit aligned.
+                        if (isValidInstructionAddress(branchJumpTargetAddress) == False) begin
+                            result = tagged Error createMisalignedInstructionException(branchJumpTargetAddress);
+                        end else begin
+                            nextProgramCounter = tagged Valid branchJumpTargetAddress;
+                        end
+                    end else begin
+                        nextProgramCounter = tagged Valid (decodedInstruction.instructionCommon.programCounter + 4);
+                    end
+
+                    if (nextProgramCounter matches tagged Valid .npc &&& npc != decodedInstruction.instructionCommon.predictedNextProgramCounter) begin
+                        result = tagged Success npc;
+                    end
+
+                    return result;
+                end else begin
+                    return tagged Error createIllegalInstructionException(decodedInstruction.instructionCommon.rawInstruction);
+                end
+            end
+
+            JUMP: begin
+                return tagged Success branchJumpTargetAddress;
+            end
+
+            JUMP_INDIRECT: begin
+                return tagged Success indirectJumpTargetAddress;
+            end
+
+            default: begin
+                return tagged Invalid;
+            end
+        endcase;
+    endfunction
 
     let loadStoreEffectiveAddress = getEffectiveAddressWithMaybe(
         decodedInstruction.rs1Value, 
@@ -549,15 +624,187 @@ module mkExecutionUnitV2#(
         return storeRequest;
     endfunction
 
+    // CSR
+    let csrOperatorValid = (decodedInstruction.csrOperator[1:0] != 0);
+    let csrWriteEnabled = (isValid(decodedInstruction.immediate) || unJust(decodedInstruction.rs1) != 0);
+    let csrWriteRequested = (decodedInstruction.csrOperator[1:0] != 0);
+    let csrIndex = unJust(decodedInstruction.csrIndex);
+    let csrWriteValid =  trapController.csrFile.isWritable(csrIndex);
+
+    let csrOperand = fromMaybe(decodedInstruction.rs1Value, decodedInstruction.immediate);
+    let immediateIsZero = (isValid(decodedInstruction.immediate) ? unJust(decodedInstruction.immediate) == 0 : False);
+    let csrClearValue = decodedInstruction.csrValue & ~csrOperand;
+    let csrSetValue = decodedInstruction.csrValue | csrOperand;
+
+    Maybe#(Word) csrWriteValue = case(decodedInstruction.csrOperator[1:0])
+        'b01: begin // CSRRW(I)
+            return tagged Valid csrOperand;
+        end
+        'b10: begin // CSRRS(I)
+            if (csrWriteEnabled && !immediateIsZero && csrOperand != 0) begin
+                return tagged Valid csrSetValue;
+            end else begin
+                return tagged Invalid;
+            end
+        end
+        'b11: begin // CSRRC(I)
+            if (csrWriteEnabled && !immediateIsZero && csrOperand != 0) begin
+                return tagged Valid csrClearValue;
+            end else begin
+                return tagged Invalid;
+            end
+        end
+        default: begin
+            return tagged Invalid;
+        end
+    endcase;
+
+    function Result#(GPRWriteback, Exception) getCSR_GPRWriteback;
+        if (!csrOperatorValid) begin
+            return tagged Error createIllegalInstructionException(decodedInstruction.instructionCommon.rawInstruction);
+        end else begin
+            if (csrWriteRequested && csrWriteEnabled) begin
+               if (!trapController.csrFile.isWritable(csrIndex)) begin
+                    return tagged Error createIllegalInstructionException(decodedInstruction.instructionCommon.rawInstruction);
+               end else begin
+                    return tagged Success GPRWriteback {
+                        rd: decodedInstruction.rd,
+                        value: decodedInstruction.csrValue
+                    };
+               end
+            end else begin
+                return tagged Success GPRWriteback {
+                    rd: decodedInstruction.rd,
+                    value: decodedInstruction.csrValue
+                };            
+            end
+        end
+    endfunction
+
+    function Result#(CSRWriteback, Exception) getCSRWriteback;
+        if(decodedInstruction.opcode != CSR) begin
+            return tagged Invalid;
+        end else if (!csrOperatorValid) begin
+            return tagged Error createIllegalInstructionException(decodedInstruction.instructionCommon.rawInstruction);
+        end else begin
+            if (csrWriteValue matches tagged Valid .v &&& csrWriteValid) begin
+                return tagged Success CSRWriteback {
+                    rd: csrIndex,
+                    value: v
+                };
+            end else begin
+                return tagged Invalid;
+            end
+        end
+    endfunction
+
+    ALU alu <- mkALU;
+
+    //
+    // GPRWriteback
+    //
+    function Result#(GPRWriteback, Exception) getGPRWriteback;
+        return case(decodedInstruction.opcode)
+            //
+            // ALU
+            //
+            ALU: begin
+                let result = alu.execute(
+                    decodedInstruction.aluOperator, 
+                    decodedInstruction.rs1Value,
+                    fromMaybe(decodedInstruction.rs2Value, decodedInstruction.immediate)
+                );
+
+                if (result matches tagged Valid .rdValue) begin
+                    return tagged Success GPRWriteback {
+                        rd: decodedInstruction.rd,
+                        value: rdValue
+                    };
+                end else begin
+                    return tagged Error 
+                        createIllegalInstructionException(decodedInstruction.instructionCommon.rawInstruction);
+                end
+            end
+
+            //
+            // COPY_IMMEDIATE
+            //
+            COPY_IMMEDIATE: begin
+                return tagged Success GPRWriteback {
+                    rd: decodedInstruction.rd,
+                    value: unJust(decodedInstruction.immediate)
+                };
+            end
+
+            //
+            // CSR
+            //
+            CSR: begin
+                return getCSR_GPRWriteback;
+            end
+
+            //
+            // JUMP
+            //
+            JUMP: begin
+                if (isValidInstructionAddress(branchJumpTargetAddress)) begin
+                    return tagged Success GPRWriteback {
+                        rd: decodedInstruction.rd,
+                        value: (decodedInstruction.instructionCommon.programCounter + 4)
+                    };
+                end else begin
+                    return tagged Error createMisalignedInstructionException(branchJumpTargetAddress);
+                end
+            end
+            
+            //
+            // JUMP_INDIRECT
+            //
+            JUMP_INDIRECT: begin
+                if (isValidInstructionAddress(indirectJumpTargetAddress)) begin
+                    return tagged Success GPRWriteback {
+                        rd: decodedInstruction.rd,
+                        value: (decodedInstruction.instructionCommon.programCounter + 4)
+                    };
+                end else begin
+                    return tagged Error createMisalignedInstructionException(branchJumpTargetAddress);
+                end
+            end
+
+            default: begin
+                return tagged Invalid;
+            end
+        endcase;
+    endfunction
+
     //
     // GPR writeback
     //
     interface Put putDecodedInstruction = toPut(asIfc(decodedInstruction));
     interface Get getExecutedInstruction;
         method ActionValue#(ExecutedInstruction) get;
-            let executedInstruction = newExecutedInstructionFromDecodedInstruction(decodedInstruction);
-            // if (executedInstruction.exception matches tagged Invalid) begin
-            // end
+            let executedInstruction = newExecutedInstructionFromDecodedInstructionNEW(decodedInstruction);
+            if (executedInstruction.exception matches tagged Invalid) begin
+                executedInstruction.redirectedProgramCounter = getRedirectedProgramCounter;
+                executedInstruction.loadRequest = getLoadRequest;
+                executedInstruction.storeRequest = getStoreRequest;
+                executedInstruction.gprWriteback = getGPRWriteback;
+                executedInstruction.csrWriteback = getCSRWriteback;
+
+                // If the program counter was changed, see if it matches a predicted branch/jump.
+                // If not, redirect the program counter to the mispredicted target address.
+                if (executedInstruction.redirectedProgramCounter matches tagged Success .targetAddress &&& targetAddress != executedInstruction.instructionCommon.predictedNextProgramCounter) begin
+                    // Bump the current instruction epoch
+`ifndef DISABLE_PIPELINE_CONTROLLER
+//                    pipelineController.flush(1);
+`endif
+                    executedInstruction.instructionCommon.pipelineEpoch = ~executedInstruction.instructionCommon.pipelineEpoch;
+
+                    //`stageLog(executedInstruction.instructionCommon, ExecutionStageNumber, $format("branch/jump to: $%08x: ", targetAddress))
+                    
+                    //branchRedirectionQueue.enq(targetAddress);
+                end
+            end
             return executedInstruction;
         endmethod
     endinterface
@@ -566,4 +813,46 @@ module mkExecutionUnitV2#(
     interface Get getExecutionDestination = toGet(executionDestinationQueue);
     interface Get getExecutionResult = toGet(executionResultQueue);
     interface Get getLoadDestination = toGet(loadDestinationQueue);
+endmodule
+
+module mkExecutionUnitTester#(
+    PipelineController pipelineController,
+    TrapController trapController,
+    Scoreboard#(4) scoreboard
+)(ExecutionUnit);
+    ExecutionUnit executionUnit1 <- mkExecutionUnit(pipelineController, trapController, scoreboard);
+    ExecutionUnit executionUnit2 <- mkExecutionUnitV2(pipelineController, trapController, scoreboard);
+
+    // Input
+    interface Put putDecodedInstruction;
+        method Action put(DecodedInstruction decodedInstruction);
+            executionUnit1.putDecodedInstruction.put(decodedInstruction);
+            executionUnit2.putDecodedInstruction.put(decodedInstruction);
+        endmethod
+    endinterface
+
+    // Output (primary)
+    interface Get getExecutedInstruction;
+        method ActionValue#(ExecutedInstruction) get;
+            let executedInstruction1 <- executionUnit1.getExecutedInstruction.get;
+            let executedInstruction2 <- executionUnit2.getExecutedInstruction.get;
+
+            if (executedInstruction1 != executedInstruction2) begin
+                $display("Executed Instruction Mismatch at PC $%0x", executedInstruction1.instructionCommon.programCounter);
+                $display("I1: ", fshow(executedInstruction1));
+                $display("I1: ", fshow(pack(executedInstruction1)));
+                $display("I2: ", fshow(executedInstruction2));
+                $display("I2: ", fshow(pack(executedInstruction2)));
+                $fatal();
+            end
+
+            return executedInstruction1;
+        endmethod
+    endinterface
+
+    // Outputs (secondary)
+    interface Get getBranchProgramCounterRedirection = executionUnit1.getBranchProgramCounterRedirection;
+    interface Get getExecutionDestination = executionUnit1.getExecutionDestination;
+    interface Get getExecutionResult = executionUnit1.getExecutionResult;
+    interface Get getLoadDestination = executionUnit1.getLoadDestination;
 endmodule

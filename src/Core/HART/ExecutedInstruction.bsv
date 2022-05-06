@@ -5,24 +5,24 @@ import InstructionCommon::*;
 import LoadStore::*;
 
 //
-// GPRWriteBack
+// GPRWriteback
 //
 // Structure containing data to be written back to the GPR file
 //
 typedef struct {
     RVGPRIndex rd;
     Word value;
-} GPRWriteBack deriving(Bits, Eq, FShow);
+} GPRWriteback deriving(Bits, Eq, FShow);
 
 //
-// CSRWriteBack
+// CSRWriteback
 //
 // Structure containing data to be written back to the CSR file
 //
 typedef struct {
     RVCSRIndex rd;
     Word value;
-} CSRWriteBack deriving(Bits, Eq, FShow);
+} CSRWriteback deriving(Bits, Eq, FShow);
 
 //
 // ExecutedInstruction
@@ -36,7 +36,7 @@ typedef struct {
 
     // redirectedProgramCounter - The next program counter if this instruction was a
     //                            jump/branch/etc.
-    Maybe#(ProgramCounter) redirectedProgramCounter;
+    Result#(ProgramCounter, Exception) redirectedProgramCounter;
 
     // exception - The exception (if any) encounted during execution of the instruction.
     Maybe#(Exception) exception;
@@ -47,22 +47,22 @@ typedef struct {
     // storeRequest - The store request (if any) of the executed instruction.
     Result#(StoreRequest, Exception) storeRequest;
 
-    // gprWriteBack - The data to be written to the GPR file (if any) for the instruction.
-    Result#(GPRWriteBack, Exception) gprWriteBack;
+    // gprWriteback - The data to be written to the GPR file (if any) for the instruction.
+    Result#(GPRWriteback, Exception) gprWriteback;
 
-    // csrWriteBack - The data to be written to the CSR file (if any) for the instruction.
-    Result#(CSRWriteBack, Exception) csrWriteBack;
+    // csrWriteback - The data to be written to the CSR file (if any) for the instruction.
+    Result#(CSRWriteback, Exception) csrWriteback;
 } ExecutedInstruction deriving(Bits, Eq, FShow);
 
 instance DefaultValue#(ExecutedInstruction);
     defaultValue = ExecutedInstruction {
-        instructionCommon: ?,
+        instructionCommon: defaultValue,
         redirectedProgramCounter: tagged Invalid,
         loadRequest: tagged Invalid,
         storeRequest: tagged Invalid,
         exception: tagged Invalid,
-        gprWriteBack: tagged Invalid,
-        csrWriteBack: tagged Invalid
+        gprWriteback: tagged Invalid,
+        csrWriteback: tagged Invalid
     };
 endinstance
 

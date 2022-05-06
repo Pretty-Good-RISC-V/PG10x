@@ -164,7 +164,7 @@ module mkHART#(
         scoreboard
     );
 
-    let mau_wb_executedInstruction <- mkConnection(memoryAccessUnit.getExecutedInstruction, writebackUnit.putExecutedInstruction);
+    let mau_wb_executedInstruction <- mkConnection(memoryAccessUnit.getWritebackInstruction, writebackUnit.putWritebackInstruction);
 
     // Bypasses from the writeback unit to the program counter redirect
     let wb_fu_exceptionProgramCounter <- mkConnection(writebackUnit.getExceptionProgramCounterRedirection, fetchUnit.putExceptionProgramCounter);

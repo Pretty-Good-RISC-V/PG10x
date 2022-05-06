@@ -18,6 +18,7 @@ import Logger::*;
 
 import Scoreboard::*;
 import StageNumbers::*;
+import WritebackInstruction::*;
 
 import Assert::*;
 import DReg::*;
@@ -29,7 +30,7 @@ export WritebackUnit(..), mkWritebackUnit;
 
 interface WritebackUnit;
     interface Get#(ProgramCounter) getExceptionProgramCounterRedirection;
-    interface Put#(ExecutedInstruction) putExecutedInstruction;
+    interface Put#(WritebackInstruction) putWritebackInstruction;
     interface Get#(Bool) getInstructionRetired;
 
 `ifdef ENABLE_RISCOF_TESTS
@@ -52,32 +53,32 @@ module mkWritebackUnit#(
 
     FIFO#(Bool) instructionRetiredQueue <- mkFIFO;
 
-    interface Put putExecutedInstruction;
+    interface Put putWritebackInstruction;
 `ifdef ENABLE_RISCOF_TESTS    
-        method Action put(ExecutedInstruction executedInstruction) if(riscofHaltRequested == False);
+        method Action put(WritebackInstruction writebackInstruction) if(riscofHaltRequested == False);
 `else
-        method Action put(ExecutedInstruction executedInstruction);
+        method Action put(WritebackInstruction writebackInstruction);
 `endif        
-            let fetchIndex = executedInstruction.instructionCommon.fetchIndex;
+            let fetchIndex = writebackInstruction.instructionCommon.fetchIndex;
             let stageEpoch = pipelineController.stageEpoch(valueOf(WritebackStageNumber), 0);
 
-            if (executedInstruction.gprWriteBack matches tagged Success .wb) begin
-                `stageLog(executedInstruction.instructionCommon, WritebackStageNumber, $format("writing result ($%08x) to GPR register x%0d", wb.value, wb.rd))
+            if (writebackInstruction.gprWriteback matches tagged Success .wb) begin
+                `stageLog(writebackInstruction.instructionCommon, WritebackStageNumber, $format("writing result ($%08x) to GPR register x%0d", wb.value, wb.rd))
                 gprFile.write(wb.rd, wb.value);
                 
             end else begin
-                `stageLog(executedInstruction.instructionCommon, WritebackStageNumber, "NO-OP")
+                `stageLog(writebackInstruction.instructionCommon, WritebackStageNumber, "NO-OP")
             end
 
 `ifdef ENABLE_INSTRUCTION_LOGGING
             Bool logIt = True;
-            if (executedInstruction.exception matches tagged Valid .exception &&&
+            if (writebackInstruction.exception matches tagged Valid .exception &&&
                 exception.cause matches tagged InterruptCause .*) begin
                     // If the instruction was interrupted, don't log it.
                     logIt = False;
             end
 
-            if (executedInstruction.exception matches tagged Valid .exception &&& 
+            if (writebackInstruction.exception matches tagged Valid .exception &&& 
                 exception.cause matches tagged ExceptionCause .exceptionCause &&& 
                 exceptionCause == exception_INSTRUCTION_ACCESS_FAULT) begin
                     // Don't log instructions that caused fetch faults (as these weren't executed)
@@ -85,16 +86,16 @@ module mkWritebackUnit#(
             end
 
             if (logIt)
-                logRawInstruction(executedInstruction.instructionCommon.programCounter, executedInstruction.instructionCommon.rawInstruction);
+                logRawInstruction(writebackInstruction.instructionCommon.programCounter, writebackInstruction.instructionCommon.rawInstruction);
 `endif
 
             scoreboard.remove;
-            // NOTE: This logic ** ASSUMES ** that if a csrWriteBack exists then there is *NO*
+            // NOTE: This logic ** ASSUMES ** that if a csrWriteback exists then there is *NO*
             // exception present.   This is done to isolate the paths that write to CSRs (exception vs. CSR writeback)
-            if (executedInstruction.csrWriteBack matches tagged Success .wb) begin
-                dynamicAssert(isValid(executedInstruction.exception) == False, "ERROR: CSR Writeback exists when an exception is present");
+            if (writebackInstruction.csrWriteback matches tagged Success .wb) begin
+                dynamicAssert(isValid(writebackInstruction.exception) == False, "ERROR: CSR Writeback exists when an exception is present");
 
-                `stageLog(executedInstruction.instructionCommon, WritebackStageNumber, $format("writing result ($%08x) to CSR register $%0x", wb.value, wb.rd)) 
+                `stageLog(writebackInstruction.instructionCommon, WritebackStageNumber, $format("writing result ($%08x) to CSR register $%0x", wb.value, wb.rd)) 
 
                 let writeResult <- trapController.csrFile.write1(wb.rd, wb.value);
                 dynamicAssert(writeResult == True, "ERROR: Failed to write to CSR via writeback");
@@ -102,25 +103,25 @@ module mkWritebackUnit#(
                 //
                 // Handle any exceptions
                 //
-                if (executedInstruction.exception matches tagged Valid .exception) begin
+                if (writebackInstruction.exception matches tagged Valid .exception) begin
                     pipelineController.flush(0);
 
-                    let exceptionVector <- trapController.beginTrap(executedInstruction.instructionCommon.programCounter, exception);
+                    let exceptionVector <- trapController.beginTrap(writebackInstruction.instructionCommon.programCounter, exception);
 
-                    `stageLog(executedInstruction.instructionCommon, WritebackStageNumber, $format("exception: ", fshow(exception)))
-                    `stageLog(executedInstruction.instructionCommon, WritebackStageNumber, $format("Jumping to exception handler at $%08x", exceptionVector)) 
+                    `stageLog(writebackInstruction.instructionCommon, WritebackStageNumber, $format("exception: ", fshow(exception)))
+                    `stageLog(writebackInstruction.instructionCommon, WritebackStageNumber, $format("Jumping to exception handler at $%08x", exceptionVector)) 
 
                     exceptionRedirectionQueue.enq(exceptionVector);
 
 `ifdef ENABLE_RISCOF_TESTS
                     if (exception.cause matches tagged ExceptionCause .cause &&& cause == exception_RISCOFTestHaltException) begin
-                        `stageLog(executedInstruction.instructionCommon, WritebackStageNumber, "RISCOF HALT Requested") 
+                        `stageLog(writebackInstruction.instructionCommon, WritebackStageNumber, "RISCOF HALT Requested") 
                         riscofHaltRequested <= True;
                     end
 `endif                    
                 end
 
-                `stageLog(executedInstruction.instructionCommon, WritebackStageNumber, "---------------------------")
+                `stageLog(writebackInstruction.instructionCommon, WritebackStageNumber, "---------------------------")
                 trapController.csrFile.increment_instructions_retired_counter;
 
                 instructionRetiredQueue.enq(True);
