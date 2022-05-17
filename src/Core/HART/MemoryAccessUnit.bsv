@@ -6,15 +6,17 @@
 // valid LoadRequest or StoreRequest structures, the requisite load and store operations
 // are executed.
 //
-import PGTypes::*;
+`include "PGLib.bsvi"
+`include "HART.bsvi"
 
-import BypassUnit::*;
 import EncodedInstruction::*;
 import Exception::*;
 import ExecutedInstruction::*;
+import InstructionCommon::*;
 import LoadStore::*;
-import PipelineController::*;
+import StageNumbers::*;
 import TileLink::*;
+import WritebackInstruction::*;
 
 import Assert::*;
 import ClientServer::*;
@@ -22,68 +24,64 @@ import FIFO::*;
 import GetPut::*;
 import SpecialFIFOs::*;
 
-export MemoryAccessUnit(..), mkMemoryAccessUnit;
+export MemoryAccessUnit(..), mkMemoryAccessUnit, MemoryAccess(..);
+
+typedef struct {
+    Address address;
+    Word value;
+    Bool isStore;
+} MemoryAccess deriving(Bits, Eq, FShow);
 
 interface MemoryAccessUnit;
-    interface Put#(Word64) putCycleCounter;
-
     interface Put#(ExecutedInstruction) putExecutedInstruction;
-    interface Get#(ExecutedInstruction) getExecutedInstruction;
+    interface Get#(WritebackInstruction) getWritebackInstruction;
 
     interface StdTileLinkClient dataMemoryClient;
 
-    interface Get#(Maybe#(GPRBypassValue)) getGPRBypassValue;
-
-`ifdef ENABLE_ISA_TESTS
-    interface Put#(Maybe#(Word)) putToHostAddress;
-`endif
+    interface Get#(Maybe#(Word)) getLoadResult;
+    interface Get#(Maybe#(MemoryAccess)) getMemoryAccess;
 endinterface
 
-module mkMemoryAccessUnit#(
-    Integer stageNumber,
-    PipelineController pipelineController
-)(MemoryAccessUnit);
-    Wire#(Word64) cycleCounter <- mkBypassWire;
-    FIFO#(ExecutedInstruction) outputQueue <- mkPipelineFIFO;
+module mkMemoryAccessUnit(MemoryAccessUnit);
+    FIFO#(WritebackInstruction) outputQueue <- mkPipelineFIFO;
+    RWire#(MemoryAccess) memoryAccess <- mkRWire;
 
-`ifdef ENABLE_ISA_TESTS
-    Reg#(Maybe#(Word)) toHostAddress <- mkReg(tagged Invalid);
-`endif
     Reg#(Bool) waitingForMemoryResponse <- mkReg(False);
 
     Reg#(ExecutedInstruction) instructionWaitingForMemoryOperation <- mkRegU;
     FIFO#(StdTileLinkRequest) dataMemoryRequests <- mkFIFO;
     FIFO#(StdTileLinkResponse) dataMemoryResponses <- mkFIFO;
 
-    RWire#(Maybe#(GPRBypassValue)) gprBypassValue <- mkRWire();
+    FIFO#(Maybe#(Word)) loadResultQueue <- mkBypassFIFO;
 
     rule handleMemoryResponse(waitingForMemoryResponse == True);
-        Bool verbose <- $test$plusargs ("verbose");
         let memoryResponse <- pop(dataMemoryResponses);
         let executedInstruction = instructionWaitingForMemoryOperation;
         waitingForMemoryResponse <= False;
 
-        if (executedInstruction.storeRequest matches tagged Valid .storeRequest) begin
+        if (executedInstruction.storeRequest matches tagged Success .storeRequest) begin
             let storeAddress = storeRequest.tlRequest.a_address;
             if (memoryResponse.d_denied) begin
-                if (verbose)
-                    $display("[****:****:memory] ERROR - Store returned access denied: ", fshow(memoryResponse));
+                `stageLog(executedInstruction.instructionCommon, MemoryAccessStageNumber, $format("ERROR - store returned access denied: ", fshow(memoryResponse)))
                 executedInstruction.exception = tagged Valid createStoreAccessFaultException(storeAddress);
             end else
             if (memoryResponse.d_corrupt) begin
-                if (verbose)
-                     $display("[****:****:memory] ERROR - Store returned access corrupted: ", fshow(memoryResponse));
+                `stageLog(executedInstruction.instructionCommon, MemoryAccessStageNumber, $format("ERROR - store returned access corrupted: ", fshow(memoryResponse)))
                 executedInstruction.exception = tagged Valid createStoreAccessFaultException(storeAddress);
             end else
             if (memoryResponse.d_opcode != d_ACCESS_ACK) begin
-                if (verbose)
-                    $display("[****:****:memory] ERROR - Store returned unexpected opcode: ", fshow(memoryResponse));
+                `stageLog(executedInstruction.instructionCommon, MemoryAccessStageNumber, $format("ERROR - store returned unexpected opcode: ", fshow(memoryResponse)))
                 executedInstruction.exception = tagged Valid createStoreAccessFaultException(storeAddress);
             end else begin
-                if (verbose)
-                    $display("[****:****:memory] Store completed");
+                `stageLog(executedInstruction.instructionCommon, MemoryAccessStageNumber, "store completed")
             end
-        end else if (executedInstruction.loadRequest matches tagged Valid .loadRequest) begin
+
+            memoryAccess.wset(MemoryAccess {
+                address: storeAddress,
+                value: storeRequest.tlRequest.a_data,
+                isStore: True
+            });
+        end else if (executedInstruction.loadRequest matches tagged Success .loadRequest) begin
             let loadAddress = loadRequest.tlRequest.a_address;
             Word value = ?;
             RVGPRIndex rd = 0; // Any exceptions below that also have writeback data will
@@ -91,21 +89,18 @@ module mkMemoryAccessUnit#(
                                // instruction)
 
             if (memoryResponse.d_denied) begin
-                if (verbose)
-                    $display("[****]:****:memory] ERROR - Load returned access denied: ", fshow(memoryResponse));
+                `stageLog(executedInstruction.instructionCommon, MemoryAccessStageNumber, $format("ERROR - load returned access denied: ", fshow(memoryResponse)))
                 executedInstruction.exception = tagged Valid createLoadAccessFaultException(loadAddress);
             end else
             if (memoryResponse.d_corrupt) begin
-                if (verbose)
-                    $display("[****:****:memory] ERROR - Load returned access corrupted: ", fshow(memoryResponse));                executedInstruction.exception = tagged Valid createLoadAccessFaultException(loadAddress);
+                `stageLog(executedInstruction.instructionCommon, MemoryAccessStageNumber, $format("ERROR - load returned access corrupted: ", fshow(memoryResponse)))
+                executedInstruction.exception = tagged Valid createLoadAccessFaultException(loadAddress);
             end else
             if (memoryResponse.d_opcode != d_ACCESS_ACK_DATA) begin
-                if (verbose)
-                    $display("[****:****:memory] ERROR - Load returned unexpected opcode: ", fshow(memoryResponse));
+                `stageLog(executedInstruction.instructionCommon, MemoryAccessStageNumber, $format("ERROR - load returned unexpected opcode:: ", fshow(memoryResponse)))
                 executedInstruction.exception = tagged Valid createLoadAccessFaultException(loadAddress);
             end else begin
-                if (verbose)
-                    $display("[****:****:memory] Load completed");
+                `stageLog(executedInstruction.instructionCommon, MemoryAccessStageNumber, "load completed")
 
                 // Save the data that will be written back into the register file on the
                 // writeback pipeline stage.
@@ -140,101 +135,71 @@ module mkMemoryAccessUnit#(
                     end
 `endif
                 endcase
-                executedInstruction.gprWriteBack = tagged Valid GPRWriteBack {
+                executedInstruction.gprWriteback = tagged Success GPRWriteback {
                     rd: rd,
                     value: value
                 };
+
+                memoryAccess.wset(MemoryAccess {
+                    address: loadAddress,
+                    value: value,
+                    isStore: False
+                });
             end
 
-            // Set the bypass to the value read.  Note: even if an exception 
-            // was encountered, this still needs to be done otherwise other
-            // stages will stall forever.
-            gprBypassValue.wset(tagged Valid GPRBypassValue{
-                rd: rd,
-                value: tagged Valid value
-            });
+            loadResultQueue.enq(tagged Valid value);
         end
 
-        outputQueue.enq(executedInstruction);
+        outputQueue.enq(WritebackInstruction {
+            instructionCommon: executedInstruction.instructionCommon,
+            exception: executedInstruction.exception,
+            gprWriteback: executedInstruction.gprWriteback,
+            csrWriteback: executedInstruction.csrWriteback
+        });
     endrule
 
     interface Put putExecutedInstruction;
         method Action put(ExecutedInstruction executedInstruction) if (waitingForMemoryResponse == False);
             Bool verbose <- $test$plusargs ("verbose");
-            let fetchIndex = executedInstruction.fetchIndex;
-            let stageEpoch = pipelineController.stageEpoch(stageNumber, 1);
-            if (!pipelineController.isCurrentEpoch(stageNumber, 1, executedInstruction.pipelineEpoch)) begin
-                if (verbose)
-                    $display("%0d,%0d,%0d,%0d,memory access,stale instruction (%0d != %0d)...propagating bubble", 
-                        fetchIndex, 
-                        cycleCounter, 
-                        executedInstruction.pipelineEpoch, 
-                        executedInstruction.programCounter, 
-                        stageNumber, 
-                        executedInstruction.pipelineEpoch, 
-                        stageEpoch);
-                outputQueue.enq(executedInstruction);
+            let fetchIndex = executedInstruction.instructionCommon.fetchIndex;
+            if(executedInstruction.loadRequest matches tagged Success .loadRequest) begin
+                `stageLog(executedInstruction.instructionCommon, MemoryAccessStageNumber, 
+                    $format("loading from $%08x with size %d", 
+                    loadRequest.tlRequest.a_address, 
+                    loadRequest.tlRequest.a_size))
+
+                dataMemoryRequests.enq(loadRequest.tlRequest);
+                instructionWaitingForMemoryOperation <= executedInstruction;
+                waitingForMemoryResponse <= True;
+            end else if (executedInstruction.storeRequest matches tagged Success .storeRequest) begin
+                `stageLog(executedInstruction.instructionCommon, MemoryAccessStageNumber, 
+                    $format("storing to $%08x with size %d and value %d", 
+                    storeRequest.tlRequest.a_address,
+                    storeRequest.tlRequest.a_size, 
+                    storeRequest.tlRequest.a_data))
+
+                dataMemoryRequests.enq(storeRequest.tlRequest);
+                instructionWaitingForMemoryOperation <= executedInstruction;
+                waitingForMemoryResponse <= True;
             end else begin
-                if(executedInstruction.loadRequest matches tagged Valid .loadRequest) begin
-                    if (verbose)
-                        $display("%0d,%0d,%0d,%0x,%0d,memory access,LOAD", 
-                            fetchIndex, 
-                            cycleCounter, 
-                            stageEpoch, 
-                            executedInstruction.programCounter, 
-                            stageNumber);
-
-                    // Set the bypass value but mark the value as invalid since
-                    // the other side of the bypass has to wait for the load to complete.
-                    gprBypassValue.wset(tagged Valid GPRBypassValue{
-                        rd: loadRequest.rd,
-                        value: tagged Invalid
-                    });
-
-                    // NOTE: Alignment checks were already performed during the execution stage.
-                    dataMemoryRequests.enq(loadRequest.tlRequest);
-
-                    if (verbose)
-                        $display("%0d,%0d,%0d,%0x,%0d,memory access,Loading from $%08x with size: %d", 
-                            fetchIndex, 
-                            cycleCounter, 
-                            stageEpoch, 
-                            executedInstruction.programCounter, 
-                            stageNumber, 
-                            loadRequest.tlRequest.a_address, 
-                            loadRequest.tlRequest.a_size);
-                        instructionWaitingForMemoryOperation <= executedInstruction;
-                    waitingForMemoryResponse <= True;
-                end else if (executedInstruction.storeRequest matches tagged Valid .storeRequest) begin
-                    if (verbose)
-                        $display("%0d,%0d,%0d,%0x,%0d,memory access,Storing to $%0x", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber, storeRequest.tlRequest.a_address);
-`ifdef ENABLE_ISA_TESTS
-                    if (toHostAddress matches tagged Valid .tha &&& tha == storeRequest.tlRequest.a_address) begin
-                        let test_num = (storeRequest.tlRequest.a_data >> 1);
-                        if (test_num == 0) $display ("    PASS");
-                        else               $display ("    FAIL <test_%0d>", test_num);
-
-                        $finish();
-                    end
-`endif
-                    dataMemoryRequests.enq(storeRequest.tlRequest);
-                    instructionWaitingForMemoryOperation <= executedInstruction;
-                    waitingForMemoryResponse <= True;
-                end else begin
-                    // Not a LOAD/STORE
-                    if (verbose)
-                        $display("%0d,%0d,%0d,%0x,%0d,memory access,NO-OP", fetchIndex, cycleCounter, stageEpoch, executedInstruction.programCounter, stageNumber);
-                    outputQueue.enq(executedInstruction);
-                end
+                `stageLog(executedInstruction.instructionCommon, MemoryAccessStageNumber, "No memory operations in this instruction")
+                outputQueue.enq(WritebackInstruction {
+                    instructionCommon: executedInstruction.instructionCommon,
+                    exception: executedInstruction.exception,
+                    gprWriteback: executedInstruction.gprWriteback,
+                    csrWriteback: executedInstruction.csrWriteback
+                });
             end
         endmethod
     endinterface
 
-    interface Put putCycleCounter = toPut(asIfc(cycleCounter));
-    interface Get getExecutedInstruction = toGet(outputQueue);
+    interface Get getWritebackInstruction = toGet(outputQueue);
     interface TileLinkLiteWordClient dataMemoryClient = toGPClient(dataMemoryRequests, dataMemoryResponses);
-    interface Get getGPRBypassValue = toGet(gprBypassValue);
-`ifdef ENABLE_ISA_TESTS
-    interface Put putToHostAddress = toPut(asIfc(toHostAddress));
-`endif
+    interface Get getLoadResult = toGet(loadResultQueue);
+
+    interface Get getMemoryAccess;
+        method ActionValue#(Maybe#(MemoryAccess)) get;
+            return memoryAccess.wget;
+        endmethod
+    endinterface
 endmodule

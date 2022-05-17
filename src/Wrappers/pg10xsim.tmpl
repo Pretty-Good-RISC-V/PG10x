@@ -16,6 +16,7 @@ SPIKE=""
 ISA="RV32I"
 LOGFILENAME_BASE=""
 SIGNATURE_FILENAME=""
+VCD_OPTIONS=""
 SIMHOST="@CMAKE_BINARY_DIR@/src/Simulator/Simulator"
 
 while [[ $# -gt 0 ]]; do
@@ -34,6 +35,11 @@ while [[ $# -gt 0 ]]; do
             ;;
         --spike)
             SPIKE="True"
+            shift
+            ;;
+        --vcd)
+            VCD_OPTIONS="-V $2"
+            shift
             shift
             ;;
         --signature-file)
@@ -83,9 +89,9 @@ if [ "$SPIKE" != "" ] && [ "$LOGFILENAME_BASE" != "" ]; then
 fi
 
 if [ "$CHECK" == "" ]; then
-    $SIMHOST +verbose $MAX_CYCLES
+    $SIMHOST +verbose $MAX_CYCLES $VCD_OPTIONS
 else
-    $SIMHOST +verbose $MAX_CYCLES > /tmp/simoutput.txt
+    $SIMHOST +verbose $MAX_CYCLES $VCD_OPTIONS > /tmp/simoutput.txt
 
     if [ "$LOGFILENAME_BASE" != "" ]; then
         cp /tmp/simoutput.txt ${LOGFILENAME_BASE%.*}.stdout.txt

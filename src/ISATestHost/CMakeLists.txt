@@ -8,9 +8,15 @@ target_compile_definitions(ISATestHost PUBLIC
     ${BASE_ISA}
 )
 
-if (ENABLE_ISA_TESTS)
+if (ENABLE_PIPELINING)
     target_compile_definitions(ISATestHost PUBLIC
-        ENABLE_ISA_TESTS
+        ENABLE_PIPELINING
+    )
+endif()
+
+if (ENABLE_SIMULATION)
+    target_compile_definitions(ISATestHost PUBLIC
+        ENABLE_SIMULATION
     )
 endif()
 
@@ -18,5 +24,5 @@ target_link_libraries(ISATestHost
     Core::Core
     Crossbar::Crossbar
     RVCommon::RVCommon
-    Support::Support
+    ProgramMemoryTile::ProgramMemoryTile
 )

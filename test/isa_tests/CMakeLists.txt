@@ -31,10 +31,30 @@ endif()
 foreach(ISA_TEST_BINARY ${ISA_TEST_BINARIES})
     message("Creating ISA test: ${ISA_TEST_BINARY}")
     get_filename_component(TEST_NAME "${ISA_TEST_BINARY}" NAME_WLE)
-    message("Test Commandline: ${CMAKE_SOURCE_DIR}/pg10xsim --spike --log ${CMAKE_CURRENT_BINARY_DIR}/${TEST_NAME}.trace.txt ${ISA_TEST_BINARY}")
+    message("Test Commandline: ${CMAKE_SOURCE_DIR}/pg10xsim --vcd ${CMAKE_CURRENT_BINARY_DIR}/${TEST_NAME}.vcd --spike --log ${CMAKE_CURRENT_BINARY_DIR}/${TEST_NAME}.trace.txt ${ISA_TEST_BINARY}")
+    set(TEST_INVOCATION 
+        "${CMAKE_BINARY_DIR}/pg10xsim" 
+        --sim-host src/ISATestHost/ISATestHost 
+        --vcd "${CMAKE_CURRENT_BINARY_DIR}/${TEST_NAME}.vcd" 
+        --isa "${BASE_ISA}" 
+        --spike 
+        --check 
+        --max-cycles 80000 
+        --log "${CMAKE_CURRENT_BINARY_DIR}/${TEST_NAME}" 
+        "${ISA_TEST_BINARY}"
+    )
+
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/load_script.tcl.tmpl"
+        "${CMAKE_CURRENT_BINARY_DIR}/${TEST_NAME}.tcl"
+    )
+
+    list(JOIN TEST_INVOCATION " " TEST_INVOCATION_STRING)
+    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/${TEST_NAME}.sh" "${TEST_INVOCATION_STRING}")
+
     add_test(
         NAME "ISA_TEST_${TEST_NAME}"
-        COMMAND "${CMAKE_BINARY_DIR}/pg10xsim" --sim-host src/ISATestHost/ISATestHost --isa "${BASE_ISA}" --spike --check --max-cycles 30000 --log "${CMAKE_CURRENT_BINARY_DIR}/${TEST_NAME}" "${ISA_TEST_BINARY}"
+        COMMAND ${TEST_INVOCATION}
         WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
     )
 endforeach()

@@ -8,6 +8,7 @@ import GetPut::*;
 interface ProgramMemoryTile;
     interface StdTileLinkServer portA;
     interface StdTileLinkServer portB;
+    interface StdTileLinkServer portC;
 
     method Bool isValidAddress(Word address);
 
@@ -49,9 +50,10 @@ module mkProgramMemoryTile#(
         programMemoryContext <= program_memory_open();
     endrule
 
-    FIFO#(StdTileLinkResponse) responses[2];
+    FIFO#(StdTileLinkResponse) responses[3];
     responses[0] <- mkFIFO;
     responses[1] <- mkFIFO;
+    responses[2] <- mkFIFO;
 
     function Action handleRequestToPort(StdTileLinkRequest request, Integer portNumber);
         action
@@ -150,6 +152,16 @@ module mkProgramMemoryTile#(
         interface Put request;
             method Action put(StdTileLinkRequest request);
                 handleRequestToPort(request, 1);
+            endmethod
+        endinterface
+    endinterface
+
+    interface TileLinkLiteWordServer portC;
+        interface Get response = toGet(responses[1]);
+
+        interface Put request;
+            method Action put(StdTileLinkRequest request);
+                handleRequestToPort(request, 2);
             endmethod
         endinterface
     endinterface

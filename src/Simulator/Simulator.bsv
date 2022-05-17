@@ -13,15 +13,12 @@ import RegFile::*;
 
 (* synthesize *)
 module mkSimulator(Empty);
-`ifdef ENABLE_ISA_TESTS
-    ReadOnly#(Maybe#(Word)) toHostAddress <- mkReadOnly(tagged Valid 'h8000_1000);
-`endif
     Reg#(Bool) initialized <- mkReg(False);
 
-`ifdef DISABLE_PIPELINING
-    ReadOnly#(Bool) enablePipelining <- mkReadOnly(False);
+`ifdef ENABLE_PIPELINING
+    ReadOnly#(Bool) pipeliningEnabled <- mkReadOnly(True);
 `else
-    ReadOnly#(Bool) enablePipelining <- mkReadOnly(True);
+    ReadOnly#(Bool) pipeliningEnabled <- mkReadOnly(False);
 `endif
     SoCAddressMap socMap <- mkSoCAddressMap;
 
@@ -35,9 +32,7 @@ module mkSimulator(Empty);
     ProgramCounter initialProgramCounter = socMap.ram0Base;
     Core core <- mkCore(initialProgramCounter);
 
-`ifdef ENABLE_ISA_TESTS
-    mkConnection(toGet(toHostAddress), core.putToHostAddress);
-`endif
+    mkConnection(toGet(pipeliningEnabled), core.putPipeliningEnabled);
 
     // Core -> Crossbar
     mkConnection(crossbar.systemMemoryBusServer, core.systemMemoryBusClient);
@@ -50,11 +45,9 @@ module mkSimulator(Empty);
         initialized <= True;
 
         $display("----------------");
-`ifdef DISABLE_PIPELINING
         $display("PG-10x Simulator");
+`ifndef ENABLE_PIPELINING
         $display("*Pipelining OFF*");
-`else
-        $display("PG-10x Simulator");
 `endif
         $display("----------------");
 

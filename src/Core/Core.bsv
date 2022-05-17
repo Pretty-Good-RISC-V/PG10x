@@ -1,4 +1,5 @@
 import PGTypes::*;
+import InstructionCaches::*;
 import Debug::*;
 import HART::*;
 import ReadOnly::*;
@@ -10,7 +11,6 @@ import Connectable::*;
 import FIFO::*;
 import GetPut::*;
 
-
 export Core(..), mkCore, HART::*;
 
 interface Core;
@@ -19,13 +19,11 @@ interface Core;
 
     interface StdTileLinkClient systemMemoryBusClient;
 
-    interface Put#(Bool) putPipeliningDisabled;
+    interface Put#(Bool) putPipeliningEnabled;
 
     interface Debug debug;
 
-`ifdef ENABLE_ISA_TESTS
-    interface Put#(Maybe#(Word)) putToHostAddress;
-`endif
+    interface Get#(Maybe#(MemoryAccess)) getMemoryAccess;
 
 `ifdef ENABLE_RISCOF_TESTS
     interface Get#(Bool) getRISCOFHaltRequested;
@@ -39,17 +37,12 @@ module mkCore#(
     //
     // HART
     //
-`ifdef ENABLE_ISA_TESTS
-    ReadOnly#(Maybe#(Word)) toHostAddress <- mkReadOnly(tagged Valid 'h8000_1000);
-`endif
-
-`ifdef DISABLE_PIPELINING
-    ReadOnly#(Bool) enablePipelining <- mkReadOnly(False);
-`else
-    ReadOnly#(Bool) enablePipelining <- mkReadOnly(True);
-`endif
-
     HART hart <- mkHART(initialProgramCounter);
+
+    //
+    // Instruction Cache
+    //
+    InstructionCache icache <- mkSingleLineInstructionCache;
 
     FIFO#(StdTileLinkRequest) instructionMemoryRequests <- mkFIFO;
     FIFO#(StdTileLinkResponse) instructionMemoryResponses <- mkFIFO;
@@ -57,7 +50,10 @@ module mkCore#(
     FIFO#(StdTileLinkRequest) dataMemoryRequests <- mkFIFO;
     FIFO#(StdTileLinkResponse) dataMemoryResponses <- mkFIFO;
 
-    mkConnection(toGPServer(instructionMemoryRequests, instructionMemoryResponses), hart.instructionMemoryClient);
+    mkConnection(toGPServer(instructionMemoryRequests, instructionMemoryResponses), icache.systemMemoryClient);
+    mkConnection(hart.getInstructionMemoryRequest, icache.putInstructionCacheRequest);
+    mkConnection(icache.getInstructionCacheResponse, hart.putInstructionMemoryResponse);
+
     mkConnection(toGPServer(dataMemoryRequests, dataMemoryResponses), hart.dataMemoryClient);
 
     FIFO#(StdTileLinkRequest) systemBusRequests <- mkFIFO;
@@ -94,15 +90,12 @@ module mkCore#(
     method Action start = hart.start;
     method HARTState getState = hart.getState;
     interface TileLinkLiteWordClient systemMemoryBusClient = toGPClient(systemBusRequests, systemBusResponses);
-    interface Put putPipeliningDisabled = hart.putPipeliningDisabled;
+    interface Put putPipeliningEnabled = hart.putPipeliningEnabled;
     interface Debug debug = hart.debug;
 
-`ifdef ENABLE_ISA_TESTS
-    interface Put putToHostAddress = hart.putToHostAddress;
-`endif
+    interface Get getMemoryAccess = hart.getMemoryAccess;
 
 `ifdef ENABLE_RISCOF_TESTS
     interface Get getRISCOFHaltRequested = hart.getRISCOFHaltRequested;
 `endif
-
 endmodule

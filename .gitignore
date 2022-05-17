@@ -2,3 +2,4 @@ build
 **/*.sched
 **/.DS_Store
 test/riscof/riscof_work/
+install

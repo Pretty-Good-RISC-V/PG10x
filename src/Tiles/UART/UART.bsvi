@@ -1,0 +1,11 @@
+typedef enum {
+    UART_IDLE,
+    UART_START_BIT,
+    UART_DATA,
+    UART_STOP_BIT,
+    UART_FINISH
+} UARTState deriving(Bits, Eq, FShow);
+
+function ActionValue#(t) pop(ifc f) provisos (ToGet#(ifc, t));
+   return toGet(f).get;
+endfunction

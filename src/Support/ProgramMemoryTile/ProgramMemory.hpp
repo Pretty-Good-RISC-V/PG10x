@@ -2,13 +2,9 @@
 
 #include <stdint.h>
 
-typedef uint32_t context_handle;
+#include "PGTypes.hpp"
 
-#ifdef RV32
-typedef uint32_t address_t;
-#elif RV64
-typedef uint64_t address_t;
-#endif
+typedef uint32_t context_handle;
 
 extern "C" {
     context_handle program_memory_open();

@@ -22,7 +22,7 @@ function Word getWordAddress(Word effectiveAddress);
     return effectiveAddress & mask;
 endfunction
 
-function Result#(LoadRequest, Exception) getLoadRequest(
+function Result#(LoadRequest, Exception) createLoadRequest(
     RVLoadOperator loadOperator,
     RVGPRIndex rd,
     Word effectiveAddress);
@@ -37,8 +37,8 @@ function Result#(LoadRequest, Exception) getLoadRequest(
             a_size: ?,
             a_source: 0,
             a_address: effectiveAddress,
-            a_mask: ?,
-            a_data: ?,
+            a_mask: 0,
+            a_data: 0,
             a_corrupt: False
         },
         rd: rd,
@@ -130,7 +130,7 @@ typedef struct {
     StdTileLinkRequest tlRequest;
 } StoreRequest deriving(Bits, Eq, FShow);
 
-function Result#(StoreRequest, Exception) getStoreRequest(
+function Result#(StoreRequest, Exception) createStoreRequest(
     RVStoreOperator storeOperator,
     Word effectiveAddress,
     Word value);

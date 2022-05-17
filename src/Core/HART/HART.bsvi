@@ -1,0 +1,22 @@
+import PGTypes::*;
+
+`ifdef ENABLE_SIMULATION
+    `define stageLog(instructionCommon, stageNumber, logString)     \
+        begin                                                       \
+            Bit#(32) t <- $stime;                                   \
+            let ___currentCycle = t / 10;                           \
+            $display("%0d,%0d,%0d,%0x,%0d,%s,",                     \
+                instructionCommon.fetchIndex,                       \
+                ___currentCycle,                                    \
+                instructionCommon.pipelineEpoch,                    \
+                instructionCommon.programCounter,                   \
+                valueOf(stageNumber),                               \
+                stageName(valueOf(stageNumber)),                    \
+                logString                                           \
+            );                                                      \
+        end
+`else
+    `define stageLog(instructionCommon, stageNumber, logString)     \
+        begin                                                       \
+        end
+`endif

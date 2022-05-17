@@ -13,9 +13,11 @@ typedef Bit#(XLEN) UnsignedInt;
 typedef Int#(XLEN) SignedInt;
 
 typedef Word ProgramCounter;
-
-typedef Bit#(4) TileId;
 typedef Word FabricAddress;
+typedef Word Address;
+
+typedef 4 TileIdSize;
+typedef Bit#(TileIdSize) TileId;
 
 typedef TileLinkLiteWordRequest#(SizeOf#(TileId), XLEN) StdTileLinkRequest;
 typedef TileLinkLiteWordResponse#(SizeOf#(TileId), SizeOf#(TileId), XLEN) StdTileLinkResponse;
@@ -27,9 +29,10 @@ typedef TLog#(TDiv#(n,8)) DataSz#(numeric type n);
 
 // A Rust inspired Result type.
 typedef union tagged {
+    void Invalid;
     success_type Success;
     error_type Error;
-} Result#(type success_type, type error_type);
+} Result#(type success_type, type error_type) deriving(Bits, Eq, FShow);
 
 function Bool isSuccess(Result#(success_type, error_type) result);
     if (result matches tagged Success .*) begin
@@ -39,9 +42,15 @@ function Bool isSuccess(Result#(success_type, error_type) result);
     end
 endfunction
 
-function ActionValue#(t) pop(ifc f)
-   provisos (ToGet#(ifc, t));
+function ActionValue#(t) pop(ifc f) provisos (ToGet#(ifc, t));
    return toGet(f).get;
+endfunction
+
+function ActionValue#(Bit #(32)) getCurrentCycle;
+    actionvalue
+	    Bit#(32) t <- $stime;
+	    return t / 10;
+    endactionvalue
 endfunction
 
 export Memory::*, RVCommon::*, PGTypes::*;

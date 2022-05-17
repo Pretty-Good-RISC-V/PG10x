@@ -12,7 +12,7 @@ module mkSoCAddressMap(SoCAddressMap);
     FabricAddress _uart0Base = 'h0020_1000;
     FabricAddress _uart0Size = 'h0000_1000;     // 4K
     FabricAddress _uart0End  = _uart0Base + _uart0Size;
-    TileId        _uart0Id   = 4;
+    Integer       _uart0Id   = 4;
 
     FabricAddress _rom0Base  = 'h0040_0000;
     FabricAddress _rom0Size  = 'h0800_0000;     // 128M
@@ -38,7 +38,7 @@ module mkSoCAddressMap(SoCAddressMap);
     method FabricAddress uart0Base = _uart0Base;
     method FabricAddress uart0Size = _uart0Size;
     method FabricAddress uart0End  = _uart0End;
-    method TileId uart0Id          = _uart0Id;
+    method Integer uart0Id         = _uart0Id;
 
     method FabricAddress rom0Base  = _rom0Base;
     method FabricAddress rom0Size  = _rom0Size;

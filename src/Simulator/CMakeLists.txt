@@ -10,7 +10,7 @@ target_link_libraries(Simulator
     Core::Core
     Crossbar::Crossbar
     RVCommon::RVCommon
-    Support::Support
+    ProgramMemoryTile::ProgramMemoryTile
 )
 
 target_compile_definitions(Simulator PUBLIC
@@ -29,14 +29,14 @@ if (NOT ENABLE_BRANCH_PREDICTION)
     )
 endif()
 
-if (NOT ENABLE_PIPELINING)
+if (ENABLE_PIPELINING)
     target_compile_definitions(Simulator PUBLIC
-        DISABLE_PIPELINING
+        ENABLE_PIPELINING
     )
 endif()
 
-if (ENABLE_ISA_TESTS)
+if (ENABLE_SIMULATION)
     target_compile_definitions(Simulator PUBLIC
-        ENABLE_ISA_TESTS
+        ENABLE_SIMULATION
     )
 endif()

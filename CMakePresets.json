@@ -12,6 +12,7 @@
       "hidden": true,
       "generator": "Unix Makefiles",
       "binaryDir": "${sourceDir}/build/${presetName}",
+      "installDir": "${sourceDir}/install/${presetName}",
       "environment": {
         "CTEST_OUTPUT_ON_FAILURE": "True"
       },
@@ -24,25 +25,57 @@
     },
     {
       "name": "pg101",
-      "displayName": "PG101 (RV32I)",
       "inherits": "base",
+      "hidden": true,
       "cacheVariables": {
         "BASE_ISA": {
           "type": "STRING",
           "value": "RV32"
+        },
+        "ENABLE_PIPELINING": {
+          "type": "BOOL",
+          "value": "ON"
+        },
+        "ENABLE_SIMULATION": {
+          "type": "BOOL",
+          "value": "OFF"
         }
       }
     },
     {
+      "name": "pg101_verilog",
+      "displayName": "PG101 (RV32I) SoC Verilog",
+      "inherits": "pg101"
+    },
+    {
+      "name": "pg101_simulation",
+      "inherits": "pg101",
+      "hidden": true,
+      "cacheVariables": {
+        "ENABLE_SIMULATION": {
+          "type": "BOOL",
+          "value": "ON"
+        },
+        "ENABLE_INSTRUCTION_LOGGING": {
+          "type": "BOOL",
+          "value": "ON"
+        }
+      }
+    },    
+    {
       "name": "pg101_isa_tests",
       "displayName": "PG101 (RV32I) ISA_TESTS",
-      "inherits": "pg101",
+      "inherits": "pg101_simulation",
       "cacheVariables": {
         "ENABLE_ISA_TESTS": {
           "type": "BOOL",
           "value": "ON"
         },
         "ENABLE_INSTRUCTION_LOGGING": {
+          "type": "BOOL",
+          "value": "ON"
+        },
+        "ENABLE_PIPELINING": {
           "type": "BOOL",
           "value": "ON"
         }
@@ -51,7 +84,7 @@
     {
       "name": "pg101_riscof_tests",
       "displayName": "PG101 (RV32I) RISCOF_TESTS",
-      "inherits": "pg101",
+      "inherits": "pg101_simulation",
       "cacheVariables": {
         "ENABLE_RISCOF_TESTS": {
           "type": "BOOL",
@@ -64,41 +97,41 @@
       }
     },
     {
-      "name": "pg101_verilog",
-      "displayName": "PG101 (RV32I) SoC Verilog",
+      "name": "pg103",
       "inherits": "base",
+      "hidden": true,
       "cacheVariables": {
         "BASE_ISA": {
           "type": "STRING",
-          "value": "RV32"
+          "value": "RV64"
         },
-        "ENABLE_SOC_VERILOG_OUTPUT": {
+        "ENABLE_PIPELINING": {
           "type": "BOOL",
           "value": "ON"
         }
       }
     },
     {
-      "name": "pg103",
-      "displayName": "PG103 (RV64I)",
-      "inherits": "base",
+      "name": "pg103_simulation",
+      "hidden": true,
+      "inherits": "pg103",
       "cacheVariables": {
-        "BASE_ISA": {
-          "type": "STRING",
-          "value": "RV64"
+        "ENABLE_SIMULATION": {
+          "type": "BOOL",
+          "value": "ON"
+        },
+        "ENABLE_INSTRUCTION_LOGGING": {
+          "type": "BOOL",
+          "value": "ON"
         }
       }
     },
     {
       "name": "pg103_isa_tests",
       "displayName": "PG103 (RV64I) ISA_TESTS",
-      "inherits": "pg103",
+      "inherits": "pg103_simulation",
       "cacheVariables": {
         "ENABLE_ISA_TESTS": {
-          "type": "BOOL",
-          "value": "ON"
-        },
-        "ENABLE_INSTRUCTION_LOGGING": {
           "type": "BOOL",
           "value": "ON"
         }
@@ -107,13 +140,9 @@
     {
       "name": "pg103_riscof_tests",
       "displayName": "PG103 (RV64I) RISCOF_TESTS",
-      "inherits": "pg103",
+      "inherits": "pg103_simulation",
       "cacheVariables": {
         "ENABLE_RISCOF_TESTS": {
-          "type": "BOOL",
-          "value": "ON"
-        },
-        "ENABLE_INSTRUCTION_LOGGING": {
           "type": "BOOL",
           "value": "ON"
         }
@@ -122,26 +151,24 @@
   ],
   "buildPresets": [
     {
-      "name": "default",
-      "configurePreset": "default"
-    }
-  ],
-  "testPresets": [
+      "name": "pg101_isa_tests",
+      "displayName": "PG101 (RV32I) ISA_TESTS",
+      "configurePreset": "pg101_isa_tests"
+    },
     {
-      "name": "default",
-      "configurePreset": "default",
-      "output": {
-        "outputOnFailure": true
-      },
-      "execution": {
-        "noTestsAction": "error",
-        "stopOnFailure": true
-      }
+      "name": "pg101_riscof_tests",
+      "displayName": "PG101 (RV32I) RISCOF_TESTS",
+      "configurePreset": "pg101_riscof_tests"
+    },
+    {
+      "name": "pg103_isa_tests",
+      "displayName": "PG103 (RV64I) ISA_TESTS",
+      "configurePreset": "pg103_isa_tests"
+    },
+    {
+      "name": "pg103_riscof_tests",
+      "displayName": "PG103 (RV64I) RISCOF_TESTS",
+      "configurePreset": "pg103_riscof_tests"
     }
-  ],
-  "vendor": {
-    "example.com/ExampleIDE/1.0": {
-      "autoFormat": false
-    }
-  }
+  ]
 }

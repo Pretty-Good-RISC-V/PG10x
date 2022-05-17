@@ -353,7 +353,7 @@ module mkLoadStore_tb(Empty);
     rule store_request_test(state == STORE_REQUEST_TEST);
         let testCase = storeTestCases[testNumber];
 
-        let result = getStoreRequest(
+        let result = createStoreRequest(
             testCase.storeOperator, 
             testCase.effectiveAddress, 
             testCase.value);
@@ -379,7 +379,7 @@ module mkLoadStore_tb(Empty);
     rule load_request_test(state == LOAD_REQUEST_TEST);
         let testCase = loadTestCases[testNumber];
 
-        let result = getLoadRequest(
+        let result = createLoadRequest(
             testCase.loadOperator, 
             1, 
             testCase.effectiveAddress);

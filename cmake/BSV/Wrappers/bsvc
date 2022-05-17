@@ -18,6 +18,15 @@ function log
     fi
 }
 
+function getabspath 
+{
+    if [ -d "$1" ]; then 
+        echo $(cd "$1"; pwd); 
+    else
+        echo $(cd $(dirname "$1"); pwd)/$(basename "$1"); 
+    fi
+}
+
 BSV_COMPILER="bsc"
 COMMAND_LINE=$*
 
@@ -37,9 +46,13 @@ OUTPUT=""
 TARGET=""
 INCLUDE_DIRECTORIES=("%/Libraries")
 COMPILE=true
-LINK=false
+LINK=""
 DEFINITIONS=""
+OUTPUT_TYPE="-sim"
 POSITIONAL=()
+VERILOG=""
+VDIR_SPEC=""
+TOP_MODULE_SWITCH="-e"
 
 while [[ $# -gt 0 ]]; do
     key="$1"
@@ -66,6 +79,12 @@ while [[ $# -gt 0 ]]; do
             shift # past argument
             shift # past value
             ;;
+        --verilog)
+            OUTPUT_TYPE="-verilog"
+            VERILOG="true"
+            TOP_MODULE_SWITCH="-g"
+            shift
+            ;;
         -v|--verbose)
             VERBOSE=true
             shift # past argument
@@ -91,7 +110,7 @@ while [[ $# -gt 0 ]]; do
             fi
             shift # past argument
             ;;
-  esac
+    esac
 done
 
 log "[bsvc] COMMAND_LINE: $COMMAND_LINE"
@@ -114,39 +133,55 @@ if [ -z "$OUTPUT" ]; then
     exit 1
 fi
 
-if [ "$LINK" == "true" ]; then
-    INPUT_FILE=${POSITIONAL[0]}
+# Determine the output directory based on the dirname of the output specified
+OUTPUT_DIR=$(dirname "$OUTPUT")
+INPUT_FILE=${POSITIONAL[0]}
+SOURCE_DIR=$(dirname "$INPUT_FILE")
+
+# Create the include directory spec by joining all directories specified
+# delimited by a colon ':'
+#
+INCLUDE_DIRECTORIES_SPEC=$(join_by : "${INCLUDE_DIRECTORIES[@]}")
+
+BSC_COMMON="-show-schedule -u -q -check-assert"
+BSC_COMMON="$BSC_COMMON -bdir $OUTPUT_DIR -simdir $OUTPUT_DIR -info-dir $OUTPUT_DIR -vdir $OUTPUT_DIR"
+BSC_COMMON="$BSC_COMMON -p $SOURCE_DIR:$INCLUDE_DIRECTORIES_SPEC"
+#BSC_COMMON="$BSC_COMMON -aggressive-conditions"
+
+if [ "$VERILOG" == "true" ]; then
+    log "[bsvc] Verilog Output..."
+    if [ "$LINK" == "" ]; then
+        unset POSITIONAL[0]
+
+        TOP_MODULE=mk$(basename "$INPUT_FILE" .bsv)
+        log "[bsvc] Creating verilog file (wrapped as a .bo) "$OUTPUT" for top module $TOP_MODULE"
+
+        log "[bsvc] BSV COMMAND LINE: $BSV_COMPILER $BSC_COMMON $OUTPUT_TYPE $DEFINITIONS $TOP_MODULE_SWITCH $TOP_MODULE -o $OUTPUT ${POSITIONAL[@]} $INPUT_FILE"
+
+        OUTPUT_DIR="$(dirname $OUTPUT)"
+        OUTPUT_FILENAME="$(basename $OUTPUT)"
+
+        VERILOG_FILENAME="$OUTPUT_DIR/mk$(basename $OUTPUT .bsv.bo).v"
+
+        $BSV_COMPILER $BSC_COMMON $OUTPUT_TYPE $DEFINITIONS $TOP_MODULE_SWITCH $TOP_MODULE ${POSITIONAL[@]} "$INPUT_FILE"
+    else
+        log "[bsvc] copying $INPUT_FILE to $OUTPUT"
+
+        cp "$(dirname $INPUT_FILE)/"*.v "$(dirname $OUTPUT)"
+    fi
+elif [ "$LINK" == "true" ]; then
     unset POSITIONAL[0]
 
     TOP_MODULE=mk$(basename "$INPUT_FILE" .bsv.bo)
+    log "[bsvc] Creating file $(basename "$OUTPUT") for topmodule $TOP_MODULE"
 
-    log "[bsvc] Creating bsim file $(basename "$OUTPUT") for topmodule $TOP_MODULE"
+    log "[bsvc] BSV COMMAND LINE: $BSV_COMPILER $BSC_COMMON $OUTPUT_TYPE $DEFINITIONS $TOP_MODULE_SWITCH $TOP_MODULE -o \"$OUTPUT\" ${POSITIONAL[@]}"
 
-    # Create the include directory spec by joining all directories specified
-    # delimited by a colon ':'
-    #
-    INCLUDE_DIRECTORIES_SPEC=$(join_by : "${INCLUDE_DIRECTORIES[@]}")
-
-    # Determine the output directory based on the dirname of the output specified
-    OUTPUT_DIR=$(dirname "$OUTPUT")
-    SOURCE_DIR=$(dirname "$INPUT_FILE")
-
-    # Run the compiler
-    $BSV_COMPILER -show-schedule -sim -q -u -check-assert -e $TOP_MODULE -bdir "$OUTPUT_DIR" -p "$SOURCE_DIR:$INCLUDE_DIRECTORIES_SPEC" -o "$OUTPUT" ${POSITIONAL[@]}
+    # Run the linker
+    $BSV_COMPILER $BSC_COMMON $OUTPUT_TYPE $DEFINITIONS $TOP_MODULE_SWITCH $TOP_MODULE -o "$OUTPUT" ${POSITIONAL[@]}
 else
-    INPUT_FILE=${POSITIONAL[0]}
-
     log "[bsvc] Creating object file $(basename "$INPUT_FILE" .bsv).bo"
 
-    # Create the include directory spec by joining all directories specified
-    # delimited by a colon ':'
-    #
-    INCLUDE_DIRECTORIES_SPEC=$(join_by : "${INCLUDE_DIRECTORIES[@]}")
-
-    # Determine the output directory based on the dirname of the output specified
-    OUTPUT_DIR=$(dirname "$OUTPUT")
-    SOURCE_DIR=$(dirname "$INPUT_FILE")
-
     # Run the compiler
-    $BSV_COMPILER -show-schedule -q $DEFINITIONS -check-assert -u -sim -bdir "$OUTPUT_DIR" -simdir "$OUTPUT_DIR" -info-dir "$OUTPUT_DIR" -p "$INCLUDE_DIRECTORIES_SPEC:$SOURCE_DIR" "$INPUT_FILE"
+    $BSV_COMPILER $BSC_COMMON $OUTPUT_TYPE $DEFINITIONS "$INPUT_FILE"
 fi

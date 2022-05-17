@@ -1,0 +1,4 @@
+set ::env(PROGRAM_MEMORY_FILE) ${ISA_TEST_BINARY}
+namespace import ::Bluetcl::*
+sim load ${CMAKE_BINARY_DIR}/src/ISATestHost/ISATestHost.so mkISATestHost
+sim arg verbose

@@ -9,6 +9,14 @@ https://github.com/riscv-software-src/homebrew-riscv/issues/47[See here for info
 * If running into link errors building on M1, be sure to specify (via LIBRARY_PATH) where
 libraries are located inside homebrew (e.g. LIBRARY_PATH=/opt/homebrew/lib)
 
+== Linux notes
+* If unable to use gpg-agent over ssh, try:
+[source,shell]
+----
+$ export GPG_TTY=$(tty)
+$ gpg-connect-agent updatestartuptty /bye
+----
+
 == Links
 https://www.kvakil.me/venus/[Instruction Stream Generator] +
 https://github.com/riscv-software-src/homebrew-riscv[RISC-V Toolchain for MacOS] +

@@ -1,16 +1,17 @@
 import PGTypes::*;
 
+import ALU::*;
+import BypassController::*;
 import Debug::*;
 import DecodeUnit::*;
-import TrapController::*;
 import ExecutionUnit::*;
 import FetchUnit::*;
 import GPRFile::*;
 import MemoryAccessUnit::*;
 import PipelineController::*;
-import ProgramCounterRedirect::*;
 import Scoreboard::*;
 import TileLink::*;
+import TrapController::*;
 import WritebackUnit::*;
 
 import Connectable::*;
@@ -21,7 +22,7 @@ import SpecialFIFOs::*;
 
 // ================================================================
 // Exports
-export HARTState(..), HART (..), mkHART;
+export HARTState(..), HART (..), mkHART, MemoryAccess;
 
 //
 // HARTState - roughy follows the RISC-V debug spec for hart states.
@@ -41,16 +42,15 @@ interface HART;
     method Action start;
     method HARTState getState;
 
-    interface StdTileLinkClient instructionMemoryClient;
+    interface Get#(Maybe#(StdTileLinkRequest)) getInstructionMemoryRequest;
+    interface Put#(StdTileLinkResponse) putInstructionMemoryResponse;
     interface StdTileLinkClient dataMemoryClient;
 
-    interface Put#(Bool) putPipeliningDisabled;
+    interface Put#(Bool) putPipeliningEnabled;
 
     interface Debug debug;
 
-`ifdef ENABLE_ISA_TESTS
-    interface Put#(Maybe#(Word)) putToHostAddress;
-`endif
+    interface Get#(Maybe#(MemoryAccess)) getMemoryAccess;
 
 `ifdef ENABLE_RISCOF_TESTS
     interface Get#(Bool) getRISCOFHaltRequested;
@@ -74,27 +74,12 @@ endinterface
 module mkHART#(
     ProgramCounter initialProgramCounter
 )(HART);
-    Reg#(Bool) forcePipeliningDisabled <- mkReg(False); // External pipeline control
-    Reg#(Bool) pipeliningDisabled <- mkReg(False);      // Internal pipeline enable/disable
-
-`ifdef ENABLE_ISA_TESTS
-    Reg#(Maybe#(Word)) toHostAddress <- mkReg(tagged Invalid);
-`endif
+    Reg#(Bool) pipeliningEnabled <- mkReg(True);
 
     //
     // HARTState
     //
     Reg#(HARTState) hartState <- mkReg(RESET);
-
-    //
-    // Cycle counter
-    //
-    Reg#(Word64) cycleCounter <- mkReg(0);
-
-    //
-    // CPU Halt Flag
-    //
-    Reg#(Bool) halt <- mkReg(False);
 
     //
     // GPR File
@@ -112,14 +97,9 @@ module mkHART#(
     Scoreboard#(4) scoreboard <- mkScoreboard;
 
     //
-    // Pipeline stage epochs
+    // Pipeline controller
     //
-    PipelineController pipelineController <- mkPipelineController(6 /* stage count */);
-
-    //
-    // Program Counter Redirect
-    //
-    ProgramCounterRedirect programCounterRedirect <- mkProgramCounterRedirect;
+    PipelineController pipelineController <- mkPipelineController(7 /* stage count */);
 
     //
     // Program Counter
@@ -129,72 +109,68 @@ module mkHART#(
     //
     // Stage 1 - Instruction fetch
     //
-    Reg#(Bool) fetchEnabled <- mkReg(False);
     FetchUnit fetchUnit <- mkFetchUnit(
-        1,  // stage number
-        programCounter,
-        programCounterRedirect
+        programCounter
     );
-
-    mkConnection(toGet(cycleCounter), fetchUnit.putCycleCounter);
-    mkConnection(toGet(fetchEnabled), fetchUnit.putFetchEnabled);
 
     //
     // Stage 2 - Instruction Decode
     //
     DecodeUnit decodeUnit <- mkDecodeUnit(
-        2,  // stage number
         pipelineController,
         gprFile,
         trapController.csrFile,
         scoreboard
     );
 
-    mkConnection(toGet(cycleCounter), decodeUnit.putCycleCounter);
-    mkConnection(fetchUnit.getEncodedInstruction, decodeUnit.putEncodedInstruction);
+    let fu_du_encodedInstruction <- mkConnection(fetchUnit.getEncodedInstruction, decodeUnit.putEncodedInstruction);
 
     //
     // Stage 3 - Instruction execution
     //
     ExecutionUnit executionUnit <- mkExecutionUnit(
-        3,  // stage number
         pipelineController,
-        programCounterRedirect,
         trapController,
         scoreboard
     );
 
-    mkConnection(toGet(cycleCounter), executionUnit.putCycleCounter);
-    mkConnection(decodeUnit.getDecodedInstruction, executionUnit.putDecodedInstruction);
-    mkConnection(executionUnit.getGPRBypassValue, decodeUnit.putGPRBypassValue1);
-    mkConnection(toGet(halt), executionUnit.putHalt);
+    let du_eu_decodedInstruction <- mkConnection(decodeUnit.getDecodedInstruction, executionUnit.putDecodedInstruction);
+
+    // Bypasses from the execution unit to the fetch unit
+    let euBranchRedirect_fuPutBranchRedirect <- mkConnection(executionUnit.getBranchProgramCounterRedirection, fetchUnit.putBranchProgramCounter);
+
+    // Bypasses from the execution unit to the decode unit
+    let eu_du_executionDestination <- mkConnection(executionUnit.getExecutionDestination, decodeUnit.putExecutionDestination);
+    let eu_du_executionResult <- mkConnection(executionUnit.getExecutionResult, decodeUnit.putExecutionResult);
+    let eu_du_loadDestination <- mkConnection(executionUnit.getLoadDestination, decodeUnit.putLoadDestination);
 
     //
     // Stage 4 - Memory access
     //
-    MemoryAccessUnit memoryAccessUnit <- mkMemoryAccessUnit(
-        4,
-        pipelineController
-    );
+    MemoryAccessUnit memoryAccessUnit <- mkMemoryAccessUnit;
 
-    mkConnection(toGet(cycleCounter), memoryAccessUnit.putCycleCounter);
-    mkConnection(executionUnit.getExecutedInstruction, memoryAccessUnit.putExecutedInstruction);
-    mkConnection(memoryAccessUnit.getGPRBypassValue, decodeUnit.putGPRBypassValue2);
+    let eu_mau_executedInstruction <- mkConnection(executionUnit.getExecutedInstruction, memoryAccessUnit.putExecutedInstruction);
+
+    // Bypass from the memory unit to the decode unit
+    let mau_du_loadResult <- mkConnection(memoryAccessUnit.getLoadResult, decodeUnit.putLoadResult);
 
     // 
     // Stage 5 - Register Writeback
     //
     WritebackUnit writebackUnit <- mkWritebackUnit(
-        5,
         pipelineController,
-        programCounterRedirect,
         gprFile,
         trapController,
         scoreboard
     );
 
-    mkConnection(toGet(cycleCounter), writebackUnit.putCycleCounter);
-    mkConnection(memoryAccessUnit.getExecutedInstruction, writebackUnit.putExecutedInstruction);
+    let mau_wb_executedInstruction <- mkConnection(memoryAccessUnit.getWritebackInstruction, writebackUnit.putWritebackInstruction);
+
+    // Bypasses from the writeback unit to the program counter redirect
+    let wb_fu_exceptionProgramCounter <- mkConnection(writebackUnit.getExceptionProgramCounterRedirection, fetchUnit.putExceptionProgramCounter);
+
+    // Connection to allow unpipelined operation
+    let wb_fu_instructionRetired <- mkConnection(writebackUnit.getInstructionRetired, fetchUnit.putExecuteSingleInstruction);
 
     //
     // State handlers
@@ -239,21 +215,20 @@ module mkHART#(
     // RUNNING
     //
     Reg#(Bool) firstRun <- mkReg(True);
+    (* fire_when_enabled *)
     rule handleRunningState(hartState == RUNNING);
         if (firstRun) begin
             $display("FetchIndex,Cycle,Pipeline Epoch,Program Counter,Stage Number,Stage Name,Info");
 
-            fetchEnabled <= True;
+            fetchUnit.putAutoFetchEnabled.put(True);
             firstRun <= False;
         end
 
-        if ((forcePipeliningDisabled || pipeliningDisabled) && !firstRun) begin
-            let wasRetired = writebackUnit.wasInstructionRetired;
-            if (wasRetired) begin
-                fetchEnabled <= True;
-            end else begin
-                fetchEnabled <= False;
-            end
+        if (!pipeliningEnabled && !firstRun) begin
+            // let wasRetired = writebackUnit.wasInstructionRetired;
+            // if (wasRetired) begin
+            //     fetchUnit.step;
+            // end
         end
     endrule
 
@@ -261,8 +236,7 @@ module mkHART#(
     // HALTING
     //
     rule handleHaltingState(hartState == HALTING);
-        fetchEnabled <= False;
-        pipeliningDisabled <= True;
+        fetchUnit.putAutoFetchEnabled.put(False);
 
         // Wait for the pipeline to flush
         if (haltDelay > 0) begin
@@ -273,27 +247,13 @@ module mkHART#(
     endrule
 
     //
-    // HALTED
-    //
-    // rule handleHaltedState(hartState == HALTED);
-    // endrule
-
-    //
     // RESUMING
     //
     rule handleResumingState(hartState == RESUMING);
-        fetchEnabled <= True;
-        pipeliningDisabled <= False;
+        fetchUnit.putAutoFetchEnabled.put(True);
         changeState(RUNNING);
     endrule
 
-    //
-    // STEPPING
-    //
-    rule handleSteppingState(hartState == STEPPING);
-        fetchEnabled <= True;   // For a single cycle
-        changeState(HALTING);
-    endrule
     //
     // QUITTING
     //
@@ -311,7 +271,6 @@ module mkHART#(
 
     (* fire_when_enabled, no_implicit_conditions *)
     rule incrementCycleCounter;
-        cycleCounter <= cycleCounter + 1;
         trapController.csrFile.increment_cycle_counter;
     endrule
 
@@ -325,9 +284,11 @@ module mkHART#(
         return hartState;
     endmethod
 
-    interface TileLinkLiteWordClient instructionMemoryClient = fetchUnit.instructionMemoryClient;
+    interface Get getInstructionMemoryRequest = fetchUnit.getInstructionMemoryRequest;
+    interface Put putInstructionMemoryResponse = fetchUnit.putInstructionMemoryResponse;
+
     interface TileLinkLiteWordClient dataMemoryClient = memoryAccessUnit.dataMemoryClient;
-    interface Put putPipeliningDisabled = toPut(asIfc(forcePipeliningDisabled));
+    interface Put putPipeliningEnabled = toPut(asIfc(pipeliningEnabled));
 
     interface Debug debug;
         method Word readGPR(RVGPRIndex idx);
@@ -357,9 +318,7 @@ module mkHART#(
         endmethod
     endinterface
 
-`ifdef ENABLE_ISA_TESTS
-    interface Put putToHostAddress = memoryAccessUnit.putToHostAddress;
-`endif
+    interface Get getMemoryAccess = memoryAccessUnit.getMemoryAccess;
 
 `ifdef ENABLE_RISCOF_TESTS
     interface Get getRISCOFHaltRequested = writebackUnit.getRISCOFHaltRequested;
