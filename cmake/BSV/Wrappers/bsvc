@@ -143,10 +143,9 @@ SOURCE_DIR=$(dirname "$INPUT_FILE")
 #
 INCLUDE_DIRECTORIES_SPEC=$(join_by : "${INCLUDE_DIRECTORIES[@]}")
 
-BSC_COMMON="-show-schedule -u -q -check-assert"
+BSC_COMMON="-aggressive-conditions -show-schedule -u -q -check-assert"
 BSC_COMMON="$BSC_COMMON -bdir $OUTPUT_DIR -simdir $OUTPUT_DIR -info-dir $OUTPUT_DIR -vdir $OUTPUT_DIR"
 BSC_COMMON="$BSC_COMMON -p $SOURCE_DIR:$INCLUDE_DIRECTORIES_SPEC"
-#BSC_COMMON="$BSC_COMMON -aggressive-conditions"
 
 if [ "$VERILOG" == "true" ]; then
     log "[bsvc] Verilog Output..."

@@ -1,5 +1,4 @@
 add_subdirectory(Caches)
-add_subdirectory(CoreCommon)
 add_subdirectory(DebugModule)
 add_subdirectory(HART)
 
