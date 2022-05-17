@@ -2,6 +2,7 @@ add_subdirectory(Caches)
 add_subdirectory(CoreCommon)
 add_subdirectory(DebugModule)
 add_subdirectory(HART)
+add_subdirectory(HART2)
 
 add_library(Core INTERFACE)
 add_library(Core::Core ALIAS Core)
