@@ -1,11 +1,10 @@
-add_subdirectory(CSRFile)
-
 add_library(HART INTERFACE)
 add_library(HART::HART ALIAS HART)
 
 target_include_directories(HART INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(HART INTERFACE
     Common::Common
+    CoreCommon::CoreCommon
     CSRFile::CSRFile
     TileLink::TileLink
 )
@@ -34,6 +33,7 @@ if(ENABLE_SIMULATION)
         target_link_libraries(${TEST_TARGET}
             RVCommon::RVCommon
             Common::Common
+            CoreCommon::CoreCommon
             CSRFile::CSRFile
             TileLink::TileLink
         )
