@@ -1,0 +1,152 @@
+#!/bin/bash
+#
+# Bluespec compiler driver for CMake
+#
+set -e
+
+function join_by 
+{ 
+    local IFS="$1"; shift; echo "$*"; 
+}
+
+VERBOSE=false
+
+function log
+{
+    if [ "$VERBOSE" == "true" ]; then 
+        echo "$*"
+    fi
+}
+
+BSV_COMPILER="bsc"
+COMMAND_LINE=$*
+
+#
+# verify compiler exists
+#
+if ! command -v $BSV_COMPILER &> /dev/null
+then
+    echo "[bsvc] ERROR: bsc executable could not be found in system PATH."
+    exit 1
+fi
+
+#
+# Parse options
+#
+OUTPUT=""
+TARGET=""
+INCLUDE_DIRECTORIES=("%/Libraries")
+COMPILE=true
+LINK=false
+DEFINITIONS=""
+POSITIONAL=()
+
+while [[ $# -gt 0 ]]; do
+    key="$1"
+
+    case $key in
+        -o|--output)
+            OUTPUT="$2"
+            shift # past argument
+            shift # past value
+            ;;
+        -I)
+            log "[bsvc] Library Include Directory Specified: $2"
+            INCLUDE_DIRECTORIES+=("$2")
+            shift # past argument
+            shift # past value
+            ;;
+        --link)
+            LINK=true
+            COMPILE=false
+            shift
+            ;;
+        -t)
+            TARGET=$2
+            shift # past argument
+            shift # past value
+            ;;
+        -v|--verbose)
+            VERBOSE=true
+            shift # past argument
+            ;;
+        -D*)
+            DEFINITIONS="$DEFINITIONS -D ${1:2}"
+            log "[bsvc] Definition added: ${1:2}"
+            shift
+            ;;
+        -L*)
+            log "[bsvc] Ignoring library specification: ${key}"
+            shift
+            ;;
+        -l*)
+            log "[bsvc] Ignoring library specification: ${key}"
+            shift
+            ;;
+        *)    # unknown option
+            # If it's a directory, assume it's an include directory
+            if [ "$TARGET" == "" ] || [[ $1 != *$TARGET ]]; then
+                POSITIONAL+=("$1")
+                log "[bsvc] Adding optional argument: $1"
+            fi
+            shift # past argument
+            ;;
+  esac
+done
+
+log "[bsvc] COMMAND_LINE: $COMMAND_LINE"
+
+if [ ${#POSITIONAL[@]} -eq 0 ]; then
+    echo "[bsvc] ERROR: No input files specified."
+    echo "[bsvc] Command line given: $COMMAND_LINE"
+    exit 1
+fi
+
+if [ ${#POSITIONAL[@]} -gt 1 ] && [ "$COMPILE" == "true" ]; then
+    echo "[bsvc] ERROR: Extra arguments detected."
+    echo "[bsvc] Command line given: $COMMAND_LINE"
+    exit 1
+fi
+
+if [ -z "$OUTPUT" ]; then
+    echo "[bsvc] ERROR: -o option is required"
+    echo "[bsvc] Command line given: $COMMAND_LINE"
+    exit 1
+fi
+
+if [ "$LINK" == "true" ]; then
+    INPUT_FILE=${POSITIONAL[0]}
+    unset POSITIONAL[0]
+
+    TOP_MODULE=mk$(basename "$INPUT_FILE" .bsv.bo)
+
+    log "[bsvc] Creating bsim file $(basename "$OUTPUT") for topmodule $TOP_MODULE"
+
+    # Create the include directory spec by joining all directories specified
+    # delimited by a colon ':'
+    #
+    INCLUDE_DIRECTORIES_SPEC=$(join_by : "${INCLUDE_DIRECTORIES[@]}")
+
+    # Determine the output directory based on the dirname of the output specified
+    OUTPUT_DIR=$(dirname "$OUTPUT")
+    SOURCE_DIR=$(dirname "$INPUT_FILE")
+
+    # Run the compiler
+    $BSV_COMPILER -show-schedule -sim -q -u -check-assert -e $TOP_MODULE -bdir "$OUTPUT_DIR" -p "$SOURCE_DIR:$INCLUDE_DIRECTORIES_SPEC" -o "$OUTPUT" ${POSITIONAL[@]}
+else
+    INPUT_FILE=${POSITIONAL[0]}
+
+    log "[bsvc] Creating object file $(basename "$INPUT_FILE" .bsv).bo"
+
+    # Create the include directory spec by joining all directories specified
+    # delimited by a colon ':'
+    #
+    INCLUDE_DIRECTORIES_SPEC=$(join_by : "${INCLUDE_DIRECTORIES[@]}")
+
+    # Determine the output directory based on the dirname of the output specified
+    OUTPUT_DIR=$(dirname "$OUTPUT")
+    SOURCE_DIR=$(dirname "$INPUT_FILE")
+
+    # Run the compiler
+    $BSV_COMPILER -show-schedule -q $DEFINITIONS -check-assert -u -sim -bdir "$OUTPUT_DIR" -simdir "$OUTPUT_DIR" -info-dir "$OUTPUT_DIR" -p "$INCLUDE_DIRECTORIES_SPEC:$SOURCE_DIR" "$INPUT_FILE"
+fi
