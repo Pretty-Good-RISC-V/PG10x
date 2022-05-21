@@ -1,6 +1,5 @@
 import PGTypes::*;
 import Crossbar::*;
-import DebugModule::*;
 import ProgramMemoryTile::*;
 import ReadOnly::*;
 import SoCAddressMap::*;
