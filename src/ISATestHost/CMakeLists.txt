@@ -17,6 +17,6 @@ endif()
 target_link_libraries(ISATestHost 
     Core::Core
     Crossbar::Crossbar
-    RVCommon::RVCommon
+    PGRVCommon::PGRVCommon
     Support::Support
 )

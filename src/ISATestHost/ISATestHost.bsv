@@ -1,9 +1,9 @@
-import PGTypes::*;
+import PGRV::*;
 import Crossbar::*;
 import ProgramMemoryTile::*;
 import ReadOnly::*;
-import SoCAddressMap::*;
-import ISATestHostSocMap::*;
+import AddressMap::*;
+//import ISATestHostSocMap::*;
 
 import Connectable::*;
 import Core::*;
@@ -20,7 +20,7 @@ module mkISATestHost(Empty);
 `else
     ReadOnly#(Bool) enablePipelining <- mkReadOnly(True);
 `endif
-    SoCAddressMap socMap <- mkISATestHostSoCMap;
+    AddressMap socMap <- mkISATestHostSoCMap;
 
     // RAM
     ProgramMemoryTile ram <- mkProgramMemoryTile(socMap.ram0Id);

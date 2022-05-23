@@ -31,7 +31,7 @@ foreach(TEST_FILE ${TEST_FILES})
         ${BASE_ISA}
     )
     target_link_libraries(${TEST_TARGET}
-        RVCommon::RVCommon
+        PGRVCommon::PGRVCommon
         Common::Common
         CSRFile::CSRFile
         TileLink::TileLink
